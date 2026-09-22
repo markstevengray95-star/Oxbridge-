@@ -365,7 +365,7 @@ for (let i = 1; i <= 22; i++) {
     difficulties[(i + j) % 3],
     `Passage: ${passage}\n\n${q[0]}`,
     q[1],
-    q[2] as [string, string, string],
+    [...q[2]] as [string, string, string],
     "The passage repeatedly qualifies the main claim by context, so the safest conclusion is the one that preserves that qualification.",
     i + j,
   )))
