@@ -287,5 +287,5 @@ for (let i = 1; i <= 160; i++) {
   ))
 }
 
-export const expandedQuestionBank: TestQuestion[] = out
-export const expandedQuestionCount = out.length
+export const expandedQuestionBank: TestQuestion[] = out.filter(item => new Set(item.options).size === 4 && item.answer >= 0 && item.answer < 4)
+export const expandedQuestionCount = expandedQuestionBank.length
