@@ -511,12 +511,21 @@ export const testBlueprints: Record<TestName, TestBlueprint> = {
   },
 }
 
-function takeFromSection(test: TestName, section: string, count: number, seed: number) {
-  const pool = questionBank.filter(q => q.test === test && q.section === section)
+function deterministicTake(pool: TestQuestion[], count: number, seed: number) {
   if (!pool.length) return [] as TestQuestion[]
-  const out: TestQuestion[] = []
-  for (let i = 0; i < count; i++) out.push(pool[(seed * 7 + i * 13) % pool.length])
+  const out: TestQuestion[] = [], seen = new Set<string>()
+  for (let i = 0; i < pool.length * 3 && out.length < count; i++) {
+    const item = pool[(seed * 17 + i * 37) % pool.length]
+    if (!seen.has(item.id)) { seen.add(item.id); out.push(item) }
+  }
+  if (out.length < count) {
+    for (let i = 0; out.length < count; i++) out.push(pool[(seed + i) % pool.length])
+  }
   return out
+}
+
+function takeFromSection(test: TestName, section: string, count: number, seed: number) {
+  return deterministicTake(questionBank.filter(q => q.test === test && q.section === section), count, seed)
 }
 
 export function esatModulesForTrack(track: TrackId): [string, string] {
@@ -543,10 +552,7 @@ export function buildFullMock(test: TestName, track: TrackId, seed = 1): TestQue
     ...takeFromSection("TARA", "Critical Thinking", 22, seed),
     ...takeFromSection("TARA", "Problem Solving", 22, seed + 1),
   ]
-  if (test === "LNAT") {
-    const pool = questionBank.filter(q => q.test === "LNAT")
-    return Array.from({ length: 42 }, (_, i) => pool[(seed * 5 + i * 7) % pool.length])
-  }
+  if (test === "LNAT") return deterministicTake(questionBank.filter(q => q.test === "LNAT"), 42, seed)
   return [
     ...takeFromSection("UCAT", "Verbal Reasoning", 44, seed),
     ...takeFromSection("UCAT", "Decision Making", 35, seed + 1),
