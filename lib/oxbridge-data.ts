@@ -1,5 +1,5 @@
 export type TrackId = "maths" | "physical" | "life" | "law" | "humanities" | "economics" | "languages"
-export type University = "Oxford" | "Cambridge" | "Undecided"
+export type University = "Oxford" | "Cambridge" | "Both" | "Undecided"
 
 export type InterviewQuestion = {
   id: string
