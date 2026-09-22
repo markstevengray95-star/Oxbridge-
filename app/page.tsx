@@ -162,15 +162,20 @@ function AdmissionsTests({ track, progress, onResult, onToggleBookmark }: { trac
     return filtered.length ? filtered : bankForTest
   }, [bankForTest, section, difficultyFilter])
   const redoQuestions = useMemo(() => bankForTest.filter(q => progress.wrongQuestionIds.includes(q.id)), [bankForTest, progress.wrongQuestionIds])
+  const bookmarkedQuestions = useMemo(() => bankForTest.filter(q => progress.bookmarkedQuestionIds.includes(q.id)), [bankForTest, progress.bookmarkedQuestionIds])
   const mockQuestions = useMemo(() => buildFullMock(test, track, mockSeed), [test, track, mockSeed])
-  const practicePool = mode === "Redo mistakes" ? (redoQuestions.length ? redoQuestions : filteredPractice) : filteredPractice
+  const currentMockSection = mockQuestions[index]?.section ?? ""
+  const sectionMinutes = test === "TMUA" ? 75 : test === "ESAT" ? 40 : test === "TARA" ? 40 : test === "LNAT" ? 95 : currentMockSection === "Verbal Reasoning" ? 22 : currentMockSection === "Decision Making" ? 37 : currentMockSection === "Quantitative Reasoning" ? 26 : 26
+  const sectionTimer = useTimer(mode === "Full mock" ? sectionMinutes : 8), writingTimer = useTimer(40)
+  const practicePool = mode === "Redo mistakes" ? (redoQuestions.length ? redoQuestions : filteredPractice) : mode === "Bookmarks" ? (bookmarkedQuestions.length ? bookmarkedQuestions : filteredPractice) : filteredPractice
   const pool = mode === "Full mock" ? mockQuestions : practicePool
   const adaptiveIndex = mode === "Adaptive" && progress.testAttempted > 0 && progress.testCorrect / progress.testAttempted > .7 ? Math.max(index, Math.floor(pool.length / 3)) : index
   const question = pool[adaptiveIndex % Math.max(pool.length, 1)]
   const writingPrompts = writingPromptsFor(test, mockSeed)
   const mockCorrect = Object.entries(mockAnswers).filter(([i, answer]) => mockQuestions[Number(i)]?.answer === answer).length
   const mockAccuracy = mockQuestions.length ? Math.round(mockCorrect / mockQuestions.length * 100) : 0
-  const mockWrong = Object.entries(mockAnswers).map(([i, answer]) => ({ question: mockQuestions[Number(i)], answer })).filter(item => item.question && item.question.answer !== item.answer)\n  const sectionSummary = Array.from(new Set(mockQuestions.map(q => q.section))).map(name => {
+  const mockWrong = Object.entries(mockAnswers).map(([i, answer]) => ({ question: mockQuestions[Number(i)], answer })).filter(item => item.question && item.question.answer !== item.answer)
+  const sectionSummary = Array.from(new Set(mockQuestions.map(q => q.section))).map(name => {
     const indexes = mockQuestions.map((q, i) => q.section === name ? i : -1).filter(i => i >= 0)
     const answered = indexes.filter(i => mockAnswers[i] !== undefined)
     const correct = answered.filter(i => mockQuestions[i].answer === mockAnswers[i]).length
@@ -178,7 +183,8 @@ function AdmissionsTests({ track, progress, onResult, onToggleBookmark }: { trac
   })
 
   useEffect(() => { setTest(defaultTest) }, [track])
-  useEffect(() => { setIndex(0); setSelected(null); setChecked(false); setFlagged([]); setMockAnswers({}); setMockDone(false); setWritingPhase(false); setWritingChoice(0); setWritingAnswer(""); sectionTimer.reset(); writingTimer.reset() }, [test, mode, mockSeed])\n  useEffect(() => { if (mode === "Full mock" && currentMockSection) { sectionTimer.reset(); sectionTimer.setRunning(true) } }, [currentMockSection])
+  useEffect(() => { setIndex(0); setSelected(null); setChecked(false); setFlagged([]); setMockAnswers({}); setMockDone(false); setWritingPhase(false); setWritingChoice(0); setWritingAnswer(""); sectionTimer.reset(); writingTimer.reset() }, [test, mode, mockSeed])
+  useEffect(() => { if (mode === "Full mock" && currentMockSection) { sectionTimer.reset(); sectionTimer.setRunning(true) } }, [currentMockSection])
   const classify = (answer: number) => { if (answer === question.answer) return "Secure method"; const categories = ["Misread question", "Knowledge gap", "Logical error", "Calculation error", "Poor assumption", "Time-pressure error"]; return categories[(question.id.length + answer) % categories.length] }
   const next = () => { setIndex(i => (i + 1) % pool.length); setSelected(null); setChecked(false) }
   const submit = () => {
