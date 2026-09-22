@@ -12,14 +12,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { interviewQuestions, tracks, type TrackId, type University } from "@/lib/oxbridge-data"
 import { buildFullMock, questionBank, questionBankStats, testBlueprints, writingPromptsFor, type TestName } from "@/lib/question-bank"
-import { deadlines2027, generatedInterviewQuestion, pathwayDetails, pathwayFor, readingExtracts, teacherStudents, unseenMaterials, weeklyTemplate, type Interviewer, type Pressure } from "@/lib/oxbridge-expanded"\nimport { publishedForTrack } from "@/lib/published-interviews"
+import { deadlines2027, generatedInterviewQuestion, pathwayDetails, pathwayFor, readingExtracts, teacherStudents, unseenMaterials, weeklyTemplate, type Interviewer, type Pressure } from "@/lib/oxbridge-expanded"
+import { publishedForTrack } from "@/lib/published-interviews"
 
 type Result = { total: number; reasoning: number; subject: number; flexibility: number; clarity: number; strengths: string[]; nextSteps: string[]; error: string }
 type SessionLog = { id: string; title: string; score: number; date: string; events: string[] }
 type Activity = { title: string; type: string; learned: string; question: string }
 type SectionScore = { attempted: number; correct: number }
-type ProgressState = { sessions: number; interviewScores: number[]; testCorrect: number; testAttempted: number; streak: number; completed: string[]; mistakes: Record<string, number>; logs: SessionLog[]; activities: Activity[]; weeklyDone: number[]; wrongQuestionIds: string[]; sectionScores: Record<string, SectionScore> }
-const emptyProgress: ProgressState = { sessions: 0, interviewScores: [], testCorrect: 0, testAttempted: 0, streak: 0, completed: [], mistakes: {}, logs: [], activities: [], weeklyDone: [], wrongQuestionIds: [], sectionScores: {} }
+type ProgressState = { sessions: number; interviewScores: number[]; testCorrect: number; testAttempted: number; streak: number; completed: string[]; mistakes: Record<string, number>; logs: SessionLog[]; activities: Activity[]; weeklyDone: number[]; wrongQuestionIds: string[]; bookmarkedQuestionIds: string[]; sectionScores: Record<string, SectionScore> }
+const emptyProgress: ProgressState = { sessions: 0, interviewScores: [], testCorrect: 0, testAttempted: 0, streak: 0, completed: [], mistakes: {}, logs: [], activities: [], weeklyDone: [], wrongQuestionIds: [], bookmarkedQuestionIds: [], sectionScores: {} }
 
 function scoreAnswer(answer: string, concepts: string[]): Result {
   const clean = answer.trim().toLowerCase(), words = clean ? clean.split(/\s+/).length : 0
