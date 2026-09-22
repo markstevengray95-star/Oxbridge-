@@ -38,7 +38,7 @@ for (let i = 1; i <= 80; i++) {
   out.push(q(
     `x-tmua-grad-${i}`, "TMUA", "Applications of Mathematical Knowledge", diffs[(i + 1) % 3],
     `The points A(${x1}, ${y1}) and B(${x2}, ${y2}) lie on a straight line. What is its gradient?`,
-    String(m), [String(dx), String(y2 - y1), String((1 / m).toFixed(2))],
+    String(m), [String(m + 1), String(m + 2), String((1 / m).toFixed(2))],
     `Gradient = (change in y)/(change in x) = ${y2 - y1}/${dx} = ${m}.`, i + 1
   ))
 }
@@ -56,7 +56,7 @@ for (let i = 1; i <= 80; i++) {
   out.push(q(
     `x-tmua-prob-${i}`, "TMUA", "Mathematical Reasoning", diffs[i % 3],
     `A bag contains ${red} red and ${blue} blue counters. One counter is drawn uniformly at random. What is the probability it is red?`,
-    `${red}/${total}`, [`${blue}/${total}`, `${red}/${blue}`, `1/${total}`],
+    `${red}/${total}`, [`${red}/${total + 1}`, `${red + 1}/${total}`, `1/${total}`],
     `There are ${total} equally likely counters and ${red} favourable outcomes, so the probability is ${red}/${total}.`, i + 3
   ))
 }
@@ -67,7 +67,7 @@ for (let i = 1; i <= 80; i++) {
   out.push(q(
     `x-esat-m1-linear-${i}`, "ESAT", "Mathematics 1", diffs[i % 3],
     `Solve ${a}x − ${b} = ${rhs}.`, String(x),
-    [String(x + 1), String(Math.max(0, x - 1)), String(rhs + b)],
+    [String(x + 1), String(x + 2), String(x + 3)],
     `Add ${b}, then divide by ${a}: x = ${x}.`, i
   ))
 }
@@ -94,7 +94,7 @@ for (let i = 1; i <= 40; i++) {
   out.push(q(
     `x-esat-p-circuit-${i}`, "ESAT", "Physics", diffs[(i + 1) % 3],
     `A resistor of ${r} Ω has a potential difference of ${v} V across it. What current flows?`,
-    `${current.toFixed(2)} A`, [`${(v*r).toFixed(2)} A`, `${(r/v).toFixed(2)} A`, `${(v+r).toFixed(2)} A`],
+    `${current.toFixed(2)} A`, [`${(current + 1).toFixed(2)} A`, `${(current * 2).toFixed(2)} A`, `${(current + 3).toFixed(2)} A`],
     `I = V/R = ${v}/${r} = ${current.toFixed(2)} A.`, i + 1
   ))
 }
@@ -191,7 +191,7 @@ for (let i = 1; i <= 160; i++) {
   out.push(q(
     `x-tara-ps-${i}`, "TARA", "Problem Solving", diffs[(i + 1) % 3],
     `A team of ${workers} workers completes ${items} identical units in ${minutes} minutes at a constant team rate. How many units would the same team complete in ${newMinutes} minutes?`,
-    String(answer), [String(items + workers), String(answer - perTeam), String(items * workers)],
+    String(answer), [String(answer + workers), String(answer - workers), String(items + minutes)],
     `Doubling the time at the same team rate doubles output: ${items} → ${answer} units.`, i + 1
   ))
 }
