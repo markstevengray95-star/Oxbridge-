@@ -29,7 +29,7 @@ export const tracks: Array<{ id: TrackId; name: string; short: string; courses: 
   { id: "maths", name: "Mathematics & Computer Science", short: "Maths & CS", courses: ["Mathematics", "Computer Science", "Mathematics and Philosophy", "Mathematics and Computer Science"], skills: ["proof", "abstraction", "pattern-finding", "clear assumptions"], tests: ["TMUA", "STEP (Cambridge Mathematics offer holders)"] },
   { id: "physical", name: "Physics, Engineering & Chemistry", short: "Physical sciences", courses: ["Physics", "Engineering", "Chemistry", "Materials Science", "Earth Sciences"], skills: ["modelling", "estimation", "units", "experimental reasoning"], tests: ["ESAT for relevant Oxford/Cambridge courses"] },
   { id: "life", name: "Biology, Medicine & Natural Sciences", short: "Life sciences", courses: ["Medicine", "Biomedical Sciences", "Biology", "Natural Sciences", "Psychology"], skills: ["data interpretation", "mechanisms", "hypotheses", "ethical reasoning"], tests: ["UCAT for Medicine", "ESAT for selected science courses", "TARA for selected Oxford courses"] },
-  { id: "law", name: "Law", short: "Law", courses: ["Law", "Law with Law Studies in Europe", "Jurisprudence"], skills: ["logical argument", "counterexamples", "text analysis", "qualification"], tests: ["LNAT for Oxford Law", "Cambridge Law Test/college assessment where specified"] },
+  { id: "law", name: "Law", short: "Law", courses: ["Law", "Law with Law Studies in Europe", "Jurisprudence"], skills: ["logical argument", "counterexamples", "text analysis", "qualification"], tests: ["LNAT for Oxford and Cambridge Law"] },
   { id: "humanities", name: "History, Philosophy, Politics & Geography", short: "Humanities", courses: ["History", "Philosophy", "Politics", "Geography", "HSPS", "Theology"], skills: ["source evaluation", "conceptual distinctions", "evidence", "alternative interpretations"], tests: ["TARA for selected Oxford courses", "College assessment where specified"] },
   { id: "economics", name: "Economics, PPE & Management", short: "Economics & PPE", courses: ["Economics", "Economics and Management", "PPE", "Land Economy", "History and Economics"], skills: ["incentives", "trade-offs", "quantitative reasoning", "evaluating assumptions"], tests: ["TARA for selected Oxford courses", "TMUA for Cambridge Economics"] },
   { id: "languages", name: "English, Languages & Classics", short: "Languages & literature", courses: ["English", "Modern Languages", "Classics", "Linguistics", "Asian and Middle Eastern Studies"], skills: ["close reading", "interpretation", "language awareness", "defending a reading"], tests: ["Course or college assessment where specified"] },
@@ -80,6 +80,7 @@ export const courseTestMap: Record<string, string> = {
   "Cambridge Computer Science / Economics": "TMUA",
   "Cambridge Engineering / Natural Sciences / Chemical Engineering": "ESAT",
   "Cambridge Medicine": "UCAT",
+  "Cambridge Law": "LNAT",
   "Cambridge Mathematics": "TMUA at application; STEP is normally part of the offer",
   "Other courses": "Check the official course page: a college assessment may apply",
 }
