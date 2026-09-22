@@ -33,4 +33,4 @@ pnpm build
 
 Automated production-build verification runs on pull requests and pushes to `main`.
 \n## Interview-source policy\n\nThe published archive only uses material universities have made public. Oxford entries link to official tutor examples. Cambridge live interview questions are not reproduced because Cambridge requires interview confidentiality; the app links official Cambridge mock/example interview resources instead.\n
-CI installs the pinned pnpm version from `package.json` before running the production build, avoiding Corepack key drift on hosted runners.
+CI installs dependencies with npm before running the production build, avoiding hosted-runner Corepack and pnpm lifecycle-policy issues.
