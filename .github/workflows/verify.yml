@@ -21,11 +21,8 @@ jobs:
         with:
           node-version: "22.13"
 
-      - name: Install pnpm
-        run: npm install --global pnpm@11.25.0
-
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: npm install --legacy-peer-deps
 
       - name: Type-aware production build
-        run: pnpm build
+        run: npm run build
