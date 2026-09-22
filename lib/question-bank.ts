@@ -514,7 +514,7 @@ function takeFromSection(test: TestName, section: string, count: number, seed: n
   const pool = questionBank.filter(q => q.test === test && q.section === section)
   if (!pool.length) return [] as TestQuestion[]
   const out: TestQuestion[] = []
-  for (let i = 0; i < count; i++) out.push(pool[(seed * 7 + i * 11) % pool.length])
+  for (let i = 0; i < count; i++) out.push(pool[(seed * 7 + i * 13) % pool.length])
   return out
 }
 
