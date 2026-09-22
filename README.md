@@ -29,3 +29,6 @@ pnpm dev
 ```bash
 pnpm build
 ```
+
+
+Automated production-build verification runs on pull requests and pushes to `main`.
