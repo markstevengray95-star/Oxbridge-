@@ -1,4 +1,5 @@
-import type { TestQuestion, TrackId } from "@/lib/oxbridge-data"\nimport { expandedQuestionBank } from "@/lib/question-bank-expanded"
+import type { TestQuestion, TrackId } from "@/lib/oxbridge-data"
+import { expandedQuestionBank } from "@/lib/question-bank-expanded"
 
 export type TestName = TestQuestion["test"]
 
