@@ -154,3 +154,34 @@ aside [data-slot="tabs-trigger"] { width: 100%; flex: none; }
   .timeline-row > strong { grid-column: 2; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+
+
+/* Accessibility preferences saved locally by the preparation planner. */
+.a11y-large { font-size: 112%; }
+.a11y-large .text-xs { font-size: .82rem; }
+.a11y-large .text-sm { font-size: .98rem; }
+
+.a11y-contrast {
+  --muted-foreground: #374151;
+  --border: #64748b;
+}
+.a11y-contrast .text-muted-foreground { color: #374151 !important; }
+.a11y-contrast input,
+.a11y-contrast textarea,
+.a11y-contrast select,
+.a11y-contrast button { border-color: #64748b; }
+
+.a11y-reduced *,
+.a11y-reduced *::before,
+.a11y-reduced *::after {
+  scroll-behavior: auto !important;
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+}
+
+@media print {
+  header, aside, .timer, button, [role="tablist"] { display: none !important; }
+  main { background: white !important; }
+  .question-card, .rounded-xl, .border { break-inside: avoid; box-shadow: none !important; }
+}
