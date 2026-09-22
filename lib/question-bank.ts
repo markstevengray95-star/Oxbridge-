@@ -1,4 +1,5 @@
 import type { TestQuestion, TrackId } from "@/lib/oxbridge-data"
+import { expandedQuestionBank } from "@/lib/question-bank-expanded"
 
 export type TestName = TestQuestion["test"]
 
@@ -423,7 +424,7 @@ for (let i = 1; i <= 90; i++) {
   ))
 }
 
-export const questionBank: TestQuestion[] = [...tmua, ...esat, ...tara, ...lnat, ...ucat]
+export const questionBank: TestQuestion[] = [...tmua, ...esat, ...tara, ...lnat, ...ucat, ...expandedQuestionBank]
 
 export const taraEssayPrompts = [
   "Should governments ever restrict individual choices for a person’s own good?",
