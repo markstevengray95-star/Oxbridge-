@@ -37,7 +37,7 @@ export const pathwayDetails: Record<TrackId, {
   },
   law: {
     oxfordTests: ["LNAT"],
-    cambridgeTests: ["College assessment where specified"],
+    cambridgeTests: ["LNAT for Law"],
     writtenWork: "Check College requirements; submitted school work may be discussed where requested.",
     interview: "Build and revise rules, analyse short cases, expose assumptions and use counterexamples.",
     topics: ["rules", "rights", "responsibility", "evidence", "fairness", "legal interpretation"],
@@ -76,6 +76,8 @@ export function pathwayFor(university: University, track: TrackId) {
 }
 
 export const deadlines2027 = [
+  { date: "2026-09-28", label: "UAT-UK October test booking closes", note: "For TMUA, ESAT and TARA: booking closes at 18:00 UK time. Access-arrangement and bursary deadlines are earlier." },
+  { date: "2026-10-12", label: "UAT-UK October test window begins", note: "Oxford and Cambridge applicants using TMUA, ESAT or TARA normally sit in the 12–16 October 2026 window." },
   { date: "2026-10-15", label: "UCAS application deadline", note: "Submit by 18:00 UK time; school deadlines are often earlier." },
   { date: "2026-11-10", label: "Written work window", note: "Exact requirements and dates vary by university, course and College." },
   { date: "2026-12-01", label: "Interview preparation window", note: "Oxford interviews are online in the current cycle; Cambridge arrangements vary." },
