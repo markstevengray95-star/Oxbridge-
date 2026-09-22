@@ -5,10 +5,10 @@ An interactive preparation app for students applying to Oxford or Cambridge.
 ## Included
 
 - Personal Oxford, Cambridge or combined pathway with course, test, written-work and interview guidance
-- Voice or typed adaptive interview practice across seven course families, four pressure levels and four interviewer styles
+- Voice or typed multi-turn adaptive interview practice across seven course families, with targeted follow-ups, a three-level hint ladder, thinking-move tracking, four pressure levels and four interviewer styles
 - 2,520 structured interview combinations, unseen-material mode, full mock day flow and drawable whiteboard
-- Diagnostic, adaptive and full-mock TMUA, ESAT, TARA, LNAT and UCAT-style practice with mistake classification
-- Personal-statement defence generator, supercurricular tracker and subject reading tutor
+- 1,200+ original TMUA, ESAT, TARA, LNAT and UCAT-style questions, section filters, adaptive practice, persistent redo queues and full-length mock structures matched to current official formats
+- Official-practice links plus personal-statement defence, supercurricular tracking and a subject reading tutor
 - Preparation planner, 2027 deadline timeline, technology checks and daily challenge
 - Skills dashboard, mistake intelligence and timestamped interview replay
 - Teacher applicant overview and original interview-sequence generator
@@ -29,3 +29,6 @@ pnpm dev
 ```bash
 pnpm build
 ```
+
+
+Automated production-build verification runs on pull requests and pushes to `main`.
