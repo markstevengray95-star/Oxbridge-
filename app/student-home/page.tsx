@@ -1,5 +1,5 @@
-import { PersonalTutorDashboard } from "@/components/personal-tutor-dashboard"
+import { PersonalTutorShell } from "@/components/personal-tutor-shell"
 
 export default function TutorPage() {
-  return <PersonalTutorDashboard />
+  return <PersonalTutorShell />
 }
