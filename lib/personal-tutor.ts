@@ -209,7 +209,7 @@ function extractMistakes(progress: JsonRecord, skills: SkillState[]) {
     if (retest >= 75) continue
     signals.push({
       id: `retest-${String(result.id ?? result.date ?? Math.random())}`,
-      label: `Retest not yet secure`,
+      label: "Retest not yet secure",
       domain: String(result.test ?? "Admissions test"),
       count: 1,
       priority: retest < 60 ? "high" : "medium",
@@ -225,7 +225,8 @@ function extractMistakes(progress: JsonRecord, skills: SkillState[]) {
     const current = merged.get(key)
     if (!current || item.priority === "high" || (item.priority === "medium" && current.priority === "watch")) merged.set(key, item)
   }
-  return [...merged.values()].sort((a, b) => ({ high: 0, medium: 1, watch: 2 }[a.priority] - ({ high: 0, medium: 1, watch: 2 }[b.priority]) || b.count - a.count).slice(0, 10)
+  const priorityRank: Record<MistakeSignal["priority"], number> = { high: 0, medium: 1, watch: 2 }
+  return [...merged.values()].sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority] || b.count - a.count).slice(0, 10)
 }
 
 function progressEvidence(progress: JsonRecord, skills: SkillState[]): ProgressEvidence[] {
