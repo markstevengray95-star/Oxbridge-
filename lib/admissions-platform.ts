@@ -65,33 +65,33 @@ const CAMBRIDGE_TESTS: Record<string, string> = {
 
 const CAMBRIDGE_COLLEGE_ASSESSMENT = new Set([
   "Anglo-Saxon, Norse, and Celtic",
-  Architecture,
+  "Architecture",
   "Asian and Middle Eastern Studies",
-  Classics,
-  Design,
-  English,
-  Geography,
-  History,
+  "Classics",
+  "Design",
+  "English",
+  "Geography",
+  "History",
   "History and Modern Languages",
   "History and Politics",
   "Human, Social, and Political Sciences",
-  HSPS,
-  Linguistics,
+  "HSPS",
+  "Linguistics",
   "Linguistics and Modern Languages",
   "Modern and Medieval Languages",
-  Music,
-  Philosophy,
+  "Music",
+  "Philosophy",
   "Psychological and Behavioural Sciences",
 ])
 
 const OXFORD_WRITTEN_WORK_LIKELY = new Set([
-  Classics,
-  English,
-  History,
+  "Classics",
+  "English",
+  "History",
   "History and Economics",
   "History and Politics",
   "Modern Languages",
-  Theology,
+  "Theology",
 ])
 
 function normaliseCourse(course: string) {
@@ -100,13 +100,13 @@ function normaliseCourse(course: string) {
   if (/^engineering$/i.test(trimmed)) return "Engineering"
   if (/^engineering science$/i.test(trimmed)) return "Engineering Science"
   if (/^natural sciences?$/i.test(trimmed)) return "Natural Sciences"
-  if (/^maths|mathematics$/i.test(trimmed)) return "Mathematics"
+  if (/^(maths|mathematics)$/i.test(trimmed)) return "Mathematics"
   if (/^computer science$/i.test(trimmed)) return "Computer Science"
   if (/^economics$/i.test(trimmed)) return "Economics"
   if (/^economics and management$/i.test(trimmed)) return "Economics and Management"
   if (/^ppe$/i.test(trimmed)) return "PPE"
   if (/^philosophy, politics and economics$/i.test(trimmed)) return "Philosophy, Politics and Economics"
-  if (/^law|jurisprudence$/i.test(trimmed)) return trimmed.toLowerCase().includes("juris") ? "Jurisprudence" : "Law"
+  if (/^(law|jurisprudence)$/i.test(trimmed)) return trimmed.toLowerCase().includes("juris") ? "Jurisprudence" : "Law"
   if (/^medicine$/i.test(trimmed)) return "Medicine"
   return trimmed
 }
