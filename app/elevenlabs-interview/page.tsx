@@ -13,25 +13,25 @@ const voiceStorageKey = "oxbridge-elevenlabs-voice-v1"
 
 const voices = [
   {
-    key: "daniel",
-    name: "Daniel",
-    agentId: "agent_7101m379wfc2fajtna83dt48zj3z",
-    style: "Measured academic",
-    description: "Formal, steady British delivery with patient pacing. Best for realistic high-pressure interview practice.",
-  },
-  {
     key: "george",
     name: "George",
-    agentId: "agent_2401m379x6d2ffts3w0nvr850anz",
+    agentId: "agent_5401m378eya4e769k56h0z44wc1d",
     style: "Warm academic",
-    description: "A warmer British voice with a more conversational tutorial feel while still challenging weak reasoning.",
+    description: "Natural British male voice with warmer tutorial-style delivery, patient pauses and a conversational academic presence.",
   },
   {
-    key: "charlotte",
-    name: "Charlotte",
-    agentId: "agent_1801m379xqx7fvhvs9rje1x4jy18",
-    style: "Composed academic",
-    description: "Clear British female interviewer with a calm, precise style and slightly more analytical presence.",
+    key: "alice",
+    name: "Alice",
+    agentId: "agent_0101m37beg40f3ntny35m3wb4fb0",
+    style: "Clear academic",
+    description: "Clear British female educator voice with precise diction, calm pacing and a focused tutorial style.",
+  },
+  {
+    key: "daniel",
+    name: "Daniel",
+    agentId: "agent_3101m37bfhejekrb0m558w5k8fgg",
+    style: "Formal academic",
+    description: "Steady British male voice with a more formal interview presence for realistic higher-pressure practice.",
   },
 ] as const
 
@@ -39,7 +39,7 @@ type VoiceKey = typeof voices[number]["key"]
 
 export default function ElevenLabsInterviewPage() {
   const hostRef = useRef<HTMLDivElement | null>(null)
-  const [voiceKey, setVoiceKey] = useState<VoiceKey>("daniel")
+  const [voiceKey, setVoiceKey] = useState<VoiceKey>("george")
   const [ready, setReady] = useState(false)
   const [error, setError] = useState("")
 
@@ -129,7 +129,7 @@ export default function ElevenLabsInterviewPage() {
               <h1 className="mt-1 font-serif text-3xl font-bold sm:text-4xl">Choose an academic voice, then speak naturally.</h1>
             </div>
           </div>
-          <p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">Each interviewer uses ElevenLabs realtime speech with GPT-5.6 Sol for the academic reasoning. They share the same Socratic interview method but differ in voice, pacing and conversational presence.</p>
+          <p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">Each interviewer uses ElevenLabs realtime speech with GPT-5.6 Sol for academic reasoning. They share the same Socratic interview method but have genuinely different British voices and conversational presence.</p>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
             {voices.map(voice => {
@@ -143,7 +143,7 @@ export default function ElevenLabsInterviewPage() {
           </div>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            {["Patient turn detection", "Less scripted phrasing", "Occasional natural acknowledgements", "Adaptive Socratic follow-ups"].map(item => <div key={item} className="flex items-center gap-2 rounded-xl bg-[#edf7f8] p-3 text-sm font-semibold"><CheckCircle2 className="size-4 text-[#147d91]" />{item}</div>)}
+            {["Patient turn detection", "Natural contractions and varied cadence", "Sparse conversational acknowledgements", "Adaptive Socratic follow-ups"].map(item => <div key={item} className="flex items-center gap-2 rounded-xl bg-[#edf7f8] p-3 text-sm font-semibold"><CheckCircle2 className="size-4 text-[#147d91]" />{item}</div>)}
           </div>
 
           <div className="mt-7 rounded-2xl border border-[#cfe1e4] bg-[#f8fbfb] p-4">
