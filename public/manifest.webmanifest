@@ -11,6 +11,13 @@
   ],
   "shortcuts": [
     {
+      "name": "Live Voice Interview",
+      "short_name": "Live Voice",
+      "description": "Open the realtime voice academic interview room",
+      "url": "/live-interview",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
       "name": "AI Interview",
       "short_name": "AI Interview",
       "description": "Open the adaptive server-side academic interviewer",
