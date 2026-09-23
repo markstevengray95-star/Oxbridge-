@@ -4,14 +4,14 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Home, LayoutDashboard, MessageSquareText, Target, ClipboardCheck } from "lucide-react"
 
-const interviewPaths = ["/interviews", "/interview-room", "/ai-interview", "/live-interview", "/panel-interview"]
-const platformPaths = ["/student-home", "/requirements", "/timeline", "/backup-center", "/course-bank", "/reading-room", "/knowledge-graph", "/research-project", "/mock-week", "/technology-rehearsal", "/reasoning-lab", "/intervention-session", "/written-work-vault", "/essay-tutor", "/adaptive-paper", "/accessibility-profiles"]
+const interviewPaths = ["/interviews", "/interview-room", "/ai-interview", "/live-interview", "/panel-interview", "/cambridge-interview-day"]
+const platformPaths = ["/student-home", "/requirements", "/timeline", "/backup-center", "/course-bank", "/reading-room", "/knowledge-graph", "/research-project", "/mock-week", "/technology-rehearsal", "/reasoning-lab", "/intervention-session", "/written-work-vault", "/essay-tutor", "/adaptive-paper", "/accessibility-profiles", "/working-analysis", "/cambridge-assessments", "/question-quality", "/timing-trainer", "/source-health", "/personal-statement-map", "/learning-support", "/teacher-coach", "/unseen-lab"]
 const items = [
   { href: "/student-home", label: "Student Home", icon: Home, active: (path: string) => platformPaths.some(prefix => path === prefix || path.startsWith(`${prefix}/`)) },
   { href: "/", label: "Studio", icon: LayoutDashboard, active: (path: string) => path === "/" },
   { href: "/interviews", label: "Interviews", icon: MessageSquareText, active: (path: string) => interviewPaths.some(prefix => path === prefix || path.startsWith(`${prefix}/`)) },
-  { href: "/advanced-practice", label: "Practice", icon: Target, active: (path: string) => path === "/advanced-practice" || path.startsWith("/advanced-practice/") || path === "/adaptive-paper" || path === "/essay-tutor" },
-  { href: "/requirements", label: "Audit", icon: ClipboardCheck, active: (path: string) => path === "/requirements" },
+  { href: "/advanced-practice", label: "Practice", icon: Target, active: (path: string) => path === "/advanced-practice" || path.startsWith("/advanced-practice/") || path === "/adaptive-paper" || path === "/essay-tutor" || path === "/timing-trainer" || path === "/question-quality" },
+  { href: "/requirements", label: "Audit", icon: ClipboardCheck, active: (path: string) => path === "/requirements" || path === "/cambridge-assessments" || path === "/source-health" },
 ]
 
 export function GlobalFocusNav() {
