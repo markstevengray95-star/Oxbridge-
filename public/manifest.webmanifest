@@ -11,6 +11,13 @@
   ],
   "shortcuts": [
     {
+      "name": "Formal Interview Room",
+      "short_name": "Interview Room",
+      "description": "Open focused Oxford and Cambridge interview practice",
+      "url": "/interview-room",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
       "name": "Advanced Practice Lab",
       "short_name": "Advanced Practice",
       "description": "Open challenge ladders and advanced admissions-test question sets",
