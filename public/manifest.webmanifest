@@ -11,6 +11,13 @@
   ],
   "shortcuts": [
     {
+      "name": "Interview Hub",
+      "short_name": "Interviews",
+      "description": "Choose formal, AI, live voice or panel interview practice",
+      "url": "/interviews",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
       "name": "Live Voice Interview",
       "short_name": "Live Voice",
       "description": "Open the realtime voice academic interview room",
@@ -18,17 +25,10 @@
       "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
-      "name": "AI Interview",
-      "short_name": "AI Interview",
-      "description": "Open the adaptive server-side academic interviewer",
-      "url": "/ai-interview",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
-    },
-    {
-      "name": "Formal Interview Room",
-      "short_name": "Interview Room",
-      "description": "Open focused Oxford and Cambridge interview practice",
-      "url": "/interview-room",
+      "name": "Two-Interviewer Panel",
+      "short_name": "Panel",
+      "description": "Practise with two distinct academic interviewers",
+      "url": "/panel-interview",
       "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
