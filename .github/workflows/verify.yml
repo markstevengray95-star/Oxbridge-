@@ -3,10 +3,10 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [feat/ideal-oxbridge-coach]
+    branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -15,28 +15,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: feat/ideal-oxbridge-coach
-
-      - name: Apply integrated coach patch
-        if: github.actor != 'github-actions[bot]'
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          workflow = Path('.github/workflows/coach-upgrade.yml').read_text()
-          block = workflow.split("python - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
-          lines = []
-          for line in block.splitlines():
-              lines.append(line[10:] if line.startswith('          ') else line)
-          exec('\n'.join(lines), {})
-          PY
-          if ! git diff --quiet; then
-            git config user.name github-actions[bot]
-            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-            git add app/page.tsx app/globals.css
-            git commit -m "Integrate formal interview and personal coach features"
-            git push origin HEAD:feat/ideal-oxbridge-coach
-          fi
 
       - name: Set up Node
         uses: actions/setup-node@v4
