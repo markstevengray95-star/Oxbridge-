@@ -38,19 +38,21 @@ function localFollowUp(body: InterviewRequest) {
   return `${panelLead}${prefix}I want to change one condition. Which part of your reasoning remains valid, and which part would you now revise?`
 }
 
-function extractResponseText(data: unknown) {
+function extractGeminiText(data: unknown) {
   if (!data || typeof data !== "object") return ""
-  const output = (data as { output?: unknown }).output
-  if (!Array.isArray(output)) return ""
-  for (const item of output) {
-    if (!item || typeof item !== "object") continue
-    const content = (item as { content?: unknown }).content
-    if (!Array.isArray(content)) continue
-    for (const part of content) {
-      if (!part || typeof part !== "object") continue
-      const text = (part as { text?: unknown }).text
-      if (typeof text === "string" && text.trim()) return text.trim()
-    }
+  const candidates = (data as { candidates?: unknown }).candidates
+  if (!Array.isArray(candidates)) return ""
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== "object") continue
+    const content = (candidate as { content?: unknown }).content
+    if (!content || typeof content !== "object") continue
+    const parts = (content as { parts?: unknown }).parts
+    if (!Array.isArray(parts)) continue
+    const text = parts
+      .map(part => part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string" ? String((part as { text?: string }).text) : "")
+      .join(" ")
+      .trim()
+    if (text) return text
   }
   return ""
 }
@@ -67,7 +69,7 @@ export async function POST(request: Request) {
   if (!answer) return NextResponse.json({ error: "Candidate answer is required" }, { status: 400 })
 
   const fallback = localFollowUp(body)
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     return NextResponse.json({ reply: fallback, provider: "local", configured: false })
   }
@@ -79,6 +81,7 @@ export async function POST(request: Request) {
     "Act as a genuinely distinct second academic: build on the shared conversation but do not merely repeat the other interviewer's question.",
     "You may refer back to a claim the candidate made to the other interviewer and test whether it survives a different perspective.",
   ] : []
+
   const systemPrompt = [
     "You are conducting a formal Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     ...panelInstructions,
@@ -95,37 +98,38 @@ export async function POST(request: Request) {
 
   const conversation = recentTurns.map(turn => `${turn.speaker || (turn.role === "interviewer" ? "Interviewer" : "Candidate")}: ${turn.text}`).join("\n")
   const userPrompt = `Current question: ${body.question ?? "Continue the academic discussion."}\n\nRecent conversation:\n${conversation || "No earlier turns."}\n\nCandidate's latest answer:\n${answer}\n\nRespond with the next interview question only.`
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        "x-goog-api-key": apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
-        input: [
-          { role: "system", content: [{ type: "input_text", text: systemPrompt }] },
-          { role: "user", content: [{ type: "input_text", text: userPrompt }] },
-        ],
-        max_output_tokens: 180,
-        store: false,
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+        generationConfig: {
+          maxOutputTokens: 180,
+          temperature: 0.7,
+          topP: 0.9,
+        },
       }),
       signal: AbortSignal.timeout(15000),
     })
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "")
-      console.error("AI interview request failed", response.status, detail.slice(0, 500))
+      console.error("Gemini interview request failed", response.status, detail.slice(0, 500))
       return NextResponse.json({ reply: fallback, provider: "local", configured: true, degraded: true })
     }
 
     const data = await response.json() as unknown
-    const reply = extractResponseText(data) || fallback
-    return NextResponse.json({ reply, provider: reply === fallback ? "local" : "openai", configured: true })
+    const reply = extractGeminiText(data) || fallback
+    return NextResponse.json({ reply, provider: reply === fallback ? "local" : "gemini", configured: true })
   } catch (error) {
-    console.error("AI interview request error", error)
+    console.error("Gemini interview request error", error)
     return NextResponse.json({ reply: fallback, provider: "local", configured: true, degraded: true })
   }
 }
