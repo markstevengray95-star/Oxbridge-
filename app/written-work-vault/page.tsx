@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ChangeEvent, useMemo, useState } from "react"
+import { ChangeEvent, useEffect, useMemo, useState } from "react"
 import { ArrowLeft, ArrowRight, FileText, ShieldCheck, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,10 +25,9 @@ function defenceQuestions(claim:string,i:number){const stems=[
 export default function WrittenWorkVaultPage(){
   const [title,setTitle]=useState("")
   const [text,setText]=useState("")
-  const [saved,setSaved]=useState<SavedWork[]>(()=>[])
-  const [loaded,setLoaded]=useState(false)
+  const [saved,setSaved]=useState<SavedWork[]>([])
 
-  useState(()=>{if(typeof window!=="undefined"){try{const s=localStorage.getItem(KEY);if(s)setSaved(JSON.parse(s))}catch{}setLoaded(true)}})
+  useEffect(()=>{try{const s=localStorage.getItem(KEY);if(s)setSaved(JSON.parse(s))}catch{}},[])
   const claims=useMemo(()=>extractClaims(text),[text])
   const save=()=>{if(!text.trim())return;const work={title:title.trim()||"Submitted written work",text:text.trim(),saved:new Date().toISOString()};const next=[work,...saved].slice(0,10);setSaved(next);localStorage.setItem(KEY,JSON.stringify(next))}
   const load=(work:SavedWork)=>{setTitle(work.title);setText(work.text)}
