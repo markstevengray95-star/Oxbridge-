@@ -1,8 +1,8 @@
 {
   "name": "Oxbridge Tutor",
   "short_name": "Oxbridge Tutor",
-  "description": "Oxford and Cambridge interview and admissions-test preparation studio",
-  "start_url": "/",
+  "description": "Oxford and Cambridge interview, admissions-test and application preparation studio",
+  "start_url": "/student-home",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#0f172a",
@@ -11,6 +11,13 @@
   ],
   "shortcuts": [
     {
+      "name": "Student Home",
+      "short_name": "Home",
+      "description": "Open the simplified personalised student dashboard",
+      "url": "/student-home",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
       "name": "Interview Hub",
       "short_name": "Interviews",
       "description": "Choose formal, AI, live voice or panel interview practice",
@@ -18,24 +25,17 @@
       "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
-      "name": "Live Voice Interview",
-      "short_name": "Live Voice",
-      "description": "Open the realtime voice academic interview room",
-      "url": "/live-interview",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
-    },
-    {
-      "name": "Two-Interviewer Panel",
-      "short_name": "Panel",
-      "description": "Practise with two distinct academic interviewers",
-      "url": "/panel-interview",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
-    },
-    {
       "name": "Advanced Practice Lab",
-      "short_name": "Advanced Practice",
+      "short_name": "Practice",
       "description": "Open challenge ladders and advanced admissions-test question sets",
       "url": "/advanced-practice",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Requirements & Audit",
+      "short_name": "Requirements",
+      "description": "Check course requirements, deadlines and application completeness",
+      "url": "/requirements",
       "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]
