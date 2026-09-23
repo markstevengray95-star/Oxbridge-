@@ -13,7 +13,8 @@ const groups: NavGroup[] = [
     icon: MessageSquareText,
     items: [
       { href: "/interviews", label: "Interview Hub", description: "Choose an interview format" },
-      { href: "/elevenlabs-interview", label: "Natural Voice", description: "ElevenLabs interviewer voices" },
+      { href: "/elevenlabs-interview", label: "ElevenLabs Natural Voice", description: "Realtime ElevenLabs interviewer voices" },
+      { href: "/natural-ai-interview", label: "Natural AI Voice", description: "OpenAI Marin/Cedar with ElevenLabs fallback" },
       { href: "/interview-room", label: "Formal Interview", description: "Structured realistic practice" },
       { href: "/ai-interview", label: "AI Interview", description: "Adaptive transcript-based follow-up" },
       { href: "/live-interview", label: "OpenAI Live Voice", description: "Realtime voice alternative" },
