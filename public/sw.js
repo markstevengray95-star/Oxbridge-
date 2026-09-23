@@ -1,5 +1,5 @@
-const CACHE='oxbridge-tutor-v2';
-const SHELL=['/','/manifest.webmanifest','/favicon.svg'];
+const CACHE='oxbridge-tutor-v3';
+const SHELL=['/','/advanced-practice','/manifest.webmanifest','/favicon.svg'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));

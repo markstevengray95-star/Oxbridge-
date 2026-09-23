@@ -8,5 +8,14 @@
   "theme_color": "#0f172a",
   "icons": [
     { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Advanced Practice Lab",
+      "short_name": "Advanced Practice",
+      "description": "Open challenge ladders and advanced admissions-test question sets",
+      "url": "/advanced-practice",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
   ]
 }

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,7 +22,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en-GB">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <footer className="border-t bg-white px-4 py-5 text-center text-sm text-slate-600">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-4">
+            <span>Oxbridge Tutor</span>
+            <Link href="/advanced-practice" className="font-semibold text-blue-700 underline underline-offset-4">Advanced Practice Lab</Link>
+            <span>Original practice material; official providers remain the source of truth for live test formats.</span>
+          </div>
+        </footer>
+      </body>
     </html>
   );
 }
