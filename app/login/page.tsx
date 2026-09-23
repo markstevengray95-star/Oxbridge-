@@ -2,16 +2,21 @@
 
 import { FormEvent, useState } from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { ArrowLeft, CheckCircle2, GraduationCap, Loader2, LockKeyhole, Mail, UserPlus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 
+function nextPath() {
+  if (typeof window === "undefined") return "/account"
+  const next = new URLSearchParams(window.location.search).get("next")
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/account"
+}
+
 export default function LoginPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [mode, setMode] = useState<"signin" | "signup">("signin")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -39,7 +44,7 @@ export default function LoginPage() {
         })
         if (error) throw error
         if (data.session) {
-          router.replace(searchParams.get("next") || "/account")
+          router.replace(nextPath())
           router.refresh()
         } else {
           setMessage("Account created. Check your email to confirm your address, then sign in.")
@@ -48,7 +53,7 @@ export default function LoginPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        router.replace(searchParams.get("next") || "/account")
+        router.replace(nextPath())
         router.refresh()
       }
     } catch (err) {
