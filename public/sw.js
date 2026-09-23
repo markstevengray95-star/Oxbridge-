@@ -1,5 +1,5 @@
-const CACHE='oxbridge-tutor-v8';
-const SHELL=['/','/student-home','/interviews','/interview-room','/ai-interview','/live-interview','/panel-interview','/advanced-practice','/requirements','/timeline','/backup-center','/course-bank','/reading-room','/knowledge-graph','/research-project','/mock-week','/technology-rehearsal','/manifest.webmanifest','/favicon.svg'];
+const CACHE='oxbridge-tutor-v9';
+const SHELL=['/','/student-home','/interviews','/interview-room','/ai-interview','/live-interview','/panel-interview','/advanced-practice','/adaptive-paper','/essay-tutor','/reasoning-lab','/intervention-session','/written-work-vault','/accessibility-profiles','/requirements','/timeline','/backup-center','/course-bank','/reading-room','/knowledge-graph','/research-project','/mock-week','/technology-rehearsal','/manifest.webmanifest','/favicon.svg'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
