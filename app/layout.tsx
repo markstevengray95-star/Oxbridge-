@@ -3,6 +3,7 @@ import Link from "next/link";
 import Script from "next/script";
 import { GlobalFocusNav } from "@/components/global-focus-nav";
 import { CommandPalette } from "@/components/command-palette";
+import { CloudProgressSync } from "@/components/cloud-progress-sync";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en-GB">
       <body className="antialiased">
+        <CloudProgressSync />
         <GlobalFocusNav />
         {children}
         <CommandPalette />
@@ -44,6 +46,7 @@ export default function RootLayout({
               <Link href="/student-home" className="text-[#102a43] hover:underline">Student Home</Link>
               <Link href="/interviews" className="text-[#147d91] hover:underline">Interview Hub</Link>
               <Link href="/requirements" className="text-[#147d91] hover:underline">Requirements</Link>
+              <Link href="/account" className="text-[#147d91] hover:underline">Account</Link>
             </div>
           </div>
         </footer>
