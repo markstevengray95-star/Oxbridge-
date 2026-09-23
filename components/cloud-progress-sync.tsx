@@ -2,11 +2,10 @@
 
 import { useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { APPLICATION_KEY, HUMAN_REVIEW_KEY, MOCK_DAY_KEY, PARENT_SUMMARY_KEY, PROFILE_KEY, PROGRESS_KEY, SUPERCURRICULAR_KEY, TUTORIAL_LAB_KEY, TUTOR_KEY } from "@/lib/personal-tutor"
 
-const PROFILE_KEY = "oxbridge-tutor-profile-v2"
-const PROGRESS_KEY = "oxbridge-tutor-progress-v2"
-const STATE_KEYS = [PROFILE_KEY, PROGRESS_KEY] as const
-const RESTORE_MARKER = "oxbridge-cloud-restore-v1"
+const STATE_KEYS = [PROFILE_KEY, PROGRESS_KEY, TUTOR_KEY, APPLICATION_KEY, SUPERCURRICULAR_KEY, HUMAN_REVIEW_KEY, TUTORIAL_LAB_KEY, MOCK_DAY_KEY, PARENT_SUMMARY_KEY] as const
+const RESTORE_MARKER = "oxbridge-cloud-restore-v2"
 
 type ProgressLog = {
   id?: unknown

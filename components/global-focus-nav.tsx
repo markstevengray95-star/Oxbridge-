@@ -2,10 +2,10 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpen, ChevronDown, ClipboardCheck, GraduationCap, Home, LayoutDashboard, MessageSquareText, Target, Users } from "lucide-react"
+import { BookOpen, Brain, ChevronDown, ClipboardCheck, GraduationCap, LayoutDashboard, MessageSquareText, Target, Users } from "lucide-react"
 
 type NavItem = { href: string; label: string; description?: string }
-type NavGroup = { label: string; icon: typeof Home; items: NavItem[]; align?: "left" | "right" }
+type NavGroup = { label: string; icon: typeof Brain; items: NavItem[]; align?: "left" | "right" }
 
 const groups: NavGroup[] = [
   {
@@ -14,6 +14,7 @@ const groups: NavGroup[] = [
     items: [
       { href: "/interviews", label: "Interview Hub", description: "Choose an interview format" },
       { href: "/interview-feedback", label: "Structured Feedback", description: "Answer-by-answer reasoning analysis and re-answer practice" },
+      { href: "/mock-day", label: "Mock Interview Day", description: "Unseen material, two interviews and end-of-day review" },
       { href: "/live-interview", label: "Gemini Live Voice", description: "Native realtime Gemini audio interview" },
       { href: "/natural-ai-interview", label: "Gemini Natural Voice", description: "Adaptive Gemini interview with high-quality TTS" },
       { href: "/elevenlabs-interview", label: "ElevenLabs Voice", description: "Alternative realtime interviewer voices" },
@@ -41,6 +42,8 @@ const groups: NavGroup[] = [
     label: "Application",
     icon: ClipboardCheck,
     items: [
+      { href: "/application-profile", label: "Application Digital Twin", description: "Connect course, reading, projects, EPQ and written work" },
+      { href: "/application-defence", label: "Application Defence", description: "Practise questions generated from your own academic evidence" },
       { href: "/requirements", label: "Requirements & Audit", description: "Course and application requirements" },
       { href: "/timeline", label: "Timeline", description: "Application deadlines and next actions" },
       { href: "/cambridge-assessments", label: "Cambridge Assessments", description: "College assessment guidance" },
@@ -55,6 +58,9 @@ const groups: NavGroup[] = [
     label: "Learning",
     icon: BookOpen,
     items: [
+      { href: "/tutorial-lab", label: "Tutorial Lab", description: "Draw, calculate and get multimodal reasoning feedback" },
+      { href: "/daily-challenge", label: "Daily Challenge", description: "One high-quality course-specific reasoning challenge" },
+      { href: "/supercurricular-coach", label: "Supercurricular Coach", description: "Turn reading and projects into interview-ready reasoning" },
       { href: "/course-bank", label: "Course Bank", description: "Deep course-specific questions" },
       { href: "/unseen-lab", label: "Unseen Material Lab", description: "Graphs, sources and unfamiliar data" },
       { href: "/reading-room", label: "Reading Room", description: "Academic extracts and tutorial questions" },
@@ -71,8 +77,12 @@ const groups: NavGroup[] = [
     icon: Users,
     align: "right",
     items: [
+      { href: "/mistake-dna", label: "Mistake DNA", description: "Recurring reasoning and test-error patterns" },
+      { href: "/progress-proof", label: "Progress Proof", description: "Evidence timeline showing what has actually improved" },
+      { href: "/human-review", label: "Human + AI Review", description: "Teacher/tutor comments alongside automated analysis" },
+      { href: "/parent-summary", label: "Parent Summary", description: "Opt-in privacy-safe progress overview" },
+      { href: "/premium", label: "Free / Pro / School", description: "What each plan unlocks" },
       { href: "/account", label: "Account & Billing", description: "Sign in, subscription and saved cloud progress" },
-      { href: "/student-home", label: "Student Home", description: "Do next, continue and progress" },
       { href: "/accessibility-profiles", label: "Accessibility", description: "Saved accessibility profiles" },
       { href: "/teacher-coach", label: "Teacher Coach", description: "Meeting mode, comments and interview packs" },
     ],
@@ -89,13 +99,13 @@ export function GlobalFocusNav() {
   return <nav aria-label="Primary navigation" className="sticky top-0 z-[80] border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur">
     <div className="mx-auto max-w-7xl px-3 sm:px-5 lg:px-8">
       <div className="flex min-h-14 flex-wrap items-center gap-2 py-1">
-        <Link href="/student-home" className="mr-1 flex shrink-0 items-center gap-2 rounded-xl px-2 py-2 font-serif text-base font-bold text-[#102a43] hover:bg-[#edf7f8] sm:text-lg">
+        <Link href="/tutor" className="mr-1 flex shrink-0 items-center gap-2 rounded-xl px-2 py-2 font-serif text-base font-bold text-[#102a43] hover:bg-[#edf7f8] sm:text-lg">
           <GraduationCap className="size-5 text-[#147d91]" />
           <span className="hidden sm:inline">Oxbridge Tutor</span>
         </Link>
 
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 py-1">
-          <Link href="/student-home" aria-current={pathMatches(pathname, "/student-home") ? "page" : undefined} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${pathMatches(pathname, "/student-home") ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><Home className="size-4" />Home</Link>
+          <Link href="/tutor" aria-current={pathMatches(pathname, "/tutor") || pathMatches(pathname, "/student-home") ? "page" : undefined} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${pathMatches(pathname, "/tutor") || pathMatches(pathname, "/student-home") ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><Brain className="size-4" />Tutor</Link>
           <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${pathname === "/" ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><LayoutDashboard className="size-4" />Studio</Link>
 
           {groups.map(group => {
