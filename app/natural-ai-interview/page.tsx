@@ -11,16 +11,21 @@ import { Textarea } from "@/components/ui/textarea"
 import { interviewQuestions, tracks, type TrackId } from "@/lib/oxbridge-data"
 
 type Turn = { role: "interviewer" | "candidate"; text: string }
-type VoiceProvider = "openai" | "elevenlabs-secondary"
-type OpenAIVoice = "marin" | "cedar"
-type Capabilities = { openai?: boolean; elevenlabsSecondary?: boolean }
+type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
+type Capabilities = { gemini?: boolean; voices?: GeminiVoice[]; defaultVoice?: GeminiVoice }
 type AiReply = { reply?: string; provider?: string; configured?: boolean; degraded?: boolean }
+
+const voiceLabels: Record<GeminiVoice, string> = {
+  Gacrux: "Gacrux · mature and academic",
+  Sulafat: "Sulafat · warm and conversational",
+  Sadaltager: "Sadaltager · knowledgeable and measured",
+  Kore: "Kore · firm and probing",
+}
 
 export default function NaturalAiInterviewPage() {
   const [track, setTrack] = useState<TrackId>("physical")
   const [course, setCourse] = useState("Physics")
-  const [provider, setProvider] = useState<VoiceProvider>("openai")
-  const [voice, setVoice] = useState<OpenAIVoice>("marin")
+  const [voice, setVoice] = useState<GeminiVoice>("Gacrux")
   const [started, setStarted] = useState(false)
   const [question, setQuestion] = useState("")
   const [answer, setAnswer] = useState("")
@@ -41,7 +46,11 @@ export default function NaturalAiInterviewPage() {
   useEffect(() => {
     fetch("/api/natural-speech")
       .then(r => r.ok ? r.json() : {})
-      .then(data => setCaps(data as Capabilities))
+      .then(data => {
+        const next = data as Capabilities
+        setCaps(next)
+        if (next.defaultVoice) setVoice(next.defaultVoice)
+      })
       .catch(() => setCaps({}))
     return () => {
       if (audioRef.current) {
@@ -59,19 +68,19 @@ export default function NaturalAiInterviewPage() {
       const response = await fetch("/api/natural-speech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, provider, voice }),
+        body: JSON.stringify({ text, voice }),
       })
-      if (!response.ok) throw new Error((await response.json().catch(() => ({})) as { error?: string }).error || "Natural voice unavailable")
+      if (!response.ok) throw new Error((await response.json().catch(() => ({})) as { error?: string }).error || "Gemini natural voice unavailable")
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       const audio = new Audio(url)
       audioRef.current = audio
       audio.onended = () => { URL.revokeObjectURL(url); setSpeaking(false) }
-      audio.onerror = () => { URL.revokeObjectURL(url); setSpeaking(false); setNotice("The high-quality voice could not play, so you can continue with text.") }
+      audio.onerror = () => { URL.revokeObjectURL(url); setSpeaking(false); setNotice("Gemini voice audio could not play, so the interview can continue in text.") }
       await audio.play()
     } catch (error) {
       setSpeaking(false)
-      const message = error instanceof Error ? error.message : "Natural voice unavailable"
+      const message = error instanceof Error ? error.message : "Gemini natural voice unavailable"
       setNotice(message)
       if ("speechSynthesis" in window) {
         const utterance = new SpeechSynthesisUtterance(text)
@@ -114,18 +123,18 @@ export default function NaturalAiInterviewPage() {
           turns: history,
         }),
       })
-      if (!response.ok) throw new Error("Interview reasoning service unavailable")
+      if (!response.ok) throw new Error("Gemini interview reasoning service unavailable")
       const data = await response.json() as AiReply
       const next = data.reply?.trim() || "Which assumption in that answer is least secure, and how could you test it?"
       setQuestion(next)
       setTurns(t => [...t, { role: "interviewer", text: next }])
-      if (data.degraded) setNotice("The cloud reasoning model fell back to the built-in interviewer for this turn.")
+      if (data.degraded) setNotice("Gemini temporarily fell back to the built-in interviewer for this turn.")
       await speak(next)
     } catch {
       const next = "Which assumption in that answer is least secure, and how could you test it?"
       setQuestion(next)
       setTurns(t => [...t, { role: "interviewer", text: next }])
-      setNotice("The cloud reasoning service could not be reached, so the built-in interviewer continued the discussion.")
+      setNotice("Gemini could not be reached, so the built-in interviewer continued the discussion.")
       await speak(next)
     } finally {
       setThinking(false)
@@ -153,28 +162,26 @@ export default function NaturalAiInterviewPage() {
     setListening(false)
   }
 
-  const secondaryReady = Boolean(caps.elevenlabsSecondary)
-
   return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]">
     <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6 lg:px-8 lg:py-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <Button asChild variant="ghost"><Link href="/interviews"><ArrowLeft />Interview Hub</Link></Button>
-        <Badge className="border-0 bg-[#102a43] text-white"><AudioLines className="mr-1 size-3" />Natural AI voice</Badge>
+        <Badge className="border-0 bg-[#102a43] text-white"><AudioLines className="mr-1 size-3" />Gemini natural voice</Badge>
       </div>
 
       <section className="grid gap-5 lg:grid-cols-[.9fr_1.1fr]">
         <Card className="border-[#dbe5e7] shadow-sm">
           <CardHeader>
-            <CardTitle className="font-serif text-2xl">Voice setup</CardTitle>
-            <CardDescription>Uses the adaptive interviewer, then speaks each turn with a high-quality server-side voice.</CardDescription>
+            <CardTitle className="font-serif text-2xl">Gemini voice setup</CardTitle>
+            <CardDescription>Uses Gemini for the adaptive academic follow-up and Gemini TTS for a natural spoken interviewer.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Subject family</span><NativeSelect value={track} onChange={e => { const next=e.target.value as TrackId; setTrack(next); const t=tracks.find(x=>x.id===next); if(t) setCourse(t.courses[0]) }}>{tracks.map(t => <NativeSelectOption key={t.id} value={t.id}>{t.short}</NativeSelectOption>)}</NativeSelect></label>
             <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Course</span><NativeSelect value={course} onChange={e => setCourse(e.target.value)}>{subjectCourses.map(c => <NativeSelectOption key={c}>{c}</NativeSelectOption>)}</NativeSelect></label>
-            <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Voice provider</span><NativeSelect value={provider} onChange={e => setProvider(e.target.value as VoiceProvider)}><NativeSelectOption value="openai">OpenAI natural voice</NativeSelectOption><NativeSelectOption value="elevenlabs-secondary" disabled={!secondaryReady}>Secondary ElevenLabs {secondaryReady ? "" : "(not configured)"}</NativeSelectOption></NativeSelect></label>
-            {provider === "openai" && <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">OpenAI voice</span><NativeSelect value={voice} onChange={e => setVoice(e.target.value as OpenAIVoice)}><NativeSelectOption value="marin">Marin · warm and natural</NativeSelectOption><NativeSelectOption value="cedar">Cedar · calm and grounded</NativeSelectOption></NativeSelect></label>}
-            <div className="rounded-2xl bg-[#edf7f8] p-4 text-sm leading-6 text-[#526a75]"><Headphones className="mb-2 size-5 text-[#147d91]" /><strong>Why this mode?</strong> It does not rely on a live WebRTC connection. The interviewer generates the next academic challenge first, then high-quality TTS speaks it, so it is a useful fallback when Realtime voice is unreliable.</div>
-            {!started && <Button className="w-full" onClick={startInterview}><Volume2 />Start natural interview</Button>}
+            <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Gemini interviewer voice</span><NativeSelect value={voice} onChange={e => setVoice(e.target.value as GeminiVoice)}>{(caps.voices ?? ["Gacrux", "Sulafat", "Sadaltager", "Kore"]).map(v => <NativeSelectOption key={v} value={v}>{voiceLabels[v]}</NativeSelectOption>)}</NativeSelect></label>
+            <div className="rounded-2xl bg-[#edf7f8] p-4 text-sm leading-6 text-[#526a75]"><Headphones className="mb-2 size-5 text-[#147d91]" /><strong>Natural delivery:</strong> Gemini is directed to sound like a British university academic rather than an assistant or announcer, with restrained intonation and realistic pauses.</div>
+            {!caps.gemini && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Gemini is not configured on this deployment yet. Add <code>GEMINI_API_KEY</code> on the server and redeploy.</div>}
+            {!started && <Button className="w-full" onClick={startInterview}><Volume2 />Start Gemini interview</Button>}
           </CardContent>
         </Card>
 
@@ -183,7 +190,7 @@ export default function NaturalAiInterviewPage() {
           <CardContent className="space-y-4">
             {notice && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div>}
             <div className="max-h-[360px] space-y-3 overflow-y-auto rounded-2xl bg-[#f8fafb] p-4">
-              {!started && <div className="grid min-h-64 place-items-center text-center text-sm text-[#71828a]">Choose your course and voice, then start the interview.</div>}
+              {!started && <div className="grid min-h-64 place-items-center text-center text-sm text-[#71828a]">Choose your course and Gemini voice, then start the interview.</div>}
               {turns.map((turn, i) => <div key={`${turn.role}-${i}`} className={`rounded-2xl p-4 ${turn.role === "interviewer" ? "bg-white shadow-sm" : "ml-auto max-w-[90%] bg-[#102a43] text-white"}`}><p className={`mb-1 text-[11px] font-bold uppercase tracking-wider ${turn.role === "interviewer" ? "text-[#147d91]" : "text-[#8dd7de]"}`}>{turn.role}</p><p className="text-sm leading-6">{turn.text}</p></div>)}
             </div>
 
