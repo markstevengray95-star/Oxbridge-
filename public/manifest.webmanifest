@@ -11,6 +11,13 @@
   ],
   "shortcuts": [
     {
+      "name": "AI Interview",
+      "short_name": "AI Interview",
+      "description": "Open the adaptive server-side academic interviewer",
+      "url": "/ai-interview",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
       "name": "Formal Interview Room",
       "short_name": "Interview Room",
       "description": "Open focused Oxford and Cambridge interview practice",
