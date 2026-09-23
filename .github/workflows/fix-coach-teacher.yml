@@ -1,0 +1,31 @@
+name: Fix coach teacher field
+on:
+  push:
+    branches: [feat/ideal-oxbridge-coach]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/ideal-oxbridge-coach
+      - name: Fix cohort field
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/page.tsx')
+          s=p.read_text()
+          old='{student.interviews} interviews · {student.testAccuracy}%'
+          new='{student.interviews} interviews · {student.testProgress}% test progress'
+          if old not in s:
+              raise SystemExit('teacher testAccuracy reference not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/page.tsx
+          git commit -m "Fix teacher cohort progress field"
+          git push origin HEAD:feat/ideal-oxbridge-coach
