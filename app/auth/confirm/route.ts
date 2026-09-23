@@ -6,19 +6,18 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const tokenHash = requestUrl.searchParams.get("token_hash")
   const type = requestUrl.searchParams.get("type") as EmailOtpType | null
+  const code = requestUrl.searchParams.get("code")
   const requestedNext = requestUrl.searchParams.get("next") || "/account"
   const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/account"
+  const supabase = await createClient()
 
   if (tokenHash && type) {
-    const supabase = await createClient()
-    const { error } = await supabase.auth.verifyOtp({
-      type,
-      token_hash: tokenHash,
-    })
-
-    if (!error) {
-      return NextResponse.redirect(new URL(next, requestUrl.origin))
-    }
+    const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
+    if (!error) return NextResponse.redirect(new URL(next, requestUrl.origin))
+  } else if (code) {
+    const flowId = requestUrl.searchParams.get("sb_flow_id")
+    const { error } = await supabase.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined)
+    if (!error) return NextResponse.redirect(new URL(next, requestUrl.origin))
   }
 
   const errorUrl = new URL("/login", requestUrl.origin)
