@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 
+type AnalysisResponse={analysis?:string;error?:string}
+
 export default function WorkingAnalysisPage(){
   const [course,setCourse]=useState("Physics")
   const [context,setContext]=useState("")
@@ -19,7 +21,7 @@ export default function WorkingAnalysisPage(){
 
   useEffect(()=>{try{const p=JSON.parse(localStorage.getItem("oxbridge-tutor-profile-v2")||"{}");if(p.course)setCourse(p.course)}catch{}},[])
   const choose=async(e:ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;if(!/^image\/(png|jpeg|webp)$/i.test(file.type)){setError("Use a PNG, JPG or WebP image.");return}if(file.size>7_000_000){setError("Use an image under 7 MB.");return}const reader=new FileReader();reader.onload=()=>{setImage(String(reader.result||""));setError("");setAnalysis("")};reader.readAsDataURL(file);e.target.value=""}
-  const run=async()=>{if(!image)return;setBusy(true);setError("");setAnalysis("");try{const res=await fetch("/api/analyse-working",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image,subject:course,context})});const data=await res.json();if(!res.ok)throw new Error(data.error||"Analysis failed");setAnalysis(data.analysis)}catch(e){setError(e instanceof Error?e.message:"Analysis failed") }finally{setBusy(false)}}
+  const run=async()=>{if(!image)return;setBusy(true);setError("");setAnalysis("");try{const res=await fetch("/api/analyse-working",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image,subject:course,context})});const data:AnalysisResponse=await res.json() as AnalysisResponse;if(!res.ok)throw new Error(data.error||"Analysis failed");if(!data.analysis)throw new Error("No analysis was returned");setAnalysis(data.analysis)}catch(e){setError(e instanceof Error?e.message:"Analysis failed") }finally{setBusy(false)}}
   const save=()=>{if(!analysis)return;try{const prev=JSON.parse(localStorage.getItem("oxbridge-working-analyses-v1")||"[]");localStorage.setItem("oxbridge-working-analyses-v1",JSON.stringify([{course,context,analysis,date:new Date().toISOString()},...prev].slice(0,30)))}catch{}}
 
   return <main className="min-h-screen bg-[#f6f8f8] text-[#172b3a]">
