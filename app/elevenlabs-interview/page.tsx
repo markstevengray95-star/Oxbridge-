@@ -1,14 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { createElement, useEffect, useMemo, useState } from "react"
 import { ArrowLeft, AudioLines, CheckCircle2, Headphones, Mic, ShieldCheck, Sparkles, Volume2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
-const SCRIPT_ID = "elevenlabs-convai-widget-script"
-const SCRIPT_SRC = "https://unpkg.com/@elevenlabs/convai-widget-embed"
 const voiceStorageKey = "oxbridge-elevenlabs-voice-v1"
 
 const voices = [
@@ -38,10 +36,9 @@ const voices = [
 type VoiceKey = typeof voices[number]["key"]
 
 export default function ElevenLabsInterviewPage() {
-  const hostRef = useRef<HTMLDivElement | null>(null)
   const [voiceKey, setVoiceKey] = useState<VoiceKey>("george")
-  const [ready, setReady] = useState(false)
-  const [error, setError] = useState("")
+  const [widgetReady, setWidgetReady] = useState(false)
+  const [diagnostic, setDiagnostic] = useState("")
 
   const selectedVoice = useMemo(() => voices.find(voice => voice.key === voiceKey) ?? voices[0], [voiceKey])
 
@@ -53,63 +50,48 @@ export default function ElevenLabsInterviewPage() {
   }, [])
 
   useEffect(() => {
-    try { localStorage.setItem(voiceStorageKey, voiceKey) } catch { /* preference persistence is optional */ }
+    try { localStorage.setItem(voiceStorageKey, voiceKey) } catch { /* optional */ }
   }, [voiceKey])
 
   useEffect(() => {
-    let cancelled = false
-    let widget: HTMLElement | null = null
-    let loadHandler: (() => void) | null = null
-    setReady(false)
-    setError("")
+    let stopped = false
+    let attempts = 0
+    setWidgetReady(false)
+    setDiagnostic("")
 
-    const mountWidget = () => {
-      if (cancelled || !hostRef.current) return
-      try {
-        widget = document.createElement("elevenlabs-convai")
-        widget.setAttribute("agent-id", selectedVoice.agentId)
-        widget.setAttribute("variant", "full")
-        hostRef.current.replaceChildren(widget)
-        setReady(true)
-      } catch {
-        setError("Could not initialise the ElevenLabs interview widget in this browser.")
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setDiagnostic("Voice conversations require a secure HTTPS page (or localhost) so the browser can grant microphone access.")
+      return
+    }
+
+    const check = () => {
+      if (stopped) return
+      if (customElements.get("elevenlabs-convai")) {
+        setWidgetReady(true)
+        return
       }
-    }
-
-    const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null
-    if (existing) {
-      if (customElements.get("elevenlabs-convai")) mountWidget()
-      else {
-        loadHandler = mountWidget
-        existing.addEventListener("load", loadHandler, { once: true })
+      attempts += 1
+      if (attempts >= 30) {
+        setDiagnostic("The ElevenLabs voice component did not load. This can happen if a browser extension, network filter or content blocker blocks unpkg.com. You can still use the OpenAI live interviewer below.")
+        return
       }
-    } else {
-      const script = document.createElement("script")
-      script.id = SCRIPT_ID
-      script.src = SCRIPT_SRC
-      script.async = true
-      script.type = "text/javascript"
-      script.addEventListener("load", mountWidget, { once: true })
-      script.addEventListener("error", () => setError("Could not load the ElevenLabs voice interface."), { once: true })
-      document.head.appendChild(script)
+      window.setTimeout(check, 250)
     }
 
-    const timer = window.setTimeout(() => {
-      if (!cancelled && customElements.get("elevenlabs-convai") && !widget) mountWidget()
-    }, 1200)
-
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
-      if (existing && loadHandler) existing.removeEventListener("load", loadHandler)
-      if (widget?.parentNode) widget.parentNode.removeChild(widget)
-    }
+    check()
+    return () => { stopped = true }
   }, [selectedVoice.agentId])
 
   const chooseVoice = (key: VoiceKey) => {
     if (key === voiceKey) return
     setVoiceKey(key)
   }
+
+  const widget = createElement("elevenlabs-convai", {
+    key: selectedVoice.agentId,
+    "agent-id": selectedVoice.agentId,
+    style: { display: "block", width: "100%", minHeight: "500px" },
+  })
 
   return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]">
     <header className="border-b border-[#dbe5e7] bg-white">
@@ -129,7 +111,7 @@ export default function ElevenLabsInterviewPage() {
               <h1 className="mt-1 font-serif text-3xl font-bold sm:text-4xl">Choose an academic voice, then speak naturally.</h1>
             </div>
           </div>
-          <p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">Each interviewer uses ElevenLabs realtime speech with GPT-5.6 Sol for academic reasoning. They share the same Socratic method but use genuinely different British voices, pacing and vocal stability so changing interviewer feels like meeting a different academic.</p>
+          <p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">Each interviewer uses ElevenLabs realtime speech with GPT-5.6 Sol for academic reasoning. They share the same Socratic method but use different British voices, pacing and vocal stability.</p>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
             {voices.map(voice => {
@@ -159,23 +141,31 @@ export default function ElevenLabsInterviewPage() {
           <p className="mt-1 text-sm font-semibold text-[#8dd7de]">{selectedVoice.style}</p>
           <p className="mt-3 text-sm leading-6 text-white/70">{selectedVoice.description}</p>
           <div className="my-6 h-px bg-white/10" />
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#8dd7de]">Before you start</p>
-          <div className="mt-5 space-y-4 text-sm leading-6 text-white/70">
+          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#8dd7de]">Connection check</p>
+          <div className="mt-4 rounded-xl bg-white/10 p-3 text-sm">
+            <span className={`inline-block size-2 rounded-full ${widgetReady ? "bg-emerald-300" : "bg-amber-300"}`} />
+            <span className="ml-2">{widgetReady ? "ElevenLabs widget loaded" : "Loading ElevenLabs widget…"}</span>
+          </div>
+          <div className="mt-5 space-y-3 text-sm leading-6 text-white/70">
             <p><strong className="text-white">1.</strong> Allow microphone access when prompted.</p>
-            <p><strong className="text-white">2.</strong> Tell the interviewer your subject/course when it asks.</p>
-            <p><strong className="text-white">3.</strong> Think aloud. Silence for a few seconds is fine.</p>
-            <p><strong className="text-white">4.</strong> If you are stuck, say what you do know rather than immediately asking for the answer.</p>
-            <p><strong className="text-white">5.</strong> Finish the current call before changing voice.</p>
+            <p><strong className="text-white">2.</strong> Use headphones if possible to prevent echo.</p>
+            <p><strong className="text-white">3.</strong> Think aloud; short silences are expected.</p>
+            <p><strong className="text-white">4.</strong> Finish the current call before changing interviewer.</p>
           </div>
         </aside>
       </section>
 
       <Card className="overflow-hidden border-[#dbe5e7] shadow-[0_24px_70px_rgba(16,42,67,.07)]">
         <CardHeader className="border-b bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle className="font-serif text-2xl">{selectedVoice.name} · ElevenLabs interview room</CardTitle><CardDescription>Use headphones if possible to reduce echo and make turn-taking more natural.</CardDescription></div><div className="flex flex-wrap gap-2"><Badge variant="outline">{selectedVoice.style}</Badge><Badge variant="outline">GPT-5.6 Sol</Badge></div></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle className="font-serif text-2xl">{selectedVoice.name} · ElevenLabs interview room</CardTitle><CardDescription>The widget now uses ElevenLabs&apos; standard direct embed pattern and loads globally across the app.</CardDescription></div><div className="flex flex-wrap gap-2"><Badge variant="outline">{selectedVoice.style}</Badge><Badge variant="outline">GPT-5.6 Sol</Badge></div></div>
         </CardHeader>
         <CardContent className="bg-[#f8fafb] p-4 sm:p-6">
-          {error ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{error} <Link href="/live-interview" className="font-bold underline">Use the existing live voice interviewer instead.</Link></div> : <div ref={hostRef} className="min-h-[520px] rounded-2xl border border-[#dbe5e7] bg-white p-2">{!ready && <div className="grid min-h-[500px] place-items-center text-sm text-[#667984]">Loading {selectedVoice.name}…</div>}</div>}
+          {diagnostic && <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">{diagnostic}</div>}
+          <div className="min-h-[520px] rounded-2xl border border-[#dbe5e7] bg-white p-2">
+            {widget}
+            {!widgetReady && !diagnostic && <div className="pointer-events-none -mt-[500px] grid min-h-[500px] place-items-center text-sm text-[#667984]">Loading {selectedVoice.name}…</div>}
+          </div>
+          {diagnostic && <div className="mt-4 flex flex-wrap gap-2"><Button asChild><Link href="/live-interview"><Mic />Open working OpenAI live voice</Link></Button><Button asChild variant="outline"><Link href="/ai-interview"><Sparkles />Open AI interview</Link></Button></div>}
         </CardContent>
       </Card>
     </div>
