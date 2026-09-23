@@ -25,28 +25,20 @@ export default function RootLayout({
   return (
     <html lang="en-GB">
       <body className="antialiased">
+        <GlobalFocusNav />
         {children}
         <CommandPalette />
-        <GlobalFocusNav />
         <footer className="border-t bg-white px-4 py-6 text-sm text-slate-600">
-          <div className="mx-auto max-w-6xl">
-            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left">
+            <div>
               <span className="font-semibold text-[#102a43]">Oxbridge Tutor</span>
-              <Link href="/student-home" className="font-semibold text-[#102a43] underline underline-offset-4">Student Home</Link>
-              <Link href="/interviews" className="font-semibold text-[#102a43] underline underline-offset-4">Interview Hub</Link>
-              <Link href="/advanced-practice" className="font-semibold text-[#147d91] underline underline-offset-4">Advanced Practice</Link>
-              <Link href="/adaptive-paper" className="font-semibold text-[#147d91] underline underline-offset-4">Adaptive Paper</Link>
-              <Link href="/reasoning-lab" className="font-semibold text-[#147d91] underline underline-offset-4">Reasoning Lab</Link>
-              <Link href="/essay-tutor" className="font-semibold text-[#147d91] underline underline-offset-4">Essay Tutor</Link>
-              <Link href="/written-work-vault" className="font-semibold text-[#147d91] underline underline-offset-4">Written Work</Link>
-              <Link href="/requirements" className="font-semibold text-[#147d91] underline underline-offset-4">Requirements</Link>
-              <Link href="/course-bank" className="font-semibold text-[#147d91] underline underline-offset-4">Course Bank</Link>
-              <Link href="/reading-room" className="font-semibold text-[#147d91] underline underline-offset-4">Reading Room</Link>
-              <Link href="/knowledge-graph" className="font-semibold text-[#147d91] underline underline-offset-4">Knowledge Graph</Link>
-              <Link href="/research-project" className="font-semibold text-[#147d91] underline underline-offset-4">Research Project</Link>
-              <Link href="/accessibility-profiles" className="font-semibold text-[#147d91] underline underline-offset-4">Accessibility</Link>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">Original practice material; official university and test-provider guidance remains the source of truth for live application requirements and test formats.</p>
             </div>
-            <p className="mt-3 text-center text-xs leading-relaxed text-slate-500">Original practice material; official university and test-provider guidance remains the source of truth for live application requirements and test formats.</p>
+            <div className="flex flex-wrap justify-center gap-4 text-xs font-semibold">
+              <Link href="/student-home" className="text-[#102a43] hover:underline">Student Home</Link>
+              <Link href="/interviews" className="text-[#147d91] hover:underline">Interview Hub</Link>
+              <Link href="/requirements" className="text-[#147d91] hover:underline">Requirements</Link>
+            </div>
           </div>
         </footer>
       </body>
