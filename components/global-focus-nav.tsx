@@ -13,6 +13,7 @@ const groups: NavGroup[] = [
     icon: MessageSquareText,
     items: [
       { href: "/interviews", label: "Interview Hub", description: "Choose an interview format" },
+      { href: "/interview-feedback", label: "Structured Feedback", description: "Answer-by-answer reasoning analysis and re-answer practice" },
       { href: "/live-interview", label: "Gemini Live Voice", description: "Native realtime Gemini audio interview" },
       { href: "/natural-ai-interview", label: "Gemini Natural Voice", description: "Adaptive Gemini interview with high-quality TTS" },
       { href: "/elevenlabs-interview", label: "ElevenLabs Voice", description: "Alternative realtime interviewer voices" },
@@ -28,10 +29,11 @@ const groups: NavGroup[] = [
     icon: Target,
     items: [
       { href: "/full-papers", label: "Full Papers", description: "Timed full-length TMUA, ESAT, TARA, LNAT and UCAT mocks" },
+      { href: "/paper-intervention", label: "Paper Intervention", description: "Automatic weakness → mini-lesson → retest loop" },
       { href: "/advanced-practice", label: "Advanced Practice", description: "Challenge ladders and question bank" },
       { href: "/adaptive-paper", label: "Adaptive Paper", description: "Weak-area paper generator" },
       { href: "/timing-trainer", label: "Timing Trainer", description: "Skip, flag and pacing decisions" },
-      { href: "/essay-tutor", label: "Essay Tutor", description: "LNAT and TARA argument practice" },
+      { href: "/essay-tutor", label: "Essay Tutor", description: "Detailed LNAT/TARA argument analysis" },
       { href: "/question-quality", label: "Question Quality", description: "Question-bank validation" },
     ],
   },
