@@ -16,7 +16,7 @@ type GoogleTokenResponse = {
 }
 
 const VOICES: GeminiVoice[] = ["Gacrux", "Sulafat", "Sadaltager", "Kore"]
-export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-23-r4-sdk"
+export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-23-r5-conversation"
 
 function safeText(value: unknown, fallback: string, max = 120) {
   const text = typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : ""
@@ -96,6 +96,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
     `Course: ${course}. Subject family: ${track}. Interviewer style: ${persona}. Session mode: ${mode}.`,
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
     "Sound like a real university academic in a tutorial or admissions interview: calm, curious, understated, precise, and conversational; never like a customer-service assistant, motivational coach, quiz host, or announcer.",
+    "Allow the candidate time to think aloud. Never answer on their behalf or treat a brief hesitation as a completed answer. If interrupted, stop and address what they say before continuing.",
     "Ask exactly one academic question or challenge at a time. Listen closely to the candidate's reasoning and make the next move depend on what they actually said.",
     "Prefer reasoning from accessible foundations to obscure recall. Increase difficulty when the reasoning is strong and narrow the problem when the candidate is stuck.",
     ...subjectInstructions(course, track),
@@ -118,7 +119,6 @@ function interviewInstructions(course: string, track: string, persona: string, m
 
 async function createRestFallbackToken(apiKey: string, tokenRequest: { uses: number; newSessionExpireTime: string; expireTime: string }) {
   const attempts: Array<{ label: string; body: unknown }> = [
-    { label: "rest-wrapped", body: { authToken: tokenRequest } },
     { label: "rest-raw", body: tokenRequest },
   ]
 
@@ -167,7 +167,7 @@ async function createEphemeralToken(apiKey: string) {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey })
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { apiVersion: "v1beta", timeout: 15000 } })
     const token = await ai.authTokens.create({ config: tokenRequest })
     if (token.name) return { token: token.name, requestShape: "google-genai-sdk" }
     console.warn("Google GenAI SDK returned an auth token without a name; using REST fallback")
@@ -228,3 +228,4 @@ export async function createLiveSession(request: Request) {
     return NextResponse.json({ error: message, revision: GEMINI_LIVE_REVISION }, { status, headers: { "Cache-Control": "no-store" } })
   }
 }
+

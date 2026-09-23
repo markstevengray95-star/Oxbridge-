@@ -17,6 +17,7 @@ type Turn = { id: string; role: "interviewer" | "candidate" | "system"; text: st
 type TokenResponse = { token?: string; model?: string; voice?: GeminiVoice; instructions?: string; error?: string }
 type ConfigResponse = { configured?: boolean; model?: string; voices?: GeminiVoice[] }
 type GeminiMessage = {
+  error?: { message?: string }
   setupComplete?: Record<string, never>
   serverContent?: {
     modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> }
@@ -102,6 +103,13 @@ export default function GeminiLiveInterviewPage() {
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [serverModel, setServerModel] = useState("gemini-3.8-live")
 
+  const startedAtRef = useRef<number | null>(null)
+  const playbackEpochRef = useRef(0)
+  const generationRef = useRef(0)
+  const setupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const finishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inputTextRef = useRef("")
+  const savedRef = useRef(false)
   const wsRef = useRef<WebSocket | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const inputCtxRef = useRef<AudioContext | null>(null)
@@ -170,6 +178,7 @@ export default function GeminiLiveInterviewPage() {
   }
 
   function stopOutput() {
+    playbackEpochRef.current += 1
     for (const source of outputSourcesRef.current) {
       try { source.stop() } catch { /* already stopped */ }
     }
@@ -178,12 +187,12 @@ export default function GeminiLiveInterviewPage() {
   }
 
   async function playAudio(base64: string) {
-    let ctx = outputCtxRef.current
-    if (!ctx) {
-      ctx = new AudioContext()
-      outputCtxRef.current = ctx
-    }
+    const generation = generationRef.current
+    const playbackEpoch = playbackEpochRef.current
+    const ctx = outputCtxRef.current
+    if (!ctx) return
     if (ctx.state === "suspended") await ctx.resume()
+    if (generation !== generationRef.current || playbackEpoch !== playbackEpochRef.current || ctx !== outputCtxRef.current) return
     const samples = base64ToPcm(base64)
     if (!samples.length) return
     const buffer = ctx.createBuffer(1, samples.length, 24000)
@@ -194,7 +203,10 @@ export default function GeminiLiveInterviewPage() {
     const startAt = Math.max(ctx.currentTime + 0.015, nextAudioRef.current || ctx.currentTime)
     nextAudioRef.current = startAt + buffer.duration
     outputSourcesRef.current.add(source)
-    source.onended = () => outputSourcesRef.current.delete(source)
+    source.onended = () => {
+      outputSourcesRef.current.delete(source)
+      if (!outputSourcesRef.current.size && !modelSpeakingRef.current && !endingRef.current && wsRef.current) setStatus("connected")
+    }
     source.start(startAt)
   }
 
@@ -209,6 +221,7 @@ export default function GeminiLiveInterviewPage() {
       inputCtxRef.current = ctx
     }
     if (ctx.state === "suspended") await ctx.resume()
+    if (wsRef.current !== ws || endingRef.current) return
 
     const source = ctx.createMediaStreamSource(stream)
     const processor = ctx.createScriptProcessor(1024, 1, 1)
@@ -221,7 +234,7 @@ export default function GeminiLiveInterviewPage() {
     processor.onaudioprocess = event => {
       if (ws.readyState !== WebSocket.OPEN || mutedRef.current || endingRef.current) return
       const pcm = resample16k(event.inputBuffer.getChannelData(0), ctx!.sampleRate)
-      if (pcm.length < 256) return
+      if (!pcm.length) return
       ws.send(JSON.stringify({ realtimeInput: { audio: { data: pcmToBase64(pcm), mimeType: "audio/pcm;rate=16000" } } }))
     }
 
@@ -243,16 +256,26 @@ export default function GeminiLiveInterviewPage() {
   function closeAfterAudio(save: boolean) {
     const ctx = outputCtxRef.current
     const remainingMs = ctx ? Math.max(500, Math.ceil((nextAudioRef.current - ctx.currentTime) * 1000) + 350) : 650
-    window.setTimeout(() => close(save), remainingMs)
+    if (finishTimerRef.current) clearTimeout(finishTimerRef.current)
+    finishTimerRef.current = setTimeout(() => close(save), remainingMs)
   }
 
   function handleMessage(message: GeminiMessage, ws: WebSocket) {
+    if (wsRef.current !== ws) return
+    if (message.error) {
+      failConnection(message.error.message || "Gemini rejected the live session.")
+      return
+    }
     if (message.setupComplete) {
+      if (setupTimerRef.current) clearTimeout(setupTimerRef.current)
       setStatus("connected")
       setPhase("live")
-      setConnectedAt(Date.now())
+      startedAtRef.current = Date.now()
+      setConnectedAt(startedAtRef.current)
       addTurn("system", `Gemini Live connected using ${serverModel}. Your microphone audio is streamed for the live conversation and is not intentionally saved by this app.`)
-      sendOpening(ws)
+      void startMic(ws).then(() => {
+        if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) sendOpening(ws)
+      }).catch(error => failConnection(error instanceof Error ? error.message : "Microphone could not start"))
       return
     }
 
@@ -273,12 +296,16 @@ export default function GeminiLiveInterviewPage() {
       setStatus("speaking")
     }
 
-    const finalInput = content.inputTranscription?.text?.replace(/\s+/g, " ").trim()
-    if (finalInput && finalInput !== lastCandidateTextRef.current) {
-      lastCandidateTextRef.current = finalInput
-      lastCandidateIdRef.current = addTurn("candidate", finalInput)
+    const input = content.inputTranscription?.text
+    if (input) {
+      inputTextRef.current += input
+      setCandidateLive(inputTextRef.current)
+      setStatus("speaking")
+    }
+    if (inputTextRef.current && (content.outputTranscription?.text || content.modelTurn || content.turnComplete)) {
+      lastCandidateIdRef.current = addTurn("candidate", inputTextRef.current)
+      inputTextRef.current = ""
       setCandidateLive("")
-      setStatus("thinking")
     }
 
     const output = content.outputTranscription?.text
@@ -314,10 +341,7 @@ export default function GeminiLiveInterviewPage() {
 
     if (openingRef.current) {
       openingRef.current = false
-      void startMic(ws).then(() => setStatus("connected")).catch(error => {
-        setNotice(error instanceof Error ? error.message : "Microphone could not start")
-        setStatus("error")
-      })
+      if (!outputSourcesRef.current.size) setStatus("connected")
       return
     }
 
@@ -326,7 +350,14 @@ export default function GeminiLiveInterviewPage() {
       return
     }
 
-    setStatus("connected")
+    if (!outputSourcesRef.current.size) setStatus("connected")
+  }
+
+  function failConnection(message: string) {
+    close(false)
+    setPhase("lobby")
+    setStatus("error")
+    setNotice(message)
   }
 
   async function start() {
@@ -337,6 +368,15 @@ export default function GeminiLiveInterviewPage() {
       return
     }
 
+    close(false)
+    const generation = generationRef.current
+    savedRef.current = false
+    mutedRef.current = false
+    setMuted(false)
+    inputTextRef.current = ""
+    outputTextRef.current = ""
+    startedAtRef.current = null
+    setConnectedAt(null)
     setPhase("connecting")
     setStatus("connecting")
     setNotice("")
@@ -361,22 +401,31 @@ export default function GeminiLiveInterviewPage() {
       inputCtxRef.current = inputCtx
       await inputCtx.resume()
 
-      streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+      if (generation !== generationRef.current) { stream.getTracks().forEach(track => track.stop()); return }
+      streamRef.current = stream
 
       const response = await fetch("/api/realtime-session", {
         method: "POST",
+        signal: AbortSignal.timeout(30000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ course, track, persona: personaKey, mode, voice }),
       })
       const data = await response.json() as TokenResponse
+      if (generation !== generationRef.current) return
       if (!response.ok || !data.token || !data.model || !data.instructions) throw new Error(data.error || "Could not create the Gemini Live session.")
       setServerModel(data.model)
 
       const socketUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(data.token)}`
       const ws = new WebSocket(socketUrl)
       wsRef.current = ws
+      ws.binaryType = "arraybuffer"
+      setupTimerRef.current = setTimeout(() => {
+        if (wsRef.current === ws) failConnection("Gemini did not finish connecting. Please try again.")
+      }, 20000)
 
       ws.onopen = () => {
+        if (wsRef.current !== ws) return
         setStatus("connecting")
         ws.send(JSON.stringify({
           setup: {
@@ -386,33 +435,46 @@ export default function GeminiLiveInterviewPage() {
               speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: data.voice || voice } } },
             },
             systemInstruction: { parts: [{ text: data.instructions }] },
-            sessionResumption: {},
+            realtimeInputConfig: {
+              automaticActivityDetection: {
+                disabled: false,
+                startOfSpeechSensitivity: "START_SENSITIVITY_LOW",
+                endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
+                prefixPaddingMs: 300,
+                silenceDurationMs: 1200,
+              },
+              activityHandling: "START_OF_ACTIVITY_INTERRUPTS",
+            },
             inputAudioTranscription: {},
             outputAudioTranscription: {},
           },
         }))
       }
 
+      // Binary WebSocket frames must be decoded before JSON parsing.
+      let messages = Promise.resolve()
       ws.onmessage = event => {
-        try { handleMessage(JSON.parse(event.data) as GeminiMessage, ws) }
-        catch (error) {
-          console.error("Gemini Live message error", error)
-          setNotice("Gemini sent an unexpected live message. Restarting the interview is safe.")
-        }
+        messages = messages.then(async () => {
+          const raw = typeof event.data === "string" ? event.data
+            : event.data instanceof Blob ? await event.data.text()
+            : new TextDecoder().decode(event.data)
+          if (wsRef.current === ws) handleMessage(JSON.parse(raw) as GeminiMessage, ws)
+        }).catch(() => {
+          if (wsRef.current === ws) failConnection("Could not read the Gemini audio stream. Please restart the interview.")
+        })
       }
 
       ws.onerror = () => {
-        setStatus("error")
-        setNotice("The Gemini Live WebSocket could not connect. Check that GEMINI_API_KEY is enabled for the Gemini API and that this network allows secure WebSockets.")
+        if (wsRef.current === ws) failConnection("Gemini Live could not connect. Please retry and check your network allows secure WebSockets.")
       }
 
       ws.onclose = event => {
-        if (event.code !== 1000 && !endingRef.current) {
-          setStatus("error")
-          setNotice(event.reason || `Gemini Live closed unexpectedly (code ${event.code}).`)
-        }
+        if (wsRef.current !== ws) return
+        if (endingRef.current) { close(true); return }
+        failConnection(event.reason || `Gemini Live disconnected (code ${event.code}). Please start a new interview.`)
       }
     } catch (error) {
+      if (generation !== generationRef.current) return
       close(false)
       setPhase("lobby")
       setStatus("error")
@@ -434,6 +496,7 @@ export default function GeminiLiveInterviewPage() {
       close(true)
       return
     }
+    finishTimerRef.current = setTimeout(() => close(true), 20000)
     endingRef.current = true
     mutedRef.current = true
     setMuted(true)
@@ -444,21 +507,28 @@ export default function GeminiLiveInterviewPage() {
   }
 
   function saveProgress() {
-    if (!connectedAt) return
+    if (!turnsRef.current.length || savedRef.current) return
+    savedRef.current = true
     try {
       const saved = JSON.parse(localStorage.getItem(progressKey) || "{}") as Record<string, unknown>
       const logs = Array.isArray(saved.logs) ? saved.logs as Array<Record<string, unknown>> : []
       const sessions = Number(saved.sessions ?? 0)
       const events = turnsRef.current.filter(turn => turn.role !== "system").map(turn => `${turn.role === "candidate" ? "Candidate" : "Interviewer"}: ${turn.text}${turn.feedback ? ` | Feedback: ${turn.feedback}` : ""}`)
-      localStorage.setItem(progressKey, JSON.stringify({ ...saved, sessions: sessions + 1, logs: [{ id: `gemini-live-${Date.now()}`, title: `Gemini Live Interview · ${course}`, score: 0, date: new Date().toLocaleDateString("en-GB"), events: [...events, `Duration: ${formatTime(seconds)}`, `Feedback notes: ${feedbackCount}`] }, ...logs].slice(0, 40) }))
+      localStorage.setItem(progressKey, JSON.stringify({ ...saved, sessions: sessions + 1, logs: [{ id: `gemini-live-${Date.now()}`, title: `Gemini Live Interview · ${course}`, score: 0, date: new Date().toLocaleDateString("en-GB"), events: [...events, `Duration: ${formatTime(startedAtRef.current ? Math.floor((Date.now() - startedAtRef.current) / 1000) : 0)}`, `Feedback notes: ${turnsRef.current.filter(turn => turn.feedback).length}`] }, ...logs].slice(0, 40) }))
     } catch { /* interview completion does not depend on local persistence */ }
   }
 
   function close(save = true) {
     if (save) saveProgress()
+    generationRef.current += 1
+    if (setupTimerRef.current) clearTimeout(setupTimerRef.current)
+    if (finishTimerRef.current) clearTimeout(finishTimerRef.current)
+    setupTimerRef.current = null
+    finishTimerRef.current = null
     endingRef.current = true
-    try { wsRef.current?.close(1000, "Interview ended") } catch { /* ignore */ }
+    const ws = wsRef.current
     wsRef.current = null
+    try { ws?.close(1000, "Interview ended") } catch { /* ignore */ }
     stopOutput()
     try { processorRef.current?.disconnect() } catch { /* ignore */ }
     try { micSourceRef.current?.disconnect() } catch { /* ignore */ }
@@ -517,3 +587,4 @@ export default function GeminiLiveInterviewPage() {
 
   return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]"><div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Gemini Live · {course}</p><h1 className="font-serif text-2xl font-bold">{statusLabel}</h1></div><div className="flex items-center gap-2"><Badge variant="outline">{formatTime(seconds)}</Badge><Badge className="border-0 bg-[#147d91] text-white">{feedbackCount} feedback note{feedbackCount === 1 ? "" : "s"}</Badge></div></div>{notice && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div>}<div className="grid gap-5 lg:grid-cols-[1.15fr_.85fr]"><Card className="min-h-[660px] border-[#dbe5e7] shadow-sm"><CardHeader><CardTitle className="font-serif text-2xl">Interview conversation</CardTitle><CardDescription>The spoken feedback sentence is also attached beneath each answer as a written note.</CardDescription></CardHeader><CardContent><div className="max-h-[540px] space-y-3 overflow-y-auto rounded-2xl bg-[#f8fafb] p-4">{turns.filter(turn => turn.role !== "system").map(turn => <div key={turn.id} className={`rounded-2xl p-4 ${turn.role === "candidate" ? "ml-auto max-w-[90%] bg-[#102a43] text-white" : "bg-white shadow-sm"}`}><p className={`mb-1 text-[11px] font-bold uppercase tracking-wider ${turn.role === "candidate" ? "text-[#8dd7de]" : "text-[#147d91]"}`}>{turn.role === "candidate" ? "You" : "Interviewer"}</p><p className="text-sm leading-6">{turn.text}</p>{turn.role === "candidate" && turn.feedback && <div className="mt-3 rounded-xl bg-white/10 p-3"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#8dd7de]">Written feedback</p><p className="mt-1 text-sm leading-5 text-white/90">{turn.feedback}</p></div>}</div>)}{candidateLive && <div className="ml-auto max-w-[90%] rounded-2xl border border-dashed border-[#8dd7de] bg-[#102a43]/90 p-4 text-white"><p className="text-[11px] font-bold uppercase tracking-wider text-[#8dd7de]">Listening…</p><p className="mt-1 text-sm leading-6">{candidateLive}</p></div>}{interviewerLive && <div className="rounded-2xl border border-dashed border-[#9fcbd1] bg-white p-4"><p className="text-[11px] font-bold uppercase tracking-wider text-[#147d91]">Interviewer speaking…</p><p className="mt-1 text-sm leading-6">{interviewerLive}</p></div>}</div></CardContent></Card><div className="space-y-5"><Card className="border-[#dbe5e7] shadow-sm"><CardHeader><CardTitle className="font-serif text-xl">Live controls</CardTitle></CardHeader><CardContent className="space-y-3"><div className="rounded-xl bg-[#edf7f8] p-3 text-sm"><strong>{statusLabel}</strong><p className="mt-1 text-[#667984]">{voiceLabels[voice]} · {mode}</p></div><Button className="w-full" variant={muted ? "default" : "outline"} onClick={toggleMute}>{muted ? <Mic /> : <MicOff />}{muted ? "Unmute microphone" : "Mute microphone"}</Button><Button className="w-full" variant="destructive" onClick={finishInterview}><PhoneOff />Finish and hear debrief</Button></CardContent></Card><Card className="border-[#dbe5e7] shadow-sm"><CardHeader><CardTitle className="font-serif text-xl">What makes this realistic</CardTitle></CardHeader><CardContent className="space-y-3 text-sm leading-6 text-[#667984]"><p>• One question at a time.</p><p>• Specific feedback instead of generic praise.</p><p>• Follow-ups use your exact reasoning.</p><p>• You can interrupt naturally and Gemini stops its queued audio.</p><p>• Assumptions, counterexamples, estimates and changed conditions are used naturally.</p><p>• Changing your mind for a good reason is treated as flexible thinking.</p></CardContent></Card></div></div></div></main>
 }
+
