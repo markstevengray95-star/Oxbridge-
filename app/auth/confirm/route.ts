@@ -21,6 +21,6 @@ export async function GET(request: NextRequest) {
   }
 
   const errorUrl = new URL("/login", requestUrl.origin)
-  errorUrl.searchParams.set("error", "Email confirmation link is invalid or has expired. Please sign in or request a new confirmation email.")
+  errorUrl.searchParams.set("error", "This authentication link is invalid or has expired. Request a new confirmation or password-reset email and try again.")
   return NextResponse.redirect(errorUrl)
 }
