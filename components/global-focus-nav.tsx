@@ -2,25 +2,119 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, LayoutDashboard, MessageSquareText, Target, ClipboardCheck } from "lucide-react"
+import { BookOpen, ChevronDown, ClipboardCheck, GraduationCap, Home, LayoutDashboard, MessageSquareText, Target, Users } from "lucide-react"
 
-const interviewPaths = ["/interviews", "/interview-room", "/ai-interview", "/elevenlabs-interview", "/live-interview", "/panel-interview", "/cambridge-interview-day"]
-const platformPaths = ["/student-home", "/requirements", "/timeline", "/backup-center", "/course-bank", "/reading-room", "/knowledge-graph", "/research-project", "/mock-week", "/technology-rehearsal", "/reasoning-lab", "/intervention-session", "/written-work-vault", "/essay-tutor", "/adaptive-paper", "/accessibility-profiles", "/working-analysis", "/cambridge-assessments", "/question-quality", "/timing-trainer", "/source-health", "/personal-statement-map", "/learning-support", "/teacher-coach", "/unseen-lab"]
-const items = [
-  { href: "/student-home", label: "Student Home", icon: Home, active: (path: string) => platformPaths.some(prefix => path === prefix || path.startsWith(`${prefix}/`)) },
-  { href: "/", label: "Studio", icon: LayoutDashboard, active: (path: string) => path === "/" },
-  { href: "/interviews", label: "Interviews", icon: MessageSquareText, active: (path: string) => interviewPaths.some(prefix => path === prefix || path.startsWith(`${prefix}/`)) },
-  { href: "/advanced-practice", label: "Practice", icon: Target, active: (path: string) => path === "/advanced-practice" || path.startsWith("/advanced-practice/") || path === "/adaptive-paper" || path === "/essay-tutor" || path === "/timing-trainer" || path === "/question-quality" },
-  { href: "/requirements", label: "Audit", icon: ClipboardCheck, active: (path: string) => path === "/requirements" || path === "/cambridge-assessments" || path === "/source-health" },
+type NavItem = { href: string; label: string; description?: string }
+type NavGroup = { label: string; icon: typeof Home; items: NavItem[]; align?: "left" | "right" }
+
+const groups: NavGroup[] = [
+  {
+    label: "Interviews",
+    icon: MessageSquareText,
+    items: [
+      { href: "/interviews", label: "Interview Hub", description: "Choose an interview format" },
+      { href: "/elevenlabs-interview", label: "Natural Voice", description: "ElevenLabs interviewer voices" },
+      { href: "/interview-room", label: "Formal Interview", description: "Structured realistic practice" },
+      { href: "/ai-interview", label: "AI Interview", description: "Adaptive transcript-based follow-up" },
+      { href: "/live-interview", label: "OpenAI Live Voice", description: "Realtime voice alternative" },
+      { href: "/panel-interview", label: "Panel Interview", description: "Two academic interviewers" },
+      { href: "/cambridge-interview-day", label: "Cambridge Interview Day", description: "Cambridge-style simulation" },
+      { href: "/mock-week", label: "Mock Week", description: "No-feedback interview block" },
+    ],
+  },
+  {
+    label: "Admissions Tests",
+    icon: Target,
+    items: [
+      { href: "/advanced-practice", label: "Advanced Practice", description: "Challenge ladders and question bank" },
+      { href: "/adaptive-paper", label: "Adaptive Paper", description: "Weak-area paper generator" },
+      { href: "/timing-trainer", label: "Timing Trainer", description: "Skip, flag and pacing decisions" },
+      { href: "/essay-tutor", label: "Essay Tutor", description: "LNAT and TARA argument practice" },
+      { href: "/question-quality", label: "Question Quality", description: "Question-bank validation" },
+    ],
+  },
+  {
+    label: "Application",
+    icon: ClipboardCheck,
+    items: [
+      { href: "/requirements", label: "Requirements & Audit", description: "Course and application requirements" },
+      { href: "/timeline", label: "Timeline", description: "Application deadlines and next actions" },
+      { href: "/cambridge-assessments", label: "Cambridge Assessments", description: "College assessment guidance" },
+      { href: "/personal-statement-map", label: "Personal Statement Defence", description: "Defend every academic claim" },
+      { href: "/written-work-vault", label: "Written Work", description: "Written-work defence preparation" },
+      { href: "/technology-rehearsal", label: "Technology Rehearsal", description: "Camera, mic and interview setup" },
+      { href: "/source-health", label: "Official Source Watcher", description: "Check guidance freshness" },
+      { href: "/backup-center", label: "Backup Centre", description: "Encrypted profile export/import" },
+    ],
+  },
+  {
+    label: "Learning",
+    icon: BookOpen,
+    items: [
+      { href: "/course-bank", label: "Course Bank", description: "Deep course-specific questions" },
+      { href: "/unseen-lab", label: "Unseen Material Lab", description: "Graphs, sources and unfamiliar data" },
+      { href: "/reading-room", label: "Reading Room", description: "Academic extracts and tutorial questions" },
+      { href: "/knowledge-graph", label: "Knowledge Graph", description: "Connect supercurricular ideas" },
+      { href: "/research-project", label: "Research Project", description: "Evidence, thesis and defence" },
+      { href: "/reasoning-lab", label: "Reasoning Lab", description: "Rewind, argument map and misconceptions" },
+      { href: "/intervention-session", label: "Intervention Session", description: "Target recurring weaknesses" },
+      { href: "/working-analysis", label: "Working Analysis", description: "Analyse handwritten reasoning" },
+      { href: "/learning-support", label: "Learning Support", description: "EAL and Mandarin scaffolds" },
+    ],
+  },
+  {
+    label: "Progress & Teacher",
+    icon: Users,
+    align: "right",
+    items: [
+      { href: "/student-home", label: "Student Home", description: "Do next, continue and progress" },
+      { href: "/accessibility-profiles", label: "Accessibility", description: "Saved accessibility profiles" },
+      { href: "/teacher-coach", label: "Teacher Coach", description: "Meeting mode, comments and interview packs" },
+    ],
+  },
 ]
+
+function pathMatches(pathname: string, href: string) {
+  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`)
+}
 
 export function GlobalFocusNav() {
   const pathname = usePathname()
-  return <nav aria-label="Focus tools" className="fixed bottom-20 right-3 z-[60] flex max-w-[calc(100vw-1.5rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-xl backdrop-blur lg:bottom-5 lg:right-5">
-    {items.map(item => {
-      const Icon = item.icon
-      const active = item.active(pathname)
-      return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={`inline-flex h-10 flex-none items-center gap-2 rounded-xl px-3 text-xs font-semibold transition ${active ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><Icon className="size-4" /><span className="hidden sm:inline">{item.label}</span></Link>
-    })}
+
+  return <nav aria-label="Primary navigation" className="sticky top-0 z-[80] border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur">
+    <div className="mx-auto max-w-7xl px-3 sm:px-5 lg:px-8">
+      <div className="flex min-h-14 items-center gap-2">
+        <Link href="/student-home" className="mr-1 flex shrink-0 items-center gap-2 rounded-xl px-2 py-2 font-serif text-base font-bold text-[#102a43] hover:bg-[#edf7f8] sm:text-lg">
+          <GraduationCap className="size-5 text-[#147d91]" />
+          <span className="hidden sm:inline">Oxbridge Tutor</span>
+        </Link>
+
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <Link href="/student-home" aria-current={pathMatches(pathname, "/student-home") ? "page" : undefined} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${pathMatches(pathname, "/student-home") ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><Home className="size-4" />Home</Link>
+          <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${pathname === "/" ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><LayoutDashboard className="size-4" />Studio</Link>
+
+          {groups.map(group => {
+            const Icon = group.icon
+            const active = group.items.some(item => pathMatches(pathname, item.href))
+            return <details key={group.label} className="group relative shrink-0">
+              <summary className={`flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition [&::-webkit-details-marker]:hidden ${active ? "bg-[#e5f3f4] text-[#102a43]" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}>
+                <Icon className="size-4" />{group.label}<ChevronDown className="size-3.5 transition group-open:rotate-180" />
+              </summary>
+              <div className={`absolute top-[calc(100%+.55rem)] z-[100] w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl ${group.align === "right" ? "right-0" : "left-0"}`}>
+                <div className="max-h-[70vh] overflow-y-auto">
+                  {group.items.map(item => {
+                    const itemActive = pathMatches(pathname, item.href)
+                    return <Link key={item.href} href={item.href} className={`block rounded-xl px-3 py-2.5 transition ${itemActive ? "bg-[#edf7f8] text-[#102a43]" : "text-slate-700 hover:bg-slate-50"}`}>
+                      <span className="block text-sm font-semibold">{item.label}</span>
+                      {item.description && <span className="mt-0.5 block text-xs leading-4 text-slate-500">{item.description}</span>}
+                    </Link>
+                  })}
+                </div>
+              </div>
+            </details>
+          })}
+        </div>
+      </div>
+    </div>
   </nav>
 }
