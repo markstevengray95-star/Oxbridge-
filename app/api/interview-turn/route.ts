@@ -29,13 +29,13 @@ function localFollowUp(body: InterviewRequest) {
   const words = answer ? answer.split(/\s+/).length : 0
   const persona = body.persona ?? "Socratic"
   const panelLead = body.panelMode ? `${body.interviewerRole ?? "Panel interviewer"}: ` : ""
-  const prefix = persona === "Technical" ? "Make that step precise. " : persona === "Evidence-led" ? "Focus on the evidence. " : persona === "Sceptical" ? "I am not yet persuaded. " : persona === "Terse" ? "Continue. " : ""
+  const prefix = persona === "Technical" ? "That needs a more precise step. " : persona === "Evidence-led" ? "You have a claim there, but the evidence needs tightening. " : persona === "Sceptical" ? "I can see the direction, but one part is still unconvincing. " : persona === "Terse" ? "There is something useful there. " : ""
 
-  if (words < 28) return `${panelLead}${prefix}Can you make the reasoning explicit rather than giving me only the conclusion?`
-  if (!/assum|suppos|given|if\s/i.test(lower)) return `${panelLead}${prefix}Which assumption is doing the most work in your argument, and what would change if it failed?`
-  if (!/however|alternative|counter|unless|could|depends/i.test(lower)) return `${panelLead}${prefix}What is the strongest counterexample or alternative explanation to your current view?`
-  if (!/because|therefore|hence|implies|since/i.test(lower)) return `${panelLead}${prefix}What is the exact step connecting your evidence to that conclusion?`
-  return `${panelLead}${prefix}I want to change one condition. Which part of your reasoning remains valid, and which part would you now revise?`
+  if (words < 28) return `${panelLead}${prefix}You have given me the conclusion, but not enough of the chain that gets you there. Can you make the reasoning explicit?`
+  if (!/assum|suppos|given|if\s/i.test(lower)) return `${panelLead}${prefix}Your reasoning depends on something you have not stated yet. Which assumption is doing the most work, and what would change if it failed?`
+  if (!/however|alternative|counter|unless|could|depends/i.test(lower)) return `${panelLead}${prefix}You have developed one line of argument clearly, but you have not tested it against an alternative. What is the strongest counterexample or competing explanation?`
+  if (!/because|therefore|hence|implies|since/i.test(lower)) return `${panelLead}${prefix}You have useful ingredients, but the inferential link is still implicit. What is the exact step connecting your evidence to that conclusion?`
+  return `${panelLead}${prefix}Your chain is becoming clearer. Let me change one condition: which part of your reasoning survives, and which part would you now revise?`
 }
 
 function extractGeminiText(data: unknown) {
@@ -83,21 +83,24 @@ export async function POST(request: Request) {
   ] : []
 
   const systemPrompt = [
-    "You are conducting a formal Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
+    "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     ...panelInstructions,
-    "Your job is to test reasoning, not to reward polished memorised answers.",
-    "Ask exactly ONE concise follow-up question or challenge per turn.",
-    "Do not reveal the full solution, do not give a model answer, and do not say whether the candidate is correct.",
-    "Probe assumptions, evidence, definitions, limiting cases, counterexamples, transfer to a new condition, or the exact inferential step.",
-    "Use professional British English. Keep the reply under 55 words.",
+    "Your job is to test and develop reasoning, not to reward polished memorised answers.",
+    "Respond like a real academic in conversation, not like an AI assistant, examiner report, or tutoring worksheet.",
+    "For every substantive candidate answer, produce exactly TWO natural spoken parts without labels: (1) one short, specific observation or piece of feedback tied directly to something the candidate actually said; (2) exactly ONE concise follow-up question or challenge that develops that reasoning.",
+    "The feedback can notice a useful idea, missing justification, unstated assumption, ambiguity, revision, or weak inferential step. Avoid generic praise such as 'great answer', 'well done', or 'excellent'.",
+    "Do not reveal the full solution, do not give a model answer, and do not simply announce whether the candidate is correct.",
+    "Probe assumptions, evidence, definitions, limiting cases, counterexamples, calculations, diagrams, transfer to a changed condition, or the exact inferential step as appropriate to the subject.",
+    "Use natural professional British English. Keep the whole reply concise enough to sound natural aloud, normally 25-65 words.",
     `Course: ${body.course ?? "unspecified"}. Subject family: ${body.track ?? "unspecified"}. Difficulty: ${body.difficulty ?? "Stretch"}.`,
     `Interviewer persona: ${body.persona ?? "Socratic"}. Session mode: ${body.mode ?? "Realistic"}.`,
     `Concepts that may be relevant: ${(body.concepts ?? []).slice(0, 8).join(", ") || "course-specific reasoning"}.`,
-    "If the candidate changes their mind for a good reason, explore the revised reasoning rather than treating revision as failure.",
+    "If the candidate changes their mind for a defensible reason, explicitly notice the revision and explore why it is justified.",
+    "If the candidate is stuck, give a small conceptual nudge in the feedback sentence, then ask a smaller question rather than solving the problem.",
   ].join("\n")
 
   const conversation = recentTurns.map(turn => `${turn.speaker || (turn.role === "interviewer" ? "Interviewer" : "Candidate")}: ${turn.text}`).join("\n")
-  const userPrompt = `Current question: ${body.question ?? "Continue the academic discussion."}\n\nRecent conversation:\n${conversation || "No earlier turns."}\n\nCandidate's latest answer:\n${answer}\n\nRespond with the next interview question only.`
+  const userPrompt = `Current question: ${body.question ?? "Continue the academic discussion."}\n\nRecent conversation:\n${conversation || "No earlier turns."}\n\nCandidate's latest answer:\n${answer}\n\nGive one specific conversational observation about that answer, then ask exactly one follow-up question based on it.`
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
 
   try {
@@ -111,9 +114,9 @@ export async function POST(request: Request) {
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents: [{ role: "user", parts: [{ text: userPrompt }] }],
         generationConfig: {
-          maxOutputTokens: 180,
-          temperature: 0.7,
-          topP: 0.9,
+          maxOutputTokens: 220,
+          temperature: 0.72,
+          topP: 0.92,
         },
       }),
       signal: AbortSignal.timeout(15000),
