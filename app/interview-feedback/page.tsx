@@ -77,7 +77,8 @@ export default function InterviewFeedbackPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ course: selected.title ?? "Oxbridge interview", sessionTitle: selected.title, exchanges }),
-    }).then(response => response.json()).then((data: { analysis?: SessionFeedback; provider?: "gemini" | "local" }) => {
+    }).then(async response => {
+      const data = await response.json() as { analysis?: SessionFeedback; provider?: "gemini" | "local" }
       if (cancelled) return
       if (data.analysis) setAnalysis(data.analysis)
       setProvider(data.provider ?? "local")
