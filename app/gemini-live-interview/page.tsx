@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, AudioLines, Brain, CheckCircle2, Headphones, Loader2, Mic, MicOff, PhoneOff, RefreshCw, ShieldCheck, Sparkles, Volume2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
-import { interviewProfileFor } from "@/lib/prep-suite"
 
 type Phase = "lobby" | "connecting" | "live" | "ended"
 type State = "idle" | "connecting" | "connected" | "speaking" | "thinking" | "interviewer" | "error"
@@ -62,9 +61,7 @@ function resample16k(input: Float32Array, inputRate: number) {
 function pcmToBase64(pcm: Int16Array) {
   const bytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength)
   let binary = ""
-  for (let i = 0; i < bytes.length; i += 8192) {
-    binary += String.fromCharCode(...Array.from(bytes.subarray(i, i + 8192)))
-  }
+  for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...Array.from(bytes.subarray(i, i + 8192)))
   return btoa(binary)
 }
 
@@ -80,7 +77,7 @@ function base64ToPcm(base64: string) {
 
 function splitFeedbackAndQuestion(text: string) {
   const clean = text.replace(/\s+/g, " ").trim()
-  const sentence = clean.match(/^(.+?[.!])\s+(.+)$/s)
+  const sentence = clean.match(/^(.+?[.!])\s+([\s\S]+)$/)
   if (sentence) return { feedback: sentence[1].trim(), followUp: sentence[2].trim() }
   const questionIndex = clean.indexOf("?")
   if (questionIndex > 0) return { feedback: "", followUp: clean.slice(0, questionIndex + 1).trim() }
@@ -131,8 +128,11 @@ export default function GeminiLiveInterviewPage() {
     } catch { /* defaults */ }
 
     fetch("/api/realtime-session")
-      .then(async response => response.ok ? response.json() as Promise<ConfigResponse> : { configured: false })
-      .then(data => {
+      .then(async response => {
+        if (!response.ok) return { configured: false } as ConfigResponse
+        return response.json() as Promise<ConfigResponse>
+      })
+      .then((data: ConfigResponse) => {
         setConfigured(Boolean(data.configured))
         if (data.model) setServerModel(data.model)
       })
@@ -147,7 +147,6 @@ export default function GeminiLiveInterviewPage() {
 
   useEffect(() => () => close(false), [])
 
-  const profile = useMemo(() => interviewProfileFor(course, track), [course, track])
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const persona = interviewerPersonas[personaKey]
   const feedbackCount = turns.filter(turn => turn.role === "candidate" && turn.feedback).length
@@ -201,9 +200,7 @@ export default function GeminiLiveInterviewPage() {
 
   async function startMic(ws: WebSocket) {
     if (processorRef.current) return
-    const stream = streamRef.current ?? await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    })
+    const stream = streamRef.current ?? await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
     streamRef.current = stream
 
     let ctx = inputCtxRef.current
@@ -225,11 +222,7 @@ export default function GeminiLiveInterviewPage() {
       if (ws.readyState !== WebSocket.OPEN || mutedRef.current || modelSpeakingRef.current || endingRef.current) return
       const pcm = resample16k(event.inputBuffer.getChannelData(0), ctx!.sampleRate)
       if (pcm.length < 512) return
-      ws.send(JSON.stringify({
-        realtimeInput: {
-          audio: { data: pcmToBase64(pcm), mimeType: "audio/pcm;rate=16000" },
-        },
-      }))
+      ws.send(JSON.stringify({ realtimeInput: { audio: { data: pcmToBase64(pcm), mimeType: "audio/pcm;rate=16000" } } }))
     }
 
     source.connect(processor)
@@ -241,10 +234,7 @@ export default function GeminiLiveInterviewPage() {
     openingRef.current = true
     ws.send(JSON.stringify({
       clientContent: {
-        turns: [{
-          role: "user",
-          parts: [{ text: `Begin the formal ${course} practice interview now. Give a brief, natural greeting and then ask exactly one challenging but accessible opening question appropriate to ${course}. Do not give feedback before the candidate has answered.` }],
-        }],
+        turns: [{ role: "user", parts: [{ text: `Begin the formal ${course} practice interview now. Give a brief, natural greeting and then ask exactly one challenging but accessible opening question appropriate to ${course}. Do not give feedback before the candidate has answered.` }] }],
         turnComplete: true,
       },
     }))
@@ -371,9 +361,7 @@ export default function GeminiLiveInterviewPage() {
       inputCtxRef.current = inputCtx
       await inputCtx.resume()
 
-      streamRef.current = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      })
+      streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
 
       const response = await fetch("/api/realtime-session", {
         method: "POST",
@@ -436,9 +424,7 @@ export default function GeminiLiveInterviewPage() {
     mutedRef.current = next
     setMuted(next)
     streamRef.current?.getAudioTracks().forEach(track => { track.enabled = !next })
-    if (next && wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
-    }
+    if (next && wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
   }
 
   function finishInterview() {
@@ -453,12 +439,7 @@ export default function GeminiLiveInterviewPage() {
     streamRef.current?.getAudioTracks().forEach(track => { track.enabled = false })
     setStatus("thinking")
     ws.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
-    ws.send(JSON.stringify({
-      clientContent: {
-        turns: [{ role: "user", parts: [{ text: "The candidate has chosen to end the interview. Give the concise final spoken debrief described in your instructions, then clearly say that the interview is complete. Do not ask another question." }] }],
-        turnComplete: true,
-      },
-    }))
+    ws.send(JSON.stringify({ clientContent: { turns: [{ role: "user", parts: [{ text: "The candidate has chosen to end the interview. Give the concise final spoken debrief described in your instructions, then clearly say that the interview is complete. Do not ask another question." }] }], turnComplete: true } }))
   }
 
   function saveProgress() {
@@ -468,11 +449,7 @@ export default function GeminiLiveInterviewPage() {
       const logs = Array.isArray(saved.logs) ? saved.logs as Array<Record<string, unknown>> : []
       const sessions = Number(saved.sessions ?? 0)
       const events = turnsRef.current.filter(turn => turn.role !== "system").map(turn => `${turn.role === "candidate" ? "Candidate" : "Interviewer"}: ${turn.text}${turn.feedback ? ` | Feedback: ${turn.feedback}` : ""}`)
-      localStorage.setItem(progressKey, JSON.stringify({
-        ...saved,
-        sessions: sessions + 1,
-        logs: [{ id: `gemini-live-${Date.now()}`, title: `Gemini Live Interview · ${course}`, score: 0, date: new Date().toLocaleDateString("en-GB"), events: [...events, `Duration: ${formatTime(seconds)}`, `Feedback notes: ${feedbackCount}`] }, ...logs].slice(0, 40),
-      }))
+      localStorage.setItem(progressKey, JSON.stringify({ ...saved, sessions: sessions + 1, logs: [{ id: `gemini-live-${Date.now()}`, title: `Gemini Live Interview · ${course}`, score: 0, date: new Date().toLocaleDateString("en-GB"), events: [...events, `Duration: ${formatTime(seconds)}`, `Feedback notes: ${feedbackCount}`] }, ...logs].slice(0, 40) }))
     } catch { /* interview completion does not depend on local persistence */ }
   }
 
@@ -527,7 +504,7 @@ export default function GeminiLiveInterviewPage() {
           {notice && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900">{notice}</div>}
           <div className="mt-7 flex flex-wrap gap-2"><Button className="h-12 rounded-xl px-6" onClick={start} disabled={phase === "connecting" || configured === false}>{phase === "connecting" ? <><Loader2 className="animate-spin" />Connecting…</> : <><Mic />Start Gemini Live interview</>}</Button><Button variant="outline" asChild><Link href="/natural-ai-interview"><Sparkles />Use Gemini natural voice fallback</Link></Button></div>
         </div>
-        <aside className="border-t bg-[#102a43] p-6 text-white sm:p-9 lg:border-l lg:border-t-0 lg:p-10"><Badge className="border-white/15 bg-white/10 text-white">Realism upgrades</Badge><div className="mt-6 space-y-5 text-sm leading-6 text-white/70"><div className="flex gap-3"><Brain className="mt-0.5 size-5 shrink-0 text-[#8dd7de]" /><div><strong className="text-white">Answer-specific challenge</strong><p>The next question is based on what you actually said, not a fixed script.</p></div></div><div className="flex gap-3"><Volume2 className="mt-0.5 size-5 shrink-0 text-[#8dd7de]" /><div><strong className="text-white">Verbal + written feedback</strong><p>Every substantive answer gets one concise spoken feedback sentence, saved underneath the answer in writing.</p></div></div><div className="flex gap-3"><ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#8dd7de]" /><div><strong className="text-white">Real interview tone</strong><p>Minimal generic praise, one question at a time, assumption testing, counterexamples and changed conditions.</p></div></div></div><div className="mt-7 rounded-2xl bg-white/8 p-4 text-sm text-white/65"><strong className="text-white">{persona.label}</strong><p className="mt-1">{persona.behaviour}</p><p className="mt-3 text-xs">Model: {serverModel}</p></div></aside>
+        <aside className="border-t bg-[#102a43] p-6 text-white sm:p-9 lg:border-l lg:border-t-0 lg:p-10"><Badge className="border-white/15 bg-white/10 text-white">Realism upgrades</Badge><div className="mt-6 space-y-5 text-sm leading-6 text-white/70"><div className="flex gap-3"><Brain className="mt-0.5 size-5 shrink-0 text-[#8dd7de]" /><div><strong className="text-white">Answer-specific challenge</strong><p>The next question is based on what you actually said, not a fixed script.</p></div></div><div className="flex gap-3"><Volume2 className="mt-0.5 size-5 shrink-0 text-[#8dd7de]" /><div><strong className="text-white">Verbal + written feedback</strong><p>Every substantive answer gets one concise spoken feedback sentence, saved underneath the answer in writing.</p></div></div><div className="flex gap-3"><ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#8dd7de]" /><div><strong className="text-white">Real interview tone</strong><p>Minimal generic praise, one question at a time, assumption testing, counterexamples and changed conditions.</p></div></div></div><div className="mt-7 rounded-2xl bg-white/8 p-4 text-sm text-white/65"><strong className="text-white">{persona.label}</strong><p className="mt-1">{persona.followupPrefix}</p><p className="mt-3 text-xs">Model: {serverModel}</p></div></aside>
       </section>
     </div>
   </main>
