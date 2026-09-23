@@ -28,7 +28,7 @@ function analyse(text:string):Diagnostic[]{
     {label:"Counterargument",score:Math.min(100,20+counter*20),note:`${counter} counterargument signal${counter===1?"":"s"} detected.`,next:"Present the strongest objection fairly, then explain exactly why it changes—or does not change—your thesis."},
     {label:"Qualification",score:Math.min(100,20+qualification*18),note:`${qualification} qualification signal${qualification===1?"":"s"} detected.`,next:"Identify the condition under which your argument would be weaker, stronger or no longer apply."},
     {label:"Examples",score:Math.min(100,20+examples*18),note:`${examples} example/case signal${examples===1?"":"s"} detected.`,next:"Use examples as tests of a principle, not substitutes for the principle."},
-    {label:"Structure",score:Math.min(100,30+paras*12+(words>350?10:0)),note:`${paras.length} paragraph${paras.length===1?"":"s"} · ${words} words.`,next:"Give each paragraph one argumentative job and make the transition explain why the next step is needed."},
+    {label:"Structure",score:Math.min(100,30+paras.length*12+(words>350?10:0)),note:`${paras.length} paragraph${paras.length===1?"":"s"} · ${words} words.`,next:"Give each paragraph one argumentative job and make the transition explain why the next step is needed."},
   ]
 }
 
