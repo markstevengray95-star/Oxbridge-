@@ -1,5 +1,5 @@
-const CACHE='oxbridge-tutor-v7';
-const SHELL=['/','/interviews','/interview-room','/ai-interview','/live-interview','/panel-interview','/advanced-practice','/manifest.webmanifest','/favicon.svg'];
+const CACHE='oxbridge-tutor-v8';
+const SHELL=['/','/student-home','/interviews','/interview-room','/ai-interview','/live-interview','/panel-interview','/advanced-practice','/requirements','/timeline','/backup-center','/course-bank','/reading-room','/knowledge-graph','/research-project','/mock-week','/technology-rehearsal','/manifest.webmanifest','/favicon.svg'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
@@ -27,7 +27,7 @@ self.addEventListener('fetch',event=>{
           caches.open(CACHE).then(cache=>cache.put(request,copy));
           return response;
         })
-        .catch(()=>caches.match(request).then(hit=>hit||caches.match('/')))
+        .catch(()=>caches.match(request).then(hit=>hit||caches.match('/student-home')||caches.match('/')))
     );
     return;
   }
