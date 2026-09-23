@@ -1,0 +1,33 @@
+name: Apply Vercel source compatibility fixes
+on:
+  push:
+    branches: [fix/vercel-deployment]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/vercel-deployment
+      - name: Patch Next.js type errors hidden by vinext
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/page.tsx')
+          s = p.read_text()
+          old = 'void context.registerTool({ name: "start_interview_practice", title: "Start adaptive Oxbridge interview", description: "Open an adaptive interview for the selected pathway.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, execute: async () => { setTab("interview"); return { status: "opened", track, course } } }, { signal: lifecycle.signal }).catch(() => {})'
+          new = 'void Promise.resolve(context.registerTool({ name: "start_interview_practice", title: "Start adaptive Oxbridge interview", description: "Open an adaptive interview for the selected pathway.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, execute: async () => { setTab("interview"); return { status: "opened", track, course } } }, { signal: lifecycle.signal })).catch(() => {})'
+          s = s.replace(old, new)
+          s = s.replace('<TabsList orientation="vertical" variant="line" className="w-full items-stretch gap-1">', '<TabsList variant="line" className="w-full flex-col items-stretch gap-1">')
+          p.write_text(s)
+          PY
+      - name: Commit fixes
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/page.tsx
+          git commit -m "Fix Next.js type errors for Vercel"
+          git push origin HEAD:fix/vercel-deployment
