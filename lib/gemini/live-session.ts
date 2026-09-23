@@ -1,3 +1,4 @@
+import { GoogleGenAI } from "@google/genai"
 import { NextResponse } from "next/server"
 
 type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
@@ -15,7 +16,7 @@ type GoogleTokenResponse = {
 }
 
 const VOICES: GeminiVoice[] = ["Gacrux", "Sulafat", "Sadaltager", "Kore"]
-export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-23-r3"
+export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-23-r4-sdk"
 
 function safeText(value: unknown, fallback: string, max = 120) {
   const text = typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : ""
@@ -115,21 +116,10 @@ function interviewInstructions(course: string, track: string, persona: string, m
   ].join("\n")
 }
 
-async function createEphemeralToken(apiKey: string) {
-  const now = Date.now()
-  const tokenRequest = {
-    uses: 1,
-    newSessionExpireTime: new Date(now + 60_000).toISOString(),
-    expireTime: new Date(now + 30 * 60_000).toISOString(),
-  }
-
-  // Google's high-level ephemeral-token guide and lower-level API reference currently
-  // describe slightly different request envelopes. Try the documented raw AuthToken
-  // payload first, then the CreateAuthTokenRequest wrapper. Neither attempt sends the
-  // obsolete liveConnectConstraints field that caused the production failure.
+async function createRestFallbackToken(apiKey: string, tokenRequest: { uses: number; newSessionExpireTime: string; expireTime: string }) {
   const attempts: Array<{ label: string; body: unknown }> = [
-    { label: "raw", body: tokenRequest },
-    { label: "wrapped", body: { authToken: tokenRequest } },
+    { label: "rest-wrapped", body: { authToken: tokenRequest } },
+    { label: "rest-raw", body: tokenRequest },
   ]
 
   let lastStatus = 502
@@ -149,12 +139,7 @@ async function createEphemeralToken(apiKey: string) {
 
     const text = await response.text()
     if (response.ok) {
-      let parsed: GoogleTokenResponse
-      try {
-        parsed = JSON.parse(text) as GoogleTokenResponse
-      } catch {
-        throw new Error("Gemini returned an unreadable token response.")
-      }
+      const parsed = JSON.parse(text) as GoogleTokenResponse
       const token = typeof parsed.name === "string"
         ? parsed.name
         : typeof parsed.authToken?.name === "string"
@@ -171,6 +156,26 @@ async function createEphemeralToken(apiKey: string) {
 
   if (lastStatus === 429) throw new Error("Gemini Live is temporarily at its usage limit. Please try again shortly.")
   throw new Error(`Gemini Live token failed: ${extractGoogleError(lastText, `HTTP ${lastStatus}`)}`)
+}
+
+async function createEphemeralToken(apiKey: string) {
+  const now = Date.now()
+  const tokenRequest = {
+    uses: 1,
+    newSessionExpireTime: new Date(now + 60_000).toISOString(),
+    expireTime: new Date(now + 30 * 60_000).toISOString(),
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey })
+    const token = await ai.authTokens.create({ config: tokenRequest })
+    if (token.name) return { token: token.name, requestShape: "google-genai-sdk" }
+    console.warn("Google GenAI SDK returned an auth token without a name; using REST fallback")
+  } catch (error) {
+    console.warn("Google GenAI SDK auth token creation failed; using REST fallback", error)
+  }
+
+  return createRestFallbackToken(apiKey, tokenRequest)
 }
 
 export async function getLiveConfig() {
