@@ -1,135 +1,110 @@
-import { createHash } from "node:crypto"
+import { NextResponse } from "next/server"
 
 export const runtime = "nodejs"
 
-function safeText(value: string | null, fallback: string, max = 120) {
-  const text = (value ?? "").replace(/[\r\n\t]+/g, " ").trim()
+type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
+type SessionRequest = {
+  course?: string
+  track?: string
+  persona?: string
+  mode?: string
+  voice?: GeminiVoice
+}
+
+const VOICES: GeminiVoice[] = ["Gacrux", "Sulafat", "Sadaltager", "Kore"]
+
+function safeText(value: unknown, fallback: string, max = 120) {
+  const text = typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : ""
   return text ? text.slice(0, max) : fallback
 }
 
-function safetyIdentifier(request: Request) {
-  const raw = request.headers.get("x-oxbridge-client-id") || "anonymous-oxbridge-user"
-  return createHash("sha256").update(raw).digest("hex")
-}
-
-function upstreamMessage(text: string, fallback: string) {
+function extractGoogleError(text: string, fallback: string) {
   try {
-    const parsed = JSON.parse(text) as { error?: { message?: unknown; code?: unknown } }
+    const parsed = JSON.parse(text) as { error?: { message?: unknown; status?: unknown } }
     const message = typeof parsed.error?.message === "string" ? parsed.error.message : ""
-    const code = typeof parsed.error?.code === "string" ? parsed.error.code : ""
-    return [message, code ? `(${code})` : ""].filter(Boolean).join(" ") || fallback
+    const status = typeof parsed.error?.status === "string" ? parsed.error.status : ""
+    return [message, status ? `(${status})` : ""].filter(Boolean).join(" ") || fallback
   } catch {
     return fallback
   }
 }
 
 export async function POST(request: Request) {
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
-    return new Response("OpenAI Realtime is not configured on this deployment. Add OPENAI_API_KEY to the server environment and redeploy.", { status: 503 })
+    return NextResponse.json({ error: "Gemini Live is not configured on this deployment. Add GEMINI_API_KEY to the server environment and redeploy." }, { status: 503 })
   }
 
-  const sdp = await request.text()
-  if (!sdp.trim()) return new Response("Missing SDP offer", { status: 400 })
+  let body: SessionRequest = {}
+  try {
+    body = await request.json() as SessionRequest
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  }
 
-  const url = new URL(request.url)
-  const course = safeText(url.searchParams.get("course"), "the selected course")
-  const track = safeText(url.searchParams.get("track"), "the selected subject family")
-  const persona = safeText(url.searchParams.get("persona"), "Socratic academic")
-  const mode = safeText(url.searchParams.get("mode"), "Realistic")
-  const model = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1"
-  const voice = process.env.OPENAI_REALTIME_VOICE || "marin"
+  const course = safeText(body.course, "the selected course")
+  const track = safeText(body.track, "the selected subject family")
+  const persona = safeText(body.persona, "Socratic academic")
+  const mode = safeText(body.mode, "Realistic")
+  const voice: GeminiVoice = VOICES.includes(body.voice as GeminiVoice) ? body.voice as GeminiVoice : "Gacrux"
+  const model = process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live"
 
   const instructions = [
-    "You are conducting a formal Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
+    "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     `Course: ${course}. Subject family: ${track}. Interviewer style: ${persona}. Session mode: ${mode}.`,
-    "Use professional British English and keep spoken turns concise.",
-    "Ask one academic question or challenge at a time, then wait for the candidate to respond.",
-    "Probe reasoning, assumptions, definitions, evidence, limiting cases, counterexamples, or transfer to a changed condition.",
-    "Do not reveal the full solution or provide a model answer during the live interview.",
-    "Do not say whether an answer is correct immediately; use questions to test and refine the reasoning.",
-    "If the candidate changes their mind for a defensible reason, explore the revised reasoning rather than treating revision as failure.",
-    "If the candidate is stuck, give a small conceptual nudge rather than solving the problem.",
+    "Speak in natural professional British English, like a university academic rather than an assistant or announcer.",
+    "Use concise spoken turns, varied but understated intonation, and allow thoughtful pauses without rushing the candidate.",
+    "Ask exactly one academic question or challenge at a time, then listen carefully to the candidate's reasoning.",
+    "Build follow-ups directly from what the candidate has just said. Probe assumptions, evidence, definitions, limiting cases, counterexamples, or transfer to a changed condition.",
+    "Do not reveal the full solution, provide a model answer, predict admissions outcomes, or praise routine answers excessively.",
+    "If the candidate is stuck, first ask a smaller guiding question rather than solving the problem.",
+    "If the candidate revises an answer after new evidence, explore why the revision is justified.",
     "Keep the interaction focused on academic preparation and avoid collecting personal information.",
   ].join("\n")
 
-  const session = {
-    type: "realtime",
-    model,
-    instructions,
-    output_modalities: ["audio"],
-    audio: {
-      input: {
-        turn_detection: {
-          type: "semantic_vad",
-          eagerness: "low",
-          create_response: true,
-          interrupt_response: true,
-        },
-      },
-      output: { voice, speed: 0.98 },
-    },
+  const now = Date.now()
+  const tokenRequest = {
+    uses: 1,
+    newSessionExpireTime: new Date(now + 60_000).toISOString(),
+    expireTime: new Date(now + 30 * 60_000).toISOString(),
   }
 
   try {
-    const tokenResponse = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        "x-goog-api-key": apiKey,
         "Content-Type": "application/json",
-        "OpenAI-Safety-Identifier": safetyIdentifier(request),
       },
-      body: JSON.stringify({
-        expires_after: { anchor: "created_at", seconds: 120 },
-        session,
-      }),
+      body: JSON.stringify(tokenRequest),
       signal: AbortSignal.timeout(15000),
     })
 
-    const tokenText = await tokenResponse.text()
-    if (!tokenResponse.ok) {
-      console.error("Realtime client-secret creation failed", tokenResponse.status, tokenText.slice(0, 800))
-      return new Response(`OpenAI Realtime token failed: ${upstreamMessage(tokenText, `HTTP ${tokenResponse.status}`)}`, { status: 502 })
+    const text = await response.text()
+    if (!response.ok) {
+      console.error("Gemini ephemeral token failed", response.status, text.slice(0, 800))
+      return NextResponse.json({ error: `Gemini Live token failed: ${extractGoogleError(text, `HTTP ${response.status}`)}` }, { status: 502 })
     }
 
-    const tokenData = JSON.parse(tokenText) as { value?: unknown }
-    const ephemeralKey = typeof tokenData.value === "string" ? tokenData.value : ""
-    if (!ephemeralKey) {
-      console.error("Realtime client-secret response did not contain a value")
-      return new Response("OpenAI Realtime token response was invalid.", { status: 502 })
+    const data = JSON.parse(text) as { name?: unknown }
+    const token = typeof data.name === "string" ? data.name : ""
+    if (!token) {
+      console.error("Gemini auth token response did not contain a token name")
+      return NextResponse.json({ error: "Gemini Live token response was invalid." }, { status: 502 })
     }
 
-    const callResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${ephemeralKey}`,
-        "Content-Type": "application/sdp",
-      },
-      body: sdp,
-      signal: AbortSignal.timeout(20000),
-    })
-
-    const answerSdp = await callResponse.text()
-    if (!callResponse.ok) {
-      console.error("Realtime SDP connection failed", callResponse.status, answerSdp.slice(0, 800))
-      return new Response(`OpenAI Realtime connection failed: ${upstreamMessage(answerSdp, `HTTP ${callResponse.status}`)}`, { status: 502 })
-    }
-
-    if (!answerSdp.trim().startsWith("v=")) {
-      console.error("Realtime returned a non-SDP response", answerSdp.slice(0, 800))
-      return new Response("OpenAI Realtime returned an invalid SDP answer.", { status: 502 })
-    }
-
-    return new Response(answerSdp, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/sdp",
-        "Cache-Control": "no-store",
-      },
+    return NextResponse.json({
+      token,
+      model,
+      voice,
+      instructions,
+      expiresInSeconds: 1800,
+    }, {
+      headers: { "Cache-Control": "no-store" },
     })
   } catch (error) {
-    console.error("Realtime session error", error)
+    console.error("Gemini Live token error", error)
     const message = error instanceof Error ? error.message : "Unknown server error"
-    return new Response(`OpenAI Realtime could not start: ${message}`, { status: 502 })
+    return NextResponse.json({ error: `Gemini Live could not start: ${message}` }, { status: 502 })
   }
 }
