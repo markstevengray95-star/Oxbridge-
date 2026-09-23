@@ -12,20 +12,30 @@ const destinations = [
   { label:"AI Interview", href:"/ai-interview", keywords:"ai adaptive interview follow up" },
   { label:"Live Voice Interview", href:"/live-interview", keywords:"voice realtime interview microphone" },
   { label:"Panel Interview", href:"/panel-interview", keywords:"two interviewer panel" },
+  { label:"Cambridge Interview Day", href:"/cambridge-interview-day", keywords:"cambridge college interview day december" },
+  { label:"Cambridge Assessment Centre", href:"/cambridge-assessments", keywords:"cambridge college assessment architecture linguistics mml" },
   { label:"Deep Course Bank", href:"/course-bank", keywords:"course physics law medicine maths engineering questions" },
+  { label:"Unseen Material Lab", href:"/unseen-lab", keywords:"unseen graph data source interview stimulus" },
+  { label:"Working Analysis", href:"/working-analysis", keywords:"handwritten photo image equations reasoning" },
   { label:"Advanced Practice", href:"/advanced-practice", keywords:"test admissions challenge ladder questions" },
   { label:"Adaptive Paper", href:"/adaptive-paper", keywords:"paper weak areas unseen tmua esat tara lnat ucat" },
+  { label:"Timing Trainer", href:"/timing-trainer", keywords:"time flag skip move on test decision" },
   { label:"Essay Tutor", href:"/essay-tutor", keywords:"lnat tara essay writing argument" },
+  { label:"Question Quality", href:"/question-quality", keywords:"validate question bank duplicate options quality" },
   { label:"Reasoning Lab", href:"/reasoning-lab", keywords:"rewind argument map fingerprint misconception" },
   { label:"Targeted Intervention", href:"/intervention-session", keywords:"weakness intervention mistake remediation" },
   { label:"Requirements & Audit", href:"/requirements", keywords:"course requirement test written work college assessment" },
   { label:"Timeline Autopilot", href:"/timeline", keywords:"deadline calendar ucas application" },
+  { label:"Official Source Watcher", href:"/source-health", keywords:"official source freshness oxford cambridge test provider" },
+  { label:"Personal Statement Defence", href:"/personal-statement-map", keywords:"personal statement defence claims reading motivation" },
   { label:"Written Work Vault", href:"/written-work-vault", keywords:"essay submitted work defence claims" },
   { label:"Reading Room", href:"/reading-room", keywords:"unseen extract annotate tutorial" },
   { label:"Knowledge Graph", href:"/knowledge-graph", keywords:"supercurricular books lectures concepts" },
   { label:"Research Project", href:"/research-project", keywords:"research thesis evidence counterargument defence" },
   { label:"Mock Week", href:"/mock-week", keywords:"no feedback interview week" },
   { label:"Technology Rehearsal", href:"/technology-rehearsal", keywords:"camera microphone interview tech" },
+  { label:"Learning Support", href:"/learning-support", keywords:"eal mandarin bilingual glossary sentence frames" },
+  { label:"Teacher Coach", href:"/teacher-coach", keywords:"teacher meeting tutor comments interview packs mentor" },
   { label:"Backup Centre", href:"/backup-center", keywords:"backup export import move device encrypted" },
   { label:"Accessibility Profiles", href:"/accessibility-profiles", keywords:"large text contrast reading reduced motion" },
 ]
@@ -36,7 +46,7 @@ export function CommandPalette(){
   const [active,setActive]=useState(0)
   const router=useRouter()
   const inputRef=useRef<HTMLInputElement>(null)
-  const results=useMemo(()=>{const q=query.trim().toLowerCase();return q?destinations.filter(item=>`${item.label} ${item.keywords}`.toLowerCase().includes(q)).slice(0,10):destinations.slice(0,10)},[query])
+  const results=useMemo(()=>{const q=query.trim().toLowerCase();return q?destinations.filter(item=>`${item.label} ${item.keywords}`.toLowerCase().includes(q)).slice(0,12):destinations.slice(0,12)},[query])
   const go=(href:string)=>{setOpen(false);setQuery("");router.push(href)}
   useEffect(()=>{const handler=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();setOpen(v=>!v)}if(e.key==="Escape")setOpen(false)};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler)},[])
   useEffect(()=>{if(open){setActive(0);window.setTimeout(()=>inputRef.current?.focus(),0)}},[open])
