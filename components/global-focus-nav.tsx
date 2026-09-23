@@ -68,6 +68,7 @@ const groups: NavGroup[] = [
     icon: Users,
     align: "right",
     items: [
+      { href: "/account", label: "Account & Billing", description: "Sign in, subscription and saved cloud progress" },
       { href: "/student-home", label: "Student Home", description: "Do next, continue and progress" },
       { href: "/accessibility-profiles", label: "Accessibility", description: "Saved accessibility profiles" },
       { href: "/teacher-coach", label: "Teacher Coach", description: "Meeting mode, comments and interview packs" },
