@@ -17,6 +17,7 @@ const PRO_ROUTES = [
 ]
 
 const SCHOOL_ROUTES = [
+  "/school-dashboard",
   "/human-review",
   "/teacher-coach",
 ]
@@ -53,7 +54,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const requiresPro = matchesAny(pathname, PRO_ROUTES)
   const requiresSchool = matchesAny(pathname, SCHOOL_ROUTES)
-  const protectedRoute = pathname.startsWith("/account") || pathname.startsWith("/dashboard") || requiresPro || requiresSchool
+  const protectedRoute = pathname.startsWith("/account") || pathname.startsWith("/dashboard") || pathname.startsWith("/school-classroom") || requiresPro || requiresSchool
 
   if (!userId && protectedRoute) {
     const url = request.nextUrl.clone()

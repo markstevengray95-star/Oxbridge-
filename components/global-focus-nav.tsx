@@ -79,12 +79,13 @@ const groups: NavGroup[] = [
     items: [
       { href: "/mistake-dna", label: "Mistake DNA", description: "Recurring reasoning and test-error patterns" },
       { href: "/progress-proof", label: "Progress Proof", description: "Evidence timeline showing what has actually improved" },
+      { href: "/school-classroom", label: "Student Classroom", description: "Join a school cohort and complete assigned preparation" },
+      { href: "/school-dashboard", label: "School Dashboard", description: "School-plan cohorts, assignments, analytics and reports" },
       { href: "/human-review", label: "Human + AI Review", description: "Teacher/tutor comments alongside automated analysis" },
       { href: "/parent-summary", label: "Parent Summary", description: "Opt-in privacy-safe progress overview" },
       { href: "/premium", label: "Free / Pro / School", description: "What each plan unlocks" },
       { href: "/account", label: "Account & Billing", description: "Sign in, subscription and saved cloud progress" },
       { href: "/accessibility-profiles", label: "Accessibility", description: "Saved accessibility profiles" },
-      { href: "/teacher-coach", label: "Teacher Coach", description: "Meeting mode, comments and interview packs" },
     ],
   },
 ]
