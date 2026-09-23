@@ -16,11 +16,24 @@ type GoogleTokenResponse = {
 }
 
 const VOICES: GeminiVoice[] = ["Gacrux", "Sulafat", "Sadaltager", "Kore"]
-export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-23-r5-conversation"
+const DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.8-live"
+export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-23-r6-model-normalization"
 
 function safeText(value: unknown, fallback: string, max = 120) {
   const text = typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : ""
   return text ? text.slice(0, max) : fallback
+}
+
+function normalizeLiveModelName(value: string | undefined) {
+  const raw = (value || DEFAULT_GEMINI_LIVE_MODEL).trim()
+  const withoutQuery = raw.split("?", 1)[0].replace(/\/+$/, "")
+  const resourceMarker = "/models/"
+  const resourceIndex = withoutQuery.lastIndexOf(resourceMarker)
+  const candidate = resourceIndex >= 0
+    ? withoutQuery.slice(resourceIndex + resourceMarker.length)
+    : withoutQuery.replace(/^models\//i, "")
+  const model = candidate.replace(/^\/+|\/+$/g, "").trim()
+  return model || DEFAULT_GEMINI_LIVE_MODEL
 }
 
 function extractGoogleError(text: string, fallback: string) {
@@ -181,7 +194,7 @@ async function createEphemeralToken(apiKey: string) {
 export async function getLiveConfig() {
   return NextResponse.json({
     configured: Boolean(process.env.GEMINI_API_KEY),
-    model: process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live",
+    model: normalizeLiveModelName(process.env.GEMINI_LIVE_MODEL),
     voices: VOICES,
     revision: GEMINI_LIVE_REVISION,
   }, { headers: { "Cache-Control": "no-store" } })
@@ -208,7 +221,7 @@ export async function createLiveSession(request: Request) {
   const persona = safeText(body.persona, "Socratic academic", 80)
   const mode = safeText(body.mode, "Realistic", 40)
   const voice: GeminiVoice = VOICES.includes(body.voice as GeminiVoice) ? body.voice as GeminiVoice : "Gacrux"
-  const model = process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live"
+  const model = normalizeLiveModelName(process.env.GEMINI_LIVE_MODEL)
 
   try {
     const { token, requestShape } = await createEphemeralToken(apiKey)
@@ -228,4 +241,3 @@ export async function createLiveSession(request: Request) {
     return NextResponse.json({ error: message, revision: GEMINI_LIVE_REVISION }, { status, headers: { "Cache-Control": "no-store" } })
   }
 }
-
