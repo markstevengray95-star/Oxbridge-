@@ -15,23 +15,23 @@ const voices = [
   {
     key: "george",
     name: "George",
-    agentId: "agent_5401m378eya4e769k56h0z44wc1d",
+    agentId: "agent_2801m37bewq9fm08psqc86dkhfkm",
     style: "Warm academic",
-    description: "Natural British male voice with warmer tutorial-style delivery, patient pauses and a conversational academic presence.",
+    description: "Natural British male voice with slower, warmer tutorial-style delivery, patient pauses and a conversational academic presence.",
   },
   {
-    key: "alice",
-    name: "Alice",
-    agentId: "agent_0101m37beg40f3ntny35m3wb4fb0",
-    style: "Clear academic",
-    description: "Clear British female educator voice with precise diction, calm pacing and a focused tutorial style.",
+    key: "charlotte",
+    name: "Charlotte",
+    agentId: "agent_1701m37bg4hbfj0awbmm3a6avvwk",
+    style: "Composed academic",
+    description: "Clear British female voice with deliberate pacing, precise phrasing and a calm analytical interview style.",
   },
   {
     key: "daniel",
     name: "Daniel",
-    agentId: "agent_3101m37bfhejekrb0m558w5k8fgg",
-    style: "Formal academic",
-    description: "Steady British male voice with a more formal interview presence for realistic higher-pressure practice.",
+    agentId: "agent_0501m37bfdw9e5qtzewz6n389w0c",
+    style: "Measured academic",
+    description: "Steady British male voice with firmer, slightly quicker pacing for realistic higher-pressure interview practice.",
   },
 ] as const
 
@@ -129,7 +129,7 @@ export default function ElevenLabsInterviewPage() {
               <h1 className="mt-1 font-serif text-3xl font-bold sm:text-4xl">Choose an academic voice, then speak naturally.</h1>
             </div>
           </div>
-          <p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">Each interviewer uses ElevenLabs realtime speech with GPT-5.6 Sol for academic reasoning. They share the same Socratic interview method but have genuinely different British voices and conversational presence.</p>
+          <p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">Each interviewer uses ElevenLabs realtime speech with GPT-5.6 Sol for academic reasoning. They share the same Socratic method but use genuinely different British voices, pacing and vocal stability so changing interviewer feels like meeting a different academic.</p>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
             {voices.map(voice => {
@@ -143,7 +143,7 @@ export default function ElevenLabsInterviewPage() {
           </div>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            {["Patient turn detection", "Natural contractions and varied cadence", "Sparse conversational acknowledgements", "Adaptive Socratic follow-ups"].map(item => <div key={item} className="flex items-center gap-2 rounded-xl bg-[#edf7f8] p-3 text-sm font-semibold"><CheckCircle2 className="size-4 text-[#147d91]" />{item}</div>)}
+            {["Patient turn detection", "Different cadence per interviewer", "Natural contractions and sparse acknowledgements", "Adaptive Socratic follow-ups"].map(item => <div key={item} className="flex items-center gap-2 rounded-xl bg-[#edf7f8] p-3 text-sm font-semibold"><CheckCircle2 className="size-4 text-[#147d91]" />{item}</div>)}
           </div>
 
           <div className="mt-7 rounded-2xl border border-[#cfe1e4] bg-[#f8fbfb] p-4">
