@@ -148,13 +148,6 @@ export async function POST(request: Request) {
     uses: 1,
     newSessionExpireTime: new Date(now + 60_000).toISOString(),
     expireTime: new Date(now + 30 * 60_000).toISOString(),
-    liveConnectConstraints: {
-      model: `models/${model}`,
-      config: {
-        responseModalities: ["AUDIO"],
-        sessionResumption: {},
-      },
-    },
   }
 
   try {
