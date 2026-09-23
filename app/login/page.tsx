@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, CheckCircle2, GraduationCap, Loader2, LockKeyhole, Mail, UserPlus } from "lucide-react"
@@ -25,6 +25,11 @@ export default function LoginPage() {
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
 
+  useEffect(() => {
+    const authError = new URLSearchParams(window.location.search).get("error")
+    if (authError) setError(authError)
+  }, [])
+
   async function submit(event: FormEvent) {
     event.preventDefault()
     setBusy(true)
@@ -34,20 +39,22 @@ export default function LoginPage() {
     try {
       const supabase = createClient()
       if (mode === "signup") {
+        const afterConfirm = nextPath()
+        const confirmationUrl = `${window.location.origin}/auth/confirm?next=${encodeURIComponent(afterConfirm)}`
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: { display_name: displayName.trim() || email.split("@")[0] },
-            emailRedirectTo: `${window.location.origin}/account`,
+            emailRedirectTo: confirmationUrl,
           },
         })
         if (error) throw error
         if (data.session) {
-          router.replace(nextPath())
+          router.replace(afterConfirm)
           router.refresh()
         } else {
-          setMessage("Account created. Check your email to confirm your address, then sign in.")
+          setMessage("Account created. Check your email to confirm your address; the confirmation link will bring you back signed in.")
           setMode("signin")
         }
       } else {
