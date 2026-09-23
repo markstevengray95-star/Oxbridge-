@@ -27,6 +27,7 @@ const groups: NavGroup[] = [
     label: "Admissions Tests",
     icon: Target,
     items: [
+      { href: "/full-papers", label: "Full Papers", description: "Timed full-length TMUA, ESAT, TARA, LNAT and UCAT mocks" },
       { href: "/advanced-practice", label: "Advanced Practice", description: "Challenge ladders and question bank" },
       { href: "/adaptive-paper", label: "Adaptive Paper", description: "Weak-area paper generator" },
       { href: "/timing-trainer", label: "Timing Trainer", description: "Skip, flag and pacing decisions" },
