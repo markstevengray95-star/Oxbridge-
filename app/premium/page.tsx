@@ -3,13 +3,96 @@ import { ArrowLeft, CheckCircle2, GraduationCap, School, Sparkles } from "lucide
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { annualSavingPercent, displayPrice, monthlyGeminiMinutes } from "@/lib/billing/plans"
 
 const tiers = [
-  { name: "Free", icon: GraduationCap, note: "Experience the preparation system before subscribing.", features: ["Diagnostic and starter question bank", "Limited interview practice", "Basic feedback", "Limited Gemini Live usage", "Basic tutor recommendations"] },
-  { name: "Pro", icon: Sparkles, note: "The complete personalised preparation system.", features: ["Full Personal AI Tutor and long-term preparation profile", "All full papers and adaptive interventions", "Mistake DNA and Progress Proof", "Detailed interview and essay analysis", "Tutorial Lab and Daily Challenge", "Application Digital Twin and defence practice", "Mock Interview Day and supercurricular coach"] },
-  { name: "School", icon: School, note: "Teacher-supported preparation across a cohort.", features: ["Everything in Pro", "Teacher Coach and review workflow", "Human + AI feedback records", "Cohort-ready cloud data model", "Parent-safe progress summaries", "School subscription tier already supported by billing"] },
+  {
+    id: "free" as const,
+    name: "Free",
+    icon: GraduationCap,
+    note: "Start preparing and build your first evidence profile.",
+    features: [
+      "Diagnostic and starter question bank",
+      "Limited interview practice",
+      "Basic personalised feedback",
+      `${monthlyGeminiMinutes("free")} Gemini Live minutes each month`,
+      "Basic Tutor recommendations",
+      "Saved preparation profile",
+    ],
+  },
+  {
+    id: "pro" as const,
+    name: "Pro",
+    icon: Sparkles,
+    note: "The complete personalised preparation system for an individual applicant.",
+    features: [
+      "Full Personal AI Tutor and Tutor Autopilot",
+      "Dual-voice AI panel interviews and Live working analysis",
+      "All full papers, adaptive interventions and test simulator",
+      "Mistake DNA, transfer tracking and readiness analytics",
+      "Detailed personalised essay feedback and version comparison",
+      "Written Work Defence and application command centre",
+      "Personalised Reading Curriculum and synthesis practice",
+      `${monthlyGeminiMinutes("pro")} Gemini Live minutes each month`,
+    ],
+  },
+  {
+    id: "school" as const,
+    name: "School",
+    icon: School,
+    note: "A cohort licence for schools delivering structured Oxbridge preparation.",
+    features: [
+      "Everything in Pro",
+      "Teacher Coach and school dashboard",
+      "Cohort preparation and progress oversight",
+      "Human + AI feedback records",
+      "Parent-safe progress summaries",
+      "Admin and quality-control workflows",
+      `${monthlyGeminiMinutes("school")} Gemini Live minutes each month`,
+    ],
+  },
 ]
 
+function money(value: number) {
+  return Number.isInteger(value) ? `£${value}` : `£${value.toFixed(2)}`
+}
+
+function CheckoutButton({ tier, interval, label, primary = false }: { tier: "pro" | "school"; interval: "monthly" | "annual"; label: string; primary?: boolean }) {
+  return <form action="/api/billing/checkout" method="post" className="w-full"><input type="hidden" name="tier" value={tier} /><input type="hidden" name="interval" value={interval} /><Button type="submit" className="w-full" variant={primary ? "default" : "outline"}>{label}</Button></form>
+}
+
 export default function PremiumPage() {
-  return <main className="min-h-screen bg-[#f5f7f7] text-[#172b3a]"><header className="border-b bg-white"><div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4"><Button asChild variant="ghost"><Link href="/tutor"><ArrowLeft />Personal Tutor</Link></Button><Badge variant="outline">Plans</Badge></div></header><div className="mx-auto max-w-6xl space-y-7 px-4 py-10"><section className="text-center"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Pay for personalisation, not just more questions</p><h1 className="mx-auto mt-2 max-w-4xl font-serif text-4xl font-bold sm:text-5xl">The paid value is the tutor that learns from everything you do.</h1><p className="mx-auto mt-4 max-w-3xl text-slate-600">Pro combines tests, interviews, essays, application evidence and mistake patterns into one persistent preparation system. Practice scores remain practice evidence, not admissions predictions.</p></section><section className="grid gap-5 lg:grid-cols-3">{tiers.map(tier => { const Icon = tier.icon; return <Card key={tier.name} className={tier.name === "Pro" ? "border-[#147d91] shadow-[0_20px_60px_rgba(16,42,67,.10)]" : "shadow-none"}><CardHeader><Icon className="size-6 text-[#147d91]" /><div className="flex items-center gap-2"><CardTitle className="font-serif text-3xl">{tier.name}</CardTitle>{tier.name === "Pro" && <Badge>Core experience</Badge>}</div><CardDescription>{tier.note}</CardDescription></CardHeader><CardContent className="space-y-3">{tier.features.map(item => <p key={item} className="flex gap-2 text-sm leading-6"><CheckCircle2 className="mt-1 size-4 shrink-0 text-emerald-600" />{item}</p>)}<Button asChild className="mt-3 w-full" variant={tier.name === "Pro" ? "default" : "outline"}><Link href={tier.name === "School" ? "/teacher-coach" : "/account"}>{tier.name === "School" ? "Open teacher tools" : "Account & billing"}</Link></Button></CardContent></Card>})}</section></div></main>
+  const proSaving = annualSavingPercent("pro")
+  const schoolSaving = annualSavingPercent("school")
+
+  return <main className="min-h-screen bg-[#f5f7f7] text-[#172b3a]">
+    <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4"><Button asChild variant="ghost"><Link href="/tutor"><ArrowLeft />Personal Tutor</Link></Button><Badge variant="outline">Simple pricing</Badge></div></header>
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6">
+      <section className="text-center"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Choose the level of preparation you need</p><h1 className="mx-auto mt-2 max-w-4xl font-serif text-4xl font-bold sm:text-5xl">Start free. Upgrade when you want the full personalised system.</h1><p className="mx-auto mt-4 max-w-3xl text-slate-600">Pro is designed for individual applicants. School adds cohort oversight and teacher tools. Practice analytics describe preparation evidence, not admissions probability.</p></section>
+
+      <section className="grid gap-5 lg:grid-cols-3">
+        {tiers.map(tier => {
+          const Icon = tier.icon
+          const monthly = displayPrice(tier.id, "monthly")
+          const annual = displayPrice(tier.id, "annual")
+          const saving = tier.id === "pro" ? proSaving : tier.id === "school" ? schoolSaving : 0
+          return <Card key={tier.name} className={tier.id === "pro" ? "relative border-[#147d91] shadow-[0_20px_60px_rgba(16,42,67,.10)]" : "shadow-none"}>
+            {tier.id === "pro" && <Badge className="absolute right-5 top-5">Most popular</Badge>}
+            <CardHeader><Icon className="size-6 text-[#147d91]" /><CardTitle className="font-serif text-3xl">{tier.name}</CardTitle><CardDescription>{tier.note}</CardDescription></CardHeader>
+            <CardContent className="space-y-5">
+              <div className="rounded-2xl bg-[#f6f9f9] p-4">
+                {tier.id === "free" ? <><p className="font-serif text-4xl font-bold">£0</p><p className="mt-1 text-sm text-[#667984]">No payment required</p></> : <div className="space-y-3"><div><p className="text-xs font-bold uppercase tracking-wider text-[#667984]">Monthly</p><p className="font-serif text-3xl font-bold">{money(monthly)}<span className="text-base font-normal text-[#667984]"> / month</span></p></div><div className="border-t pt-3"><div className="flex items-center gap-2"><p className="text-xs font-bold uppercase tracking-wider text-[#667984]">Annual</p>{saving > 0 && <Badge variant="outline">Save {saving}%</Badge>}</div><p className="font-serif text-3xl font-bold">{money(annual)}<span className="text-base font-normal text-[#667984]"> / year</span></p><p className="text-xs text-[#667984]">Equivalent to {money(annual / 12)} per month</p></div></div>}
+              </div>
+
+              <div className="space-y-2">{tier.features.map(item => <p key={item} className="flex gap-2 text-sm leading-6"><CheckCircle2 className="mt-1 size-4 shrink-0 text-emerald-600" />{item}</p>)}</div>
+
+              {tier.id === "free" ? <Button asChild className="w-full" variant="outline"><Link href="/account">Continue free</Link></Button> : <div className="grid gap-2"><CheckoutButton tier={tier.id} interval="annual" label={`Choose ${tier.name} annual`} primary={tier.id === "pro"} /><CheckoutButton tier={tier.id} interval="monthly" label={`Choose ${tier.name} monthly`} /></div>}
+            </CardContent>
+          </Card>
+        })}
+      </section>
+
+      <section className="rounded-3xl border bg-white p-6 sm:p-8"><div className="grid gap-6 lg:grid-cols-[1fr_1fr]"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">What changes when you upgrade?</p><h2 className="mt-2 font-serif text-3xl font-bold">Pro pays for personalisation, not simply a larger question bank.</h2><p className="mt-3 text-sm leading-6 text-[#667984]">The paid system connects interviews, tests, essays, written work, reading, retention and transfer into one preparation model that decides what you should work on next.</p></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-[#f6f9f9] p-4"><p className="font-semibold">Cancel through Stripe</p><p className="mt-1 text-sm text-[#667984]">Billing remains managed through the existing Stripe customer portal.</p></div><div className="rounded-2xl bg-[#f6f9f9] p-4"><p className="font-semibold">Admin remains unlimited</p><p className="mt-1 text-sm text-[#667984]">Authorised administrators continue to bypass normal subscription and AI limits.</p></div></div></div></section>
+    </div>
+  </main>
 }
