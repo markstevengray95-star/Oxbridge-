@@ -6,7 +6,7 @@ import { PROGRESS_KEY } from "@/lib/personal-tutor"
 
 const APP_STATE_PREFIX = "oxbridge-"
 const LOCAL_CACHE_OWNER_KEY = "__oxbridge_local_cache_owner_v1"
-const RESTORE_MARKER = "oxbridge-cloud-restore-v3"
+const RESTORE_MARKER = "oxbridge-cloud-restore-v4"
 const RAW_STORAGE_FORMAT_KEY = "__oxbridge_storage_format"
 const RAW_STORAGE_FORMAT = "raw-v1"
 
@@ -87,6 +87,8 @@ export function CloudProgressSync() {
     let cancelled = false
     let timer: number | null = null
     let activeUserId: string | null = null
+    let syncInFlight = false
+    let pullInFlight = false
     const lastSeen = new Map<string, string>()
 
     function stopTimer() {
@@ -162,6 +164,21 @@ export function CloudProgressSync() {
 
         for (const turn of parsedTurns) {
           if (!turn.feedback) continue
+          const { data: existingMemory, error: lookupError } = await supabase
+            .from("memory_items")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("source_type", "interview_feedback")
+            .eq("source_id", sessionId)
+            .eq("content", turn.feedback)
+            .maybeSingle()
+
+          if (lookupError) {
+            console.warn("Oxbridge learning memory lookup failed", lookupError.message)
+            continue
+          }
+          if (existingMemory?.id) continue
+
           const { error } = await supabase.from("memory_items").insert({
             user_id: userId,
             category: "note",
@@ -178,7 +195,7 @@ export function CloudProgressSync() {
     }
 
     async function pushKey(userId: string, key: string, raw: string) {
-      if (!isAppStateKey(key) || cancelled || userId !== activeUserId) return
+      if (!isAppStateKey(key) || cancelled || userId !== activeUserId || !navigator.onLine) return
       const value = toCloudValue(raw)
       const { error } = await supabase.from("user_state").upsert({
         user_id: userId,
@@ -197,7 +214,7 @@ export function CloudProgressSync() {
     }
 
     async function deleteKey(userId: string, key: string) {
-      if (!isAppStateKey(key) || cancelled || userId !== activeUserId) return
+      if (!isAppStateKey(key) || cancelled || userId !== activeUserId || !navigator.onLine) return
       const { error } = await supabase
         .from("user_state")
         .delete()
@@ -213,20 +230,92 @@ export function CloudProgressSync() {
 
     async function syncLocalChanges() {
       const userId = activeUserId
-      if (!userId || cancelled) return
+      if (!userId || cancelled || syncInFlight || !navigator.onLine) return
+      syncInFlight = true
 
-      const currentKeys = new Set(localAppStateKeys())
-      const keys = new Set([...currentKeys, ...lastSeen.keys()])
+      try {
+        const currentKeys = new Set(localAppStateKeys())
+        const keys = new Set([...currentKeys, ...lastSeen.keys()])
 
-      for (const key of keys) {
-        if (cancelled || userId !== activeUserId) return
-        const raw = localStorage.getItem(key)
-        if (raw === null) {
-          if (lastSeen.has(key)) await deleteKey(userId, key)
-          continue
+        for (const key of keys) {
+          if (cancelled || userId !== activeUserId) return
+          const raw = localStorage.getItem(key)
+          if (raw === null) {
+            if (lastSeen.has(key)) await deleteKey(userId, key)
+            continue
+          }
+          if (lastSeen.get(key) !== raw) await pushKey(userId, key, raw)
         }
-        if (lastSeen.get(key) !== raw) await pushKey(userId, key, raw)
+      } finally {
+        syncInFlight = false
       }
+    }
+
+    async function pullCloudChanges() {
+      const userId = activeUserId
+      if (!userId || cancelled || pullInFlight || !navigator.onLine) return false
+      pullInFlight = true
+
+      try {
+        const { data, error } = await supabase
+          .from("user_state")
+          .select("state_key,state_value")
+          .eq("user_id", userId)
+
+        if (cancelled || userId !== activeUserId) return false
+        if (error) {
+          console.warn("Oxbridge cloud refresh failed", error.message)
+          return false
+        }
+
+        const rows = new Map(
+          (data ?? [])
+            .filter(row => isAppStateKey(row.state_key))
+            .map(row => [row.state_key, row] as const),
+        )
+        const keys = new Set([...rows.keys(), ...lastSeen.keys()])
+        let changed = false
+
+        for (const key of keys) {
+          if (cancelled || userId !== activeUserId) return false
+          const localRaw = localStorage.getItem(key)
+          const seenRaw = lastSeen.get(key)
+          const localDirty = seenRaw === undefined ? localRaw !== null : localRaw !== seenRaw
+          if (localDirty) continue
+
+          const cloudRow = rows.get(key)
+          if (!cloudRow) {
+            if (seenRaw !== undefined) {
+              if (localRaw !== null) {
+                localStorage.removeItem(key)
+                changed = true
+              }
+              lastSeen.delete(key)
+            }
+            continue
+          }
+
+          const cloudRaw = fromCloudValue(cloudRow.state_value)
+          if (localRaw !== cloudRaw) {
+            localStorage.setItem(key, cloudRaw)
+            changed = true
+          }
+          lastSeen.set(key, cloudRaw)
+        }
+
+        if (changed) {
+          window.dispatchEvent(new CustomEvent("oxbridge-cloud-state-updated", { detail: { userId } }))
+        }
+        return changed
+      } finally {
+        pullInFlight = false
+      }
+    }
+
+    async function reconcileWithCloud() {
+      await syncLocalChanges()
+      const changed = await pullCloudChanges()
+      if (changed && !cancelled) window.location.reload()
     }
 
     async function initialise(userId: string) {
@@ -276,7 +365,7 @@ export function CloudProgressSync() {
         }
       }
 
-      const marker = `${userId}:all-app-state-v3`
+      const marker = `${userId}:all-app-state-v4`
       if (restored && sessionStorage.getItem(RESTORE_MARKER) !== marker) {
         sessionStorage.setItem(RESTORE_MARKER, marker)
         window.location.reload()
@@ -314,13 +403,18 @@ export function CloudProgressSync() {
       else void pushKey(userId, event.key, event.newValue)
     }
 
-    const onFocus = () => { void syncLocalChanges() }
+    const onFocus = () => { void reconcileWithCloud() }
+    const onOnline = () => { void reconcileWithCloud() }
+    const onPageHide = () => { void syncLocalChanges() }
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") void syncLocalChanges()
+      else void reconcileWithCloud()
     }
 
     window.addEventListener("storage", onStorage)
     window.addEventListener("focus", onFocus)
+    window.addEventListener("online", onOnline)
+    window.addEventListener("pagehide", onPageHide)
     document.addEventListener("visibilitychange", onVisibilityChange)
 
     return () => {
@@ -329,6 +423,8 @@ export function CloudProgressSync() {
       authListener.subscription.unsubscribe()
       window.removeEventListener("storage", onStorage)
       window.removeEventListener("focus", onFocus)
+      window.removeEventListener("online", onOnline)
+      window.removeEventListener("pagehide", onPageHide)
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [])
