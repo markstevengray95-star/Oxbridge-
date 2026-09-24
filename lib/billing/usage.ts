@@ -1,3 +1,4 @@
+import { getAppAdminAccess } from "@/lib/auth/admin"
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
 import {
   effectiveTier,
@@ -16,6 +17,8 @@ type UsageState = {
   remainingMinutes: number
   reservationMinutes: number
   enforced: boolean
+  isAdmin: boolean
+  unlimited: boolean
 }
 
 function numeric(value: unknown) {
@@ -23,8 +26,23 @@ function numeric(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-export async function getGeminiUsageState(userId: string): Promise<UsageState> {
+export async function getGeminiUsageState(userId: string, email?: string | null): Promise<UsageState> {
   const reservationMinutes = geminiReservationMinutes()
+  const adminAccess = await getAppAdminAccess(userId, email)
+
+  if (adminAccess.isAdmin) {
+    return {
+      tier: "school",
+      status: "active",
+      usedMinutes: 0,
+      limitMinutes: 0,
+      remainingMinutes: 0,
+      reservationMinutes,
+      enforced: false,
+      isAdmin: true,
+      unlimited: true,
+    }
+  }
 
   if (!hasSupabaseAdminConfig()) {
     return {
@@ -35,6 +53,8 @@ export async function getGeminiUsageState(userId: string): Promise<UsageState> {
       remainingMinutes: monthlyGeminiMinutes("free"),
       reservationMinutes,
       enforced: false,
+      isAdmin: false,
+      unlimited: false,
     }
   }
 
@@ -67,13 +87,15 @@ export async function getGeminiUsageState(userId: string): Promise<UsageState> {
     remainingMinutes: Math.max(0, limitMinutes - usedMinutes),
     reservationMinutes,
     enforced: true,
+    isAdmin: false,
+    unlimited: false,
   }
 }
 
-export async function reserveGeminiSession(userId: string) {
-  const state = await getGeminiUsageState(userId)
+export async function reserveGeminiSession(userId: string, email?: string | null) {
+  const state = await getGeminiUsageState(userId, email)
 
-  if (!state.enforced) {
+  if (state.unlimited || !state.enforced) {
     return { allowed: true as const, state, reservationId: null as string | null }
   }
 
