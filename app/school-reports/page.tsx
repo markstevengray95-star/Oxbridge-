@@ -13,11 +13,12 @@ type Assignment={id:string;title:string}
 type Row={assignment_id:string;user_id:string;status:string}
 type Detail={cohort:{id:string;name:string;course?:string|null};students:Student[];assignments:Assignment[];progress:Row[]}
 type Data={owned:Detail[]}
+type SchoolResponse=Data&{error?:string}
 function csv(value:unknown){const s=String(value??"");return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s}
 
 export default function SchoolReportsPage(){
  const[data,setData]=useState<Data|null>(null),[activeId,setActiveId]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState("")
- useEffect(()=>{fetch("/api/school",{cache:"no-store"}).then(async r=>{const x=await r.json();if(!r.ok)throw new Error(x.error||"Could not load School data");setData(x);setActiveId(x.owned?.[0]?.cohort?.id||"")}).catch(e=>setError(e instanceof Error?e.message:"Could not load School data")).finally(()=>setLoading(false))},[])
+ useEffect(()=>{fetch("/api/school",{cache:"no-store"}).then(async r=>{const x=await r.json() as SchoolResponse;if(!r.ok)throw new Error(x.error||"Could not load School data");setData({owned:x.owned||[]});setActiveId(x.owned?.[0]?.cohort?.id||"")}).catch(e=>setError(e instanceof Error?e.message:"Could not load School data")).finally(()=>setLoading(false))},[])
  const active=data?.owned.find(x=>x.cohort.id===activeId)||data?.owned[0]
  const stats=useMemo(()=>{if(!active)return{avg:0,interviews:0,papers:0,essays:0,completion:0};const n=Math.max(1,active.students.length);const avg=Math.round(active.students.reduce((s,x)=>s+(x.updatedAt?x.preparationScore:0),0)/n);const interviews=active.students.reduce((s,x)=>s+x.interviewCount,0),papers=active.students.reduce((s,x)=>s+x.fullPaperCount,0),essays=active.students.reduce((s,x)=>s+x.essayCount,0);const possible=active.students.length*active.assignments.length;const done=active.progress.filter(x=>x.status==="completed").length;return{avg,interviews,papers,essays,completion:possible?Math.round(done/possible*100):0}},[active])
  function exportCsv(){if(!active)return;const rows=[["Student","University","Course","Preparation","Interviews","Papers","Essays","Priority"],...active.students.map(s=>[s.displayName,s.targetUniversity,s.targetCourse,s.updatedAt?s.preparationScore:"",s.interviewCount,s.fullPaperCount,s.essayCount,s.priority?.label||""])];const url=URL.createObjectURL(new Blob([rows.map(r=>r.map(csv).join(",")).join("\n")],{type:"text/csv"}));const a=document.createElement("a");a.href=url;a.download=`${active.cohort.name.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-school-report.csv`;a.click();URL.revokeObjectURL(url)}
