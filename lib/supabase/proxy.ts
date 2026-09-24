@@ -18,10 +18,19 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, { cookies: { getAll(){return request.cookies.getAll()}, setAll(cookiesToSet){cookiesToSet.forEach(({name,value})=>request.cookies.set(name,value));response=NextResponse.next({request});cookiesToSet.forEach(({name,value,options})=>response.cookies.set(name,value,options))} } })
   const { data } = await supabase.auth.getClaims(); const user=data?.claims; const userId=typeof user?.sub==="string"?user.sub:null; const userEmail=typeof user?.email==="string"?user.email:null; const pathname=request.nextUrl.pathname
-  const requiresPro=matchesAny(pathname,PRO_ROUTES), requiresSchool=matchesAny(pathname,SCHOOL_ROUTES), requiresAccountAddon=matchesAny(pathname,ACCOUNT_ADDON_ROUTES), adminLogin=pathname==="/admin/login", requiresAdmin=pathname==="/admin"||(pathname.startsWith("/admin/")&&!adminLogin), protectedRoute=pathname.startsWith("/account")||pathname.startsWith("/dashboard")||pathname.startsWith("/school-classroom")||pathname.startsWith("/school-seats")||requiresAccountAddon||requiresPro||requiresSchool||requiresAdmin
+
+  if(pathname==="/"){
+    const url=request.nextUrl.clone()
+    url.pathname=userId?"/student-home":"/login"
+    url.search=""
+    if(!userId) url.searchParams.set("next","/student-home")
+    return NextResponse.redirect(url)
+  }
+
+  const requiresPro=matchesAny(pathname,PRO_ROUTES), requiresSchool=matchesAny(pathname,SCHOOL_ROUTES), requiresAccountAddon=matchesAny(pathname,ACCOUNT_ADDON_ROUTES), adminLogin=pathname==="/admin/login", requiresAdmin=pathname==="/admin"||(pathname.startsWith("/admin/")&&!adminLogin), protectedRoute=pathname.startsWith("/account")||pathname.startsWith("/dashboard")||pathname.startsWith("/student-home")||pathname.startsWith("/school-classroom")||pathname.startsWith("/school-seats")||requiresAccountAddon||requiresPro||requiresSchool||requiresAdmin
   if(!userId&&requiresAdmin){const url=request.nextUrl.clone();url.pathname="/admin/login";url.search="";url.searchParams.set("next",pathname);return NextResponse.redirect(url)}
   if(!userId&&protectedRoute){const url=request.nextUrl.clone();url.pathname="/login";url.search="";url.searchParams.set("next",pathname);return NextResponse.redirect(url)}
-  if(userId&&pathname==="/login"){const url=request.nextUrl.clone();url.pathname="/account";url.search="";return NextResponse.redirect(url)}
+  if(userId&&pathname==="/login"){const url=request.nextUrl.clone();url.pathname="/student-home";url.search="";return NextResponse.redirect(url)}
   let isAdmin=userId?isConfiguredAdminEmail(userEmail):false
   if(userId&&!isAdmin&&(requiresAdmin||requiresPro||requiresSchool||adminLogin)){const {data:adminRole}=await supabase.from("app_admins").select("role").eq("user_id",userId).maybeSingle();isAdmin=adminRole?.role==="admin"}
   if(userId&&adminLogin&&isAdmin){const url=request.nextUrl.clone();url.pathname="/admin";url.search="";return NextResponse.redirect(url)}
