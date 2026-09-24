@@ -8,8 +8,8 @@ import { checkoutLineItem } from "@/lib/billing/checkout"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-function redirectAccount(request: Request, value: string) {
-  const url = new URL("/account", request.url)
+function redirectPricing(request: Request, value: string) {
+  const url = new URL("/premium", request.url)
   url.searchParams.set("billing", value)
   return NextResponse.redirect(url, 303)
 }
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
     if (!userId) {
       const login = new URL("/login", request.url)
-      login.searchParams.set("next", "/premium")
+      login.searchParams.set("next", "/post-login")
       return NextResponse.redirect(login, 303)
     }
 
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     const tier = requestedTier === "school" ? "school" : "pro"
     const requestedInterval = String(formData.get("interval") || "monthly")
     const interval: BillingInterval = requestedInterval === "annual" ? "annual" : "monthly"
-    if (!isStripeConfigured()) return redirectAccount(request, "stripe-not-configured")
+    if (!isStripeConfigured()) return redirectPricing(request, "stripe-not-configured")
     const lineItem = checkoutLineItem(tier, interval)
 
     const stripe = getStripe()
@@ -48,19 +48,10 @@ export async function POST(request: Request) {
     if (subscriptionError) throw new Error(subscriptionError.message)
 
     let customerId = currentSubscription?.stripe_customer_id || ""
-
     if (!customerId) {
-      const customer = await stripe.customers.create({
-        email,
-        metadata: { supabase_user_id: userId },
-      })
+      const customer = await stripe.customers.create({ email, metadata: { supabase_user_id: userId } })
       customerId = customer.id
-
-      const { error: customerSaveError } = await admin.from("subscriptions").upsert({
-        user_id: userId,
-        stripe_customer_id: customerId,
-      }, { onConflict: "user_id" })
-
+      const { error: customerSaveError } = await admin.from("subscriptions").upsert({ user_id: userId, stripe_customer_id: customerId }, { onConflict: "user_id" })
       if (customerSaveError) throw new Error(customerSaveError.message)
     }
 
@@ -71,26 +62,16 @@ export async function POST(request: Request) {
       client_reference_id: userId,
       line_items: [lineItem],
       allow_promotion_codes: true,
-      success_url: `${origin}/account?billing=success`,
+      success_url: `${origin}/post-login?billing=success`,
       cancel_url: `${origin}/premium?billing=cancelled`,
-      metadata: {
-        supabase_user_id: userId,
-        tier,
-        interval,
-      },
-      subscription_data: {
-        metadata: {
-          supabase_user_id: userId,
-          tier,
-          interval,
-        },
-      },
+      metadata: { supabase_user_id: userId, tier, interval },
+      subscription_data: { metadata: { supabase_user_id: userId, tier, interval } },
     })
 
     if (!session.url) throw new Error("Stripe did not return a Checkout URL.")
     return NextResponse.redirect(session.url, 303)
   } catch (error) {
     console.error("Stripe Checkout error", error)
-    return redirectAccount(request, "checkout-error")
+    return redirectPricing(request, "checkout-error")
   }
 }
