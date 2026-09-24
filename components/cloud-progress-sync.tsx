@@ -103,6 +103,7 @@ export function CloudProgressSync() {
       clearLocalAppState()
       localStorage.removeItem(LOCAL_CACHE_OWNER_KEY)
       sessionStorage.removeItem(RESTORE_MARKER)
+      window.dispatchEvent(new CustomEvent("oxbridge-cloud-not-ready"))
     }
 
     async function importInterviewLogs(userId: string, progressValue: unknown) {
@@ -320,6 +321,7 @@ export function CloudProgressSync() {
 
     async function initialise(userId: string) {
       stopTimer()
+      window.dispatchEvent(new CustomEvent("oxbridge-cloud-not-ready", { detail: { userId } }))
       const previousOwner = localStorage.getItem(LOCAL_CACHE_OWNER_KEY)
       const switchedAccount = Boolean(previousOwner && previousOwner !== userId)
       if (switchedAccount) clearLocalAppState()
@@ -373,6 +375,7 @@ export function CloudProgressSync() {
       }
 
       timer = window.setInterval(() => { void syncLocalChanges() }, 1000)
+      window.dispatchEvent(new CustomEvent("oxbridge-cloud-ready", { detail: { userId } }))
     }
 
     async function refreshUser() {
