@@ -7,8 +7,8 @@ export async function GET(request: NextRequest) {
   const tokenHash = requestUrl.searchParams.get("token_hash")
   const type = requestUrl.searchParams.get("type") as EmailOtpType | null
   const code = requestUrl.searchParams.get("code")
-  const requestedNext = requestUrl.searchParams.get("next") || "/account"
-  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/account"
+  const requestedNext = requestUrl.searchParams.get("next") || "/post-login"
+  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/post-login"
   const supabase = await createClient()
 
   if (tokenHash && type) {
