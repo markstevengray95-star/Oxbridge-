@@ -1,15 +1,27 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { effectiveTier, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
+import { isConfiguredAdminEmail } from "@/lib/auth/admin-access"
 import { onboardingCompleted, PLAN_ONBOARDING_STATE_KEY } from "@/lib/onboarding"
 
 export const dynamic = "force-dynamic"
 
-export default async function PostLoginPage() {
+type PageProps = { searchParams?: Promise<{ billing?: string }> }
+
+export default async function PostLoginPage({ searchParams }: PageProps) {
+  const params = searchParams ? await searchParams : {}
   const supabase = await createClient()
   const { data } = await supabase.auth.getClaims()
   const userId = typeof data?.claims?.sub === "string" ? data.claims.sub : ""
+  const email = typeof data?.claims?.email === "string" ? data.claims.email : null
   if (!userId) redirect("/login?next=/post-login")
+
+  let isAdmin = isConfiguredAdminEmail(email)
+  if (!isAdmin) {
+    const { data: adminRole } = await supabase.from("app_admins").select("role").eq("user_id", userId).maybeSingle()
+    isAdmin = adminRole?.role === "admin"
+  }
+  if (isAdmin) redirect("/student-home")
 
   const [{ data: subscription }, { data: seat }, { data: onboarding }] = await Promise.all([
     supabase.from("subscriptions").select("tier,status").eq("user_id", userId).maybeSingle(),
@@ -22,5 +34,6 @@ export default async function PostLoginPage() {
     : effectiveTier((subscription?.tier ?? "free") as SubscriptionTier, (subscription?.status ?? "inactive") as SubscriptionStatus)
 
   if (tier === "pro" || tier === "school" || onboardingCompleted(onboarding?.state_value)) redirect("/student-home")
+  if (params.billing === "success") redirect("/premium?billing=success")
   redirect("/premium?onboarding=required")
 }
