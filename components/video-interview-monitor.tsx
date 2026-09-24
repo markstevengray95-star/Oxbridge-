@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Camera, CameraOff, Eye, ShieldCheck, Sparkles } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Camera, CameraOff, Eye, ScanFace, ShieldCheck, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,200 +14,35 @@ export type VideoInterviewMetrics = {
   framing: number
   expressionVariation: number
   headSteadiness: number
+  gazeConsistency?: number
+  framingStability?: number
+  distanceConsistency?: number
+  cameraReady?: number
+  blinkRatePerMinute?: number
 }
 
-type Props = {
-  active: boolean
-  onMetrics?: (metrics: VideoInterviewMetrics) => void
+type Props={active:boolean;onMetrics?:(metrics:VideoInterviewMetrics)=>void}
+type Point={x:number;y:number;z?:number}
+type Category={categoryName?:string;displayName?:string;score?:number}
+type FaceResult={faceLandmarks?:Point[][];faceBlendshapes?:Array<{categories?:Category[]}>}
+type Stats={samples:number;visible:number;facing:number;framing:number;expressionValues:number[];movementValues:number[];facingValues:number[];widthValues:number[];centerValues:number[];lastNose:Point|null;blinkCount:number;blinkActive:boolean;startedAt:number}
+
+const EMPTY:VideoInterviewMetrics={samples:0,faceVisible:0,cameraFacing:0,framing:0,expressionVariation:0,headSteadiness:0,gazeConsistency:0,framingStability:0,distanceConsistency:0,cameraReady:0,blinkRatePerMinute:0}
+const clamp01=(n:number)=>Math.max(0,Math.min(1,n)),pct=(n:number)=>Math.round(clamp01(n)*100)
+const mean=(v:number[])=>v.length?v.reduce((a,b)=>a+b,0)/v.length:0
+const sd=(v:number[])=>{if(v.length<2)return 0;const m=mean(v);return Math.sqrt(mean(v.map(x=>(x-m)**2)))}
+const trim=(v:number[],max=220)=>{if(v.length>max)v.splice(0,v.length-max)}
+const freshStats=():Stats=>({samples:0,visible:0,facing:0,framing:0,expressionValues:[],movementValues:[],facingValues:[],widthValues:[],centerValues:[],lastNose:null,blinkCount:0,blinkActive:false,startedAt:performance.now()})
+
+export function VideoInterviewMonitor({active,onMetrics}:Props){
+ const videoRef=useRef<HTMLVideoElement|null>(null),streamRef=useRef<MediaStream|null>(null),landmarkerRef=useRef<{detectForVideo:(video:HTMLVideoElement,time:number)=>FaceResult;close?:()=>void}|null>(null),rafRef=useRef<number|null>(null),lastSampleRef=useRef(0),statsRef=useRef<Stats>(freshStats())
+ const[enabled,setEnabled]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(""),[metrics,setMetrics]=useState<VideoInterviewMetrics>(EMPTY)
+ function publish(){const s=statsRef.current;if(!s.samples)return;const expressionMean=mean(s.expressionValues),expressionVariance=s.expressionValues.length>1?mean(s.expressionValues.map(v=>(v-expressionMean)**2)):0,movementMean=mean(s.movementValues),facingMean=mean(s.facingValues),gazeConsistency=clamp01(facingMean*(1-sd(s.facingValues)*1.8)),framingStability=clamp01(1-sd(s.centerValues)*7),distanceConsistency=clamp01(1-sd(s.widthValues)*6),visible=s.visible/s.samples,framing=s.framing/s.samples,cameraReady=clamp01(visible*.35+framing*.30+framingStability*.2+distanceConsistency*.15),minutes=Math.max((performance.now()-s.startedAt)/60000,1/60);const next:VideoInterviewMetrics={samples:s.samples,faceVisible:visible,cameraFacing:s.facing/s.samples,framing,expressionVariation:clamp01(Math.sqrt(expressionVariance)*6),headSteadiness:clamp01(1-movementMean*9),gazeConsistency,framingStability,distanceConsistency,cameraReady,blinkRatePerMinute:s.blinkCount/minutes};setMetrics(next);onMetrics?.(next)}
+ async function start(){if(loading||enabled)return;setLoading(true);setError("");try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:1280},height:{ideal:720}},audio:false});streamRef.current=stream;if(videoRef.current){videoRef.current.srcObject=stream;await videoRef.current.play()}const vision=await import("@mediapipe/tasks-vision"),files=await vision.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm"),landmarker=await vision.FaceLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"},runningMode:"VIDEO",numFaces:1,minFaceDetectionConfidence:.6,minFacePresenceConfidence:.6,minTrackingConfidence:.55,outputFaceBlendshapes:true,outputFacialTransformationMatrixes:false});landmarkerRef.current=landmarker as unknown as typeof landmarkerRef.current;statsRef.current=freshStats();setMetrics(EMPTY);setEnabled(true)}catch(cause){streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;setError(cause instanceof Error?cause.message:"Camera analysis could not start")}finally{setLoading(false)}}
+ function stop(){if(rafRef.current)cancelAnimationFrame(rafRef.current);rafRef.current=null;streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;landmarkerRef.current?.close?.();landmarkerRef.current=null;if(videoRef.current)videoRef.current.srcObject=null;setEnabled(false)}
+ useEffect(()=>{if(!active&&enabled)stop();return()=>{if(!active)stop()}},[active,enabled])
+ useEffect(()=>{if(!enabled||!active)return;let cancelled=false;const loop=()=>{if(cancelled)return;const now=performance.now(),video=videoRef.current,landmarker=landmarkerRef.current;if(video&&landmarker&&video.readyState>=2&&now-lastSampleRef.current>=160){lastSampleRef.current=now;try{const result=landmarker.detectForVideo(video,now),s=statsRef.current;s.samples+=1;const points=result.faceLandmarks?.[0];if(points?.length){s.visible+=1;const xs=points.map(p=>p.x),ys=points.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),cx=(minX+maxX)/2,cy=(minY+maxY)/2,width=maxX-minX,centerDistance=Math.hypot(cx-.5,cy-.47),centered=clamp01(1-centerDistance/.26),sizeScore=width<.18?width/.18:width>.58?clamp01(1-(width-.58)/.22):1,framingScore=centered*sizeScore;s.framing+=framingScore;s.widthValues.push(width);s.centerValues.push(centerDistance);trim(s.widthValues);trim(s.centerValues);const nose=points[1]??points[Math.floor(points.length/2)],leftEye=points[33],rightEye=points[263];let frontal=centered;if(nose&&leftEye&&rightEye){const eyeMid=(leftEye.x+rightEye.x)/2;frontal=clamp01(1-Math.abs(nose.x-eyeMid)/.065)}const categories=result.faceBlendshapes?.[0]?.categories??[],blend=new Map(categories.map(item=>[item.categoryName||item.displayName||"",Number(item.score||0)])),gazeAway=Math.max(blend.get("eyeLookDownLeft")||0,blend.get("eyeLookDownRight")||0,blend.get("eyeLookUpLeft")||0,blend.get("eyeLookUpRight")||0,blend.get("eyeLookInLeft")||0,blend.get("eyeLookInRight")||0,blend.get("eyeLookOutLeft")||0,blend.get("eyeLookOutRight")||0),blink=((blend.get("eyeBlinkLeft")||0)+(blend.get("eyeBlinkRight")||0))/2,contact=frontal*clamp01(1-gazeAway*1.35);s.facing+=contact;s.facingValues.push(contact);trim(s.facingValues);const blinkNow=blink>.62;if(blinkNow&&!s.blinkActive)s.blinkCount+=1;s.blinkActive=blinkNow;const expressive=["mouthSmileLeft","mouthSmileRight","browInnerUp","browOuterUpLeft","browOuterUpRight","jawOpen","mouthPucker","mouthFrownLeft","mouthFrownRight"].map(k=>blend.get(k)||0).reduce((sum,v)=>sum+v,0)/9;s.expressionValues.push(expressive);trim(s.expressionValues);if(nose&&s.lastNose)s.movementValues.push(Math.hypot(nose.x-s.lastNose.x,nose.y-s.lastNose.y));trim(s.movementValues);s.lastNose=nose??null}publish()}catch{}}rafRef.current=requestAnimationFrame(loop)};rafRef.current=requestAnimationFrame(loop);return()=>{cancelled=true;if(rafRef.current)cancelAnimationFrame(rafRef.current)}},[enabled,active])
+ const coaching=useMemo(()=>{if(metrics.samples<12)return["Run the camera for a little longer before interpreting the estimates."];const notes:string[]=[];if(metrics.faceVisible<.85)notes.push("Your face leaves the detectable frame fairly often. Adjust the device position if you want more consistent video-call framing.");if(metrics.framing<.65)notes.push("Framing varies from the centre/working distance. A more fixed device position may make the call easier to follow.");if(metrics.cameraFacing<.5)notes.push("The camera-facing gaze estimate is low. When speaking to an online interviewer, occasionally returning your gaze toward the camera can create more direct screen presence.");if((metrics.distanceConsistency??1)<.65)notes.push("Your distance from the camera changes noticeably. Keeping the device and chair position steadier can reduce visual distraction.");if(metrics.headSteadiness<.5)notes.push("There is a lot of head-position movement in the sample. Natural movement is fine; the useful target is simply avoiding movement that makes the video hard to follow.");if(!notes.length)notes.push("The technical video setup is consistent. Keep focusing on the quality of the academic reasoning rather than trying to optimise a facial score.");return notes.slice(0,3)},[metrics])
+ return <Card className="overflow-hidden border-[#b9d8dd] shadow-none"><CardHeader className="bg-[#edf7f8]"><div className="flex items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2 font-serif text-xl"><ScanFace className="size-5"/>Video interview presentation coach</CardTitle><CardDescription>On-device estimates of camera framing and visible presentation behaviour. No emotion, personality, honesty or mental-state inference.</CardDescription></div><Badge variant="outline"><ShieldCheck className="size-3.5"/>Local video only</Badge></div></CardHeader><CardContent className="space-y-4 p-4"><div className="relative aspect-video overflow-hidden rounded-2xl bg-[#102a43]"><video ref={videoRef} autoPlay muted playsInline className="h-full w-full scale-x-[-1] object-cover"/>{!enabled&&<div className="absolute inset-0 grid place-items-center p-6 text-center text-white"><div><CameraOff className="mx-auto mb-3 size-8 opacity-70"/><p className="font-semibold">Camera is off</p><p className="mt-1 text-xs text-white/65">Turn it on only when you want presentation feedback.</p></div></div>}</div>{error&&<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">{error}</div>}<div className="flex flex-wrap items-center gap-2">{enabled?<Button type="button" variant="outline" onClick={stop}><CameraOff/>Stop camera</Button>:<Button type="button" onClick={()=>void start()} disabled={loading}>{loading?<Sparkles className="animate-pulse"/>:<Camera/>}{loading?"Starting…":"Start local analysis"}</Button>}{enabled&&<Badge variant="outline">{metrics.samples} samples</Badge>}</div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Metric label="Face in frame" value={metrics.faceVisible} hint="Technical visibility only"/><Metric label="Camera-facing gaze proxy" value={metrics.cameraFacing} hint="Head + gaze direction estimate; not true eye tracking" icon={<Eye className="size-3.5"/>}/><Metric label="Gaze consistency" value={metrics.gazeConsistency??0} hint="How consistently the camera-facing estimate is maintained"/><Metric label="Framing" value={metrics.framing} hint="Centre and working distance"/><Metric label="Framing stability" value={metrics.framingStability??0} hint="How much position drifts over the sample"/><Metric label="Distance consistency" value={metrics.distanceConsistency??0} hint="Stability of face-to-camera distance"/><Metric label="Head-position steadiness" value={metrics.headSteadiness} hint="Natural movement is expected; this only detects large repeated motion"/><Metric label="Visible expression movement" value={metrics.expressionVariation} hint="Movement variation only; no emotion labels"/><Metric label="Technical camera readiness" value={metrics.cameraReady??0} hint="Composite of visibility and framing—not a personal rating"/></div><div className="rounded-xl border bg-slate-50 p-3"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Blink count context</p><p className="mt-1 text-sm">Observed blink transitions: <strong>{Math.round(metrics.blinkRatePerMinute??0)} per minute</strong>.</p><p className="mt-1 text-[10px] leading-4 text-slate-500">Shown only as descriptive camera data. The app does not label a blink rate as good/bad or use it to infer attention, anxiety or health.</p></div><div className="rounded-xl bg-[#edf7f8] p-3"><p className="text-xs font-bold uppercase tracking-wider text-[#147d91]">Neutral coaching</p>{coaching.map(x=><p key={x} className="mt-1 text-xs leading-5">• {x}</p>)}</div><p className="text-[11px] leading-5 text-slate-500">Frames are processed in your browser with MediaPipe and are not sent to the Oxbridge server by this coach. Metrics are approximate presentation aids and should never be used as psychological, medical, honesty or admissions judgments.</p></CardContent></Card>
 }
-
-type Point = { x: number; y: number; z?: number }
-type Category = { categoryName?: string; displayName?: string; score?: number }
-
-type FaceResult = {
-  faceLandmarks?: Point[][]
-  faceBlendshapes?: Array<{ categories?: Category[] }>
-}
-
-const EMPTY: VideoInterviewMetrics = { samples: 0, faceVisible: 0, cameraFacing: 0, framing: 0, expressionVariation: 0, headSteadiness: 0 }
-const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
-const pct = (n: number) => Math.round(clamp01(n) * 100)
-
-export function VideoInterviewMonitor({ active, onMetrics }: Props) {
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const landmarkerRef = useRef<{ detectForVideo: (video: HTMLVideoElement, time: number) => FaceResult; close?: () => void } | null>(null)
-  const rafRef = useRef<number | null>(null)
-  const lastSampleRef = useRef(0)
-  const statsRef = useRef({ samples: 0, visible: 0, facing: 0, framing: 0, expressionValues: [] as number[], movementValues: [] as number[], lastNose: null as Point | null })
-  const [enabled, setEnabled] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [metrics, setMetrics] = useState<VideoInterviewMetrics>(EMPTY)
-
-  function publish() {
-    const s = statsRef.current
-    if (!s.samples) return
-    const mean = (values: number[]) => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0
-    const expressionMean = mean(s.expressionValues)
-    const expressionVariance = s.expressionValues.length > 1 ? mean(s.expressionValues.map(v => (v - expressionMean) ** 2)) : 0
-    const movementMean = mean(s.movementValues)
-    const next: VideoInterviewMetrics = {
-      samples: s.samples,
-      faceVisible: s.visible / s.samples,
-      cameraFacing: s.facing / s.samples,
-      framing: s.framing / s.samples,
-      expressionVariation: clamp01(Math.sqrt(expressionVariance) * 6),
-      headSteadiness: clamp01(1 - movementMean * 9),
-    }
-    setMetrics(next)
-    onMetrics?.(next)
-  }
-
-  async function start() {
-    if (loading || enabled) return
-    setLoading(true)
-    setError("")
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
-      const vision = await import("@mediapipe/tasks-vision")
-      const files = await vision.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm")
-      const landmarker = await vision.FaceLandmarker.createFromOptions(files, {
-        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" },
-        runningMode: "VIDEO",
-        numFaces: 1,
-        minFaceDetectionConfidence: 0.55,
-        minFacePresenceConfidence: 0.55,
-        minTrackingConfidence: 0.5,
-        outputFaceBlendshapes: true,
-        outputFacialTransformationMatrixes: false,
-      })
-      landmarkerRef.current = landmarker as unknown as typeof landmarkerRef.current
-      statsRef.current = { samples: 0, visible: 0, facing: 0, framing: 0, expressionValues: [], movementValues: [], lastNose: null }
-      setMetrics(EMPTY)
-      setEnabled(true)
-    } catch (cause) {
-      streamRef.current?.getTracks().forEach(track => track.stop())
-      streamRef.current = null
-      setError(cause instanceof Error ? cause.message : "Camera analysis could not start")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function stop() {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    rafRef.current = null
-    streamRef.current?.getTracks().forEach(track => track.stop())
-    streamRef.current = null
-    landmarkerRef.current?.close?.()
-    landmarkerRef.current = null
-    if (videoRef.current) videoRef.current.srcObject = null
-    setEnabled(false)
-  }
-
-  useEffect(() => {
-    if (!active && enabled) stop()
-    return () => { if (!active) stop() }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active])
-
-  useEffect(() => {
-    if (!enabled || !active) return
-    let cancelled = false
-    const loop = () => {
-      if (cancelled) return
-      const now = performance.now()
-      const video = videoRef.current
-      const landmarker = landmarkerRef.current
-      if (video && landmarker && video.readyState >= 2 && now - lastSampleRef.current >= 180) {
-        lastSampleRef.current = now
-        try {
-          const result = landmarker.detectForVideo(video, now)
-          const s = statsRef.current
-          s.samples += 1
-          const points = result.faceLandmarks?.[0]
-          if (points?.length) {
-            s.visible += 1
-            const xs = points.map(p => p.x), ys = points.map(p => p.y)
-            const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
-            const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, width = maxX - minX
-            const centerDistance = Math.hypot(cx - 0.5, cy - 0.47)
-            const centered = clamp01(1 - centerDistance / 0.26)
-            const sizeScore = width < 0.18 ? width / 0.18 : width > 0.58 ? clamp01(1 - (width - 0.58) / 0.22) : 1
-            const framingScore = centered * sizeScore
-            s.framing += framingScore
-
-            const nose = points[1] ?? points[Math.floor(points.length / 2)]
-            const leftEye = points[33], rightEye = points[263]
-            let frontal = centered
-            if (nose && leftEye && rightEye) {
-              const eyeMid = (leftEye.x + rightEye.x) / 2
-              frontal = clamp01(1 - Math.abs(nose.x - eyeMid) / 0.065)
-            }
-            const categories = result.faceBlendshapes?.[0]?.categories ?? []
-            const blend = new Map(categories.map(item => [item.categoryName || item.displayName || "", Number(item.score || 0)]))
-            const gazeAway = Math.max(
-              blend.get("eyeLookDownLeft") || 0, blend.get("eyeLookDownRight") || 0,
-              blend.get("eyeLookUpLeft") || 0, blend.get("eyeLookUpRight") || 0,
-              blend.get("eyeLookInLeft") || 0, blend.get("eyeLookInRight") || 0,
-              blend.get("eyeLookOutLeft") || 0, blend.get("eyeLookOutRight") || 0,
-            )
-            const blink = ((blend.get("eyeBlinkLeft") || 0) + (blend.get("eyeBlinkRight") || 0)) / 2
-            const contact = frontal * clamp01(1 - gazeAway * 1.35) * (blink > 0.65 ? 1 : 1)
-            s.facing += contact
-
-            const expressive = ["mouthSmileLeft","mouthSmileRight","browInnerUp","browOuterUpLeft","browOuterUpRight","jawOpen","mouthPucker","mouthFrownLeft","mouthFrownRight"]
-              .map(key => blend.get(key) || 0)
-              .reduce((sum, value) => sum + value, 0) / 9
-            s.expressionValues.push(expressive)
-            if (s.expressionValues.length > 160) s.expressionValues.shift()
-
-            if (nose && s.lastNose) s.movementValues.push(Math.hypot(nose.x - s.lastNose.x, nose.y - s.lastNose.y))
-            if (s.movementValues.length > 160) s.movementValues.shift()
-            s.lastNose = nose ?? null
-          }
-          publish()
-        } catch { /* skip a dropped frame */ }
-      }
-      rafRef.current = requestAnimationFrame(loop)
-    }
-    rafRef.current = requestAnimationFrame(loop)
-    return () => { cancelled = true; if (rafRef.current) cancelAnimationFrame(rafRef.current) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, active])
-
-  return <Card className="overflow-hidden border-[#b9d8dd] shadow-none">
-    <CardHeader className="bg-[#edf7f8]">
-      <div className="flex items-start justify-between gap-3">
-        <div><CardTitle className="flex items-center gap-2 font-serif text-xl"><Camera className="size-5"/>Video interview coach</CardTitle><CardDescription>On-device presentation analysis. It measures visible interview behaviours; it does not identify emotions, personality or mental state.</CardDescription></div>
-        <Badge variant="outline"><ShieldCheck className="size-3.5"/>Local video</Badge>
-      </div>
-    </CardHeader>
-    <CardContent className="space-y-4 p-4">
-      <div className="relative aspect-video overflow-hidden rounded-2xl bg-[#102a43]">
-        <video ref={videoRef} autoPlay muted playsInline className="h-full w-full scale-x-[-1] object-cover"/>
-        {!enabled && <div className="absolute inset-0 grid place-items-center p-6 text-center text-white"><div><CameraOff className="mx-auto mb-3 size-8 opacity-70"/><p className="font-semibold">Camera is off</p><p className="mt-1 text-xs text-white/65">Turn it on when you want presentation feedback.</p></div></div>}
-      </div>
-      {error && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">{error}</div>}
-      <div className="flex gap-2">{enabled?<Button type="button" variant="outline" onClick={stop}><CameraOff/>Stop camera</Button>:<Button type="button" onClick={()=>void start()} disabled={loading}>{loading?<Sparkles className="animate-pulse"/>:<Camera/>}{loading?"Starting…":"Start camera analysis"}</Button>}</div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Metric label="Face visible" value={metrics.faceVisible} hint="Keeps you in frame"/>
-        <Metric label="Camera-facing eye-contact proxy" value={metrics.cameraFacing} hint="Uses gaze/head direction, not true eye tracking" icon={<Eye className="size-3.5"/>}/>
-        <Metric label="Framing" value={metrics.framing} hint="Centered and sensible distance"/>
-        <Metric label="Expression variation" value={metrics.expressionVariation} hint="Visible facial movement only; no emotion labels"/>
-        <Metric label="Head steadiness" value={metrics.headSteadiness} hint="Avoids excessive movement; natural movement is fine"/>
-      </div>
-      <p className="text-[11px] leading-5 text-slate-500">Your camera frames are processed in the browser with MediaPipe and are not sent to the Oxbridge server. These scores are coaching signals, not psychological or admissions judgments.</p>
-    </CardContent>
-  </Card>
-}
-
-function Metric({ label, value, hint, icon }: { label: string; value: number; hint: string; icon?: React.ReactNode }) {
-  return <div className="rounded-xl border bg-white p-3"><div className="mb-1 flex items-center justify-between gap-2 text-xs"><span className="flex items-center gap-1 font-semibold">{icon}{label}</span><strong>{value ? `${pct(value)}%` : "—"}</strong></div><Progress value={pct(value)}/><p className="mt-1 text-[10px] leading-4 text-slate-500">{hint}</p></div>
-}
+function Metric({label,value,hint,icon}:{label:string;value:number;hint:string;icon?:React.ReactNode}){return <div className="rounded-xl border bg-white p-3"><div className="mb-1 flex items-center justify-between gap-2 text-xs"><span className="flex items-center gap-1 font-semibold">{icon}{label}</span><strong>{value?`${pct(value)}%`:"—"}</strong></div><Progress value={pct(value)}/><p className="mt-1 text-[10px] leading-4 text-slate-500">{hint}</p></div>}
