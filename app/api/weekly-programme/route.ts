@@ -82,11 +82,10 @@ async function ensureCurrentProgramme(
   const weekStart = londonWeekStart()
   if (!force && isCurrentProgramme(stored, weekStart)) return stored
   const old = record(stored)
+  const oldMinutes = Number(old.dailyMinutes)
+  const dailyMinutes = requestedMinutes ?? (Number.isFinite(oldMinutes) ? oldMinutes : 45)
   const context = await userContext(supabase, userId)
-  const programme = generateWeeklyProgramme({
-    ...context,
-    dailyMinutes: requestedMinutes ?? Number(old.dailyMinutes) || 45,
-  })
+  const programme = generateWeeklyProgramme({ ...context, dailyMinutes })
   await saveProgramme(supabase, userId, programme)
   return programme
 }
