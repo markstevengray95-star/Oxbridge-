@@ -1,15 +1,88 @@
 import Link from "next/link"
-import { ArrowLeft, CheckCircle2, Clock3, GraduationCap, School, Sparkles, UserCheck } from "lucide-react"
+import { redirect } from "next/navigation"
+import { CheckCircle2, GraduationCap, LogOut, School, Sparkles } from "lucide-react"
+import { createClient } from "@/lib/supabase/server"
+import { annualSavingPercent, displayPrice, monthlyGeminiMinutes, schoolExtraSeatMonthlyPrice } from "@/lib/billing/plans"
+import { onboardingCompleted, PLAN_ONBOARDING_STATE_KEY } from "@/lib/onboarding"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { annualSavingPercent, displayPrice, humanReviewPrice, liveCreditPackMinutes, liveCreditPackPrice, monthlyGeminiMinutes, schoolExtraSeatMonthlyPrice } from "@/lib/billing/plans"
+import { chooseFreePlan } from "./actions"
+import { signOut } from "@/app/account/actions"
 
-const tiers=[
-{id:"free" as const,name:"Free",icon:GraduationCap,note:"Build a baseline before deciding whether you need the full preparation system.",features:["Diagnostic and starter question bank","Basic personalised feedback",`${monthlyGeminiMinutes("free")} Gemini Live interview minutes each month`,"Basic Tutor recommendations","Saved preparation profile"]},
-{id:"pro" as const,name:"Pro",icon:Sparkles,note:"The complete personalised preparation system for an individual applicant.",features:["Advanced interview analytics and long-term reasoning profile","Personal AI Tutor Memory+ and Tutor Autopilot","Unlimited application / personal-statement defence","Premium full papers, advanced question banks and admissions-test courses","AI written-work and essay review","Printable Oxbridge Preparation Report","Application Readiness Dashboard+","Advanced video interview coach and two-person panel","Tutor-generated weekly programme","Premium supercurricular reading tutor","Research Project Mentor and knowledge graph",`${monthlyGeminiMinutes("pro")} Gemini Live interview minutes each month`]},
-{id:"school" as const,name:"School",icon:School,note:"A 5-account licence for schools delivering structured Oxbridge preparation.",features:["5 separate user accounts included",`Extra accounts available for £${schoolExtraSeatMonthlyPrice().toFixed(2)}/month each`,"Everything in Pro for each active seat","Whole-school cohort analytics","Teacher assignment builder and completion tracking","Printable School reports and CSV export","Teacher Coach and live intervention tools","Human + AI review records","Owner can add, remove and replace seats",`${monthlyGeminiMinutes("school")} Gemini Live minutes per account each month`]},
+export const dynamic = "force-dynamic"
+
+type PageProps = { searchParams?: Promise<{ billing?: string; onboarding?: string }> }
+
+const tiers = [
+  {
+    id: "free" as const,
+    name: "Free",
+    icon: GraduationCap,
+    note: "A complete starter route for building your first preparation baseline.",
+    usage: [`1 account`, `${monthlyGeminiMinutes("free")} Gemini Live minutes / month`, "Core question and interview practice"],
+    features: ["Starter question bank", "Basic personalised feedback", "Saved cloud progress", "Basic Tutor recommendations", "Preparation profile"],
+  },
+  {
+    id: "pro" as const,
+    name: "Pro",
+    icon: Sparkles,
+    note: "The full individual preparation system for an Oxbridge applicant.",
+    usage: [`1 account`, `${monthlyGeminiMinutes("pro")} Gemini Live minutes / month`, "Full premium preparation suite"],
+    features: ["Advanced interview analytics", "Personal AI Tutor Memory+", "Unlimited application defence", "Premium question banks and full admissions-test courses", "AI written-work review", "Preparation reports and readiness dashboard", "Advanced video interview coach", "Automatic personalised weekly programme", "Premium supercurricular tutor", "Research Project Mentor"],
+  },
+  {
+    id: "school" as const,
+    name: "School",
+    icon: School,
+    note: "A shared school licence with separate student accounts and teacher oversight.",
+    usage: [`5 accounts included`, `${monthlyGeminiMinutes("school")} Gemini Live minutes / account / month`, `Extra seats £${schoolExtraSeatMonthlyPrice().toFixed(2)} / month`],
+    features: ["Everything in Pro for active seats", "Whole-school cohort analytics", "Teacher assignment builder", "Completion and progress tracking", "School reports and CSV export", "Teacher Coach and live intervention tools", "Human + AI review records", "Seat management"],
+  },
 ]
-function money(value:number){return Number.isInteger(value)?`£${value}`:`£${value.toFixed(2)}`}
-function CheckoutButton({tier,interval,label,primary=false}:{tier:"pro"|"school";interval:"monthly"|"annual";label:string;primary?:boolean}){return <form action="/api/billing/checkout" method="post" className="w-full"><input type="hidden" name="tier" value={tier}/><input type="hidden" name="interval" value={interval}/><Button type="submit" className="w-full" variant={primary?"default":"outline"}>{label}</Button></form>}
-export default function PremiumPage(){const proSaving=annualSavingPercent("pro"),schoolSaving=annualSavingPercent("school"),extraSeat=schoolExtraSeatMonthlyPrice(),creditMinutes=liveCreditPackMinutes(),creditPrice=liveCreditPackPrice(),reviewPrice=humanReviewPrice();return <main className="min-h-screen bg-[#f5f7f7] text-[#172b3a]"><header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4"><Button asChild variant="ghost"><Link href="/tutor"><ArrowLeft/>Personal Tutor</Link></Button><Badge variant="outline">Simple pricing</Badge></div></header><div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6"><section className="text-center"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Choose the preparation level you need</p><h1 className="mx-auto mt-2 max-w-4xl font-serif text-4xl font-bold sm:text-5xl">Start free. Upgrade for the connected preparation system.</h1><p className="mx-auto mt-4 max-w-3xl text-slate-600">Free includes 5 Gemini Live interview minutes each month. Pro increases this to 40 minutes and unlocks video interviews, advanced analytics, full test courses, application defence and the long-term Tutor system.</p></section><section className="grid gap-5 lg:grid-cols-3">{tiers.map(tier=>{const Icon=tier.icon,monthly=displayPrice(tier.id,"monthly"),annual=displayPrice(tier.id,"annual"),saving=tier.id==="pro"?proSaving:tier.id==="school"?schoolSaving:0;return <Card key={tier.name} className={tier.id==="pro"?"relative border-[#147d91] shadow-[0_20px_60px_rgba(16,42,67,.10)]":"shadow-none"}>{tier.id==="pro"&&<Badge className="absolute right-5 top-5">Most popular</Badge>}<CardHeader><Icon className="size-6 text-[#147d91]"/><CardTitle className="font-serif text-3xl">{tier.name}</CardTitle><CardDescription>{tier.note}</CardDescription></CardHeader><CardContent className="space-y-5"><div className="rounded-2xl bg-[#f6f9f9] p-4">{tier.id==="free"?<><p className="font-serif text-4xl font-bold">£0</p><p className="mt-1 text-sm text-[#667984]">No payment required</p></>:<div className="space-y-3"><div><p className="text-xs font-bold uppercase tracking-wider text-[#667984]">Monthly</p><p className="font-serif text-3xl font-bold">{money(monthly)}<span className="text-base font-normal text-[#667984]"> / month</span></p></div><div className="border-t pt-3"><div className="flex items-center gap-2"><p className="text-xs font-bold uppercase tracking-wider text-[#667984]">Annual</p>{saving>0&&<Badge variant="outline">Save {saving}%</Badge>}</div><p className="font-serif text-3xl font-bold">{money(annual)}<span className="text-base font-normal text-[#667984]"> / year</span></p><p className="text-xs text-[#667984]">Equivalent to {money(annual/12)} per month</p></div>{tier.id==="school"&&<div className="border-t pt-3"><p className="text-xs font-bold uppercase tracking-wider text-[#667984]">Extra seats</p><p className="font-semibold">£{extraSeat.toFixed(2)} / additional account / month</p></div>}</div>}</div><div className="space-y-2">{tier.features.map(item=><p key={item} className="flex gap-2 text-sm leading-6"><CheckCircle2 className="mt-1 size-4 shrink-0 text-emerald-600"/>{item}</p>)}</div>{tier.id==="free"?<Button asChild className="w-full" variant="outline"><Link href="/account">Continue free</Link></Button>:<div className="grid gap-2"><CheckoutButton tier={tier.id} interval="annual" label={`Choose ${tier.name} annual`} primary={tier.id==="pro"}/><CheckoutButton tier={tier.id} interval="monthly" label={`Choose ${tier.name} monthly`}/></div>}</CardContent></Card>})}</section><section><div className="mb-4"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Optional paid add-ons</p><h2 className="mt-2 font-serif text-3xl font-bold">Pay only when you need more human or live-AI time.</h2></div><div className="grid gap-5 md:grid-cols-2"><Card><CardHeader><Clock3 className="size-6 text-[#147d91]"/><CardTitle className="font-serif text-2xl">Live Interview minute pack</CardTitle><CardDescription>Extra Gemini Live time is stored separately from the monthly allowance and used after the included minutes.</CardDescription></CardHeader><CardContent><p className="font-serif text-3xl font-bold">£{creditPrice.toFixed(2)} <span className="text-base font-normal text-slate-500">for {creditMinutes} minutes</span></p><Button asChild className="mt-4"><Link href="/live-credits">View Live credits</Link></Button></CardContent></Card><Card><CardHeader><UserCheck className="size-6 text-[#147d91]"/><CardTitle className="font-serif text-2xl">Expert interview review</CardTitle><CardDescription>One-off human review request for a saved interview, panel or video-interview result.</CardDescription></CardHeader><CardContent><p className="font-serif text-3xl font-bold">£{reviewPrice.toFixed(2)} <span className="text-base font-normal text-slate-500">per review</span></p><Button asChild className="mt-4"><Link href="/expert-review">Request a review</Link></Button></CardContent></Card></div></section><section className="grid gap-4 lg:grid-cols-3"><Card><CardHeader><CardTitle>Pro pathways</CardTitle></CardHeader><CardContent className="space-y-2"><Button asChild variant="outline" className="w-full"><Link href="/admissions-test-courses">Admissions-test course</Link></Button><Button asChild variant="outline" className="w-full"><Link href="/weekly-programme">Weekly programme</Link></Button><Button asChild variant="outline" className="w-full"><Link href="/preparation-report">Preparation report</Link></Button></CardContent></Card><Card><CardHeader><CardTitle>Application depth</CardTitle></CardHeader><CardContent className="space-y-2"><Button asChild variant="outline" className="w-full"><Link href="/personal-statement-defence">Claim defence</Link></Button><Button asChild variant="outline" className="w-full"><Link href="/reading-curriculum">Reading Tutor</Link></Button><Button asChild variant="outline" className="w-full"><Link href="/research-project">Research mentor</Link></Button></CardContent></Card><Card><CardHeader><CardTitle>School tools</CardTitle></CardHeader><CardContent className="space-y-2"><Button asChild variant="outline" className="w-full"><Link href="/school-overview">Cohort analytics</Link></Button><Button asChild variant="outline" className="w-full"><Link href="/school-dashboard">Assignments</Link></Button><Button asChild variant="outline" className="w-full"><Link href="/school-reports">School reports</Link></Button></CardContent></Card></section><section className="rounded-3xl border bg-white p-6 sm:p-8"><div className="grid gap-6 lg:grid-cols-2"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">School seats</p><h2 className="mt-2 font-serif text-3xl font-bold">One School subscription, five individual logins.</h2><p className="mt-3 text-sm leading-6 text-[#667984]">The purchaser becomes the School owner. Four additional people use their own accounts and learning histories. More seats can be added for £{extraSeat.toFixed(2)} per month each.</p></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-[#f6f9f9] p-4"><p className="font-semibold">Whole-school analytics</p><p className="mt-1 text-sm text-[#667984]">Track preparation evidence, assignments, activity and seat usage.</p><Button asChild size="sm" variant="outline" className="mt-3"><Link href="/school-overview">Open dashboard</Link></Button></div><div className="rounded-2xl bg-[#f6f9f9] p-4"><p className="font-semibold">Manage seats</p><p className="mt-1 text-sm text-[#667984]">Add, remove and replace users without deleting personal progress.</p><Button asChild size="sm" variant="outline" className="mt-3"><Link href="/school-seats">Open School Seats</Link></Button></div></div></div></section></div></main>}
+
+function money(value: number) { return Number.isInteger(value) ? `£${value}` : `£${value.toFixed(2)}` }
+
+function CheckoutButton({ tier, interval, label, primary = false }: { tier: "pro" | "school"; interval: "monthly" | "annual"; label: string; primary?: boolean }) {
+  return <form action="/api/billing/checkout" method="post" className="w-full"><input type="hidden" name="tier" value={tier}/><input type="hidden" name="interval" value={interval}/><Button type="submit" className="w-full" variant={primary ? "default" : "outline"}>{label}</Button></form>
+}
+
+export default async function PremiumPage({ searchParams }: PageProps) {
+  const params = searchParams ? await searchParams : {}
+  const supabase = await createClient()
+  const { data } = await supabase.auth.getClaims()
+  const userId = typeof data?.claims?.sub === "string" ? data.claims.sub : ""
+  if (!userId) redirect("/login?next=/post-login")
+
+  const [{ data: subscription }, { data: seat }, { data: onboarding }] = await Promise.all([
+    supabase.from("subscriptions").select("tier,status").eq("user_id", userId).maybeSingle(),
+    supabase.from("school_seat_entitlements").select("active").eq("user_id", userId).maybeSingle(),
+    supabase.from("user_state").select("state_value").eq("user_id", userId).eq("state_key", PLAN_ONBOARDING_STATE_KEY).maybeSingle(),
+  ])
+
+  const activePaid = seat?.active || ((subscription?.status === "active" || subscription?.status === "trialing") && (subscription?.tier === "pro" || subscription?.tier === "school"))
+  const hasChosen = Boolean(activePaid || onboardingCompleted(onboarding?.state_value))
+  const proSaving = annualSavingPercent("pro")
+  const schoolSaving = annualSavingPercent("school")
+
+  const notice = params.billing === "cancelled"
+    ? "Checkout was cancelled. Choose a plan to continue."
+    : params.billing === "success"
+      ? "Payment completed. Your subscription is being confirmed."
+      : params.onboarding === "save-error"
+        ? "We could not save your Free plan choice. Please try again."
+        : params.onboarding === "required"
+          ? "Choose Free, Pro or School before entering the app."
+          : ""
+
+  return <main className="min-h-screen bg-[#f5f7f7] text-[#172b3a]">
+    <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6"><div className="flex items-center gap-2 font-serif text-lg font-bold"><GraduationCap className="size-5 text-[#147d91]"/>Oxbridge Tutor</div><form action={signOut}><Button variant="outline" size="sm"><LogOut/>Sign out</Button></form></div></header>
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6">
+      <section className="text-center"><Badge variant="outline">Step 2 of 2 · Choose your plan</Badge><h1 className="mx-auto mt-4 max-w-4xl font-serif text-4xl font-bold sm:text-5xl">Choose how you want to use Oxbridge Tutor.</h1><p className="mx-auto mt-4 max-w-3xl text-slate-600">Every user creates an account first. Select Free, Pro or School below to unlock the app. Prices, included features and monthly Live usage are shown before you continue.</p>{notice && <div className="mx-auto mt-5 max-w-2xl rounded-2xl border border-[#b9d8dd] bg-[#edf7f8] p-4 text-sm text-[#234754]">{notice}</div>}{hasChosen && <div className="mx-auto mt-5 max-w-2xl rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">Your account already has a plan choice. <Button asChild size="sm" className="ml-2"><Link href="/student-home">Enter the app</Link></Button></div>}</section>
+
+      <section className="grid gap-5 lg:grid-cols-3">{tiers.map(tier => { const Icon = tier.icon; const monthly = displayPrice(tier.id, "monthly"); const annual = displayPrice(tier.id, "annual"); const saving = tier.id === "pro" ? proSaving : tier.id === "school" ? schoolSaving : 0; return <Card key={tier.id} className={tier.id === "pro" ? "relative border-[#147d91] shadow-[0_20px_60px_rgba(16,42,67,.10)]" : "shadow-none"}>{tier.id === "pro" && <Badge className="absolute right-5 top-5">Most popular</Badge>}<CardHeader><Icon className="size-6 text-[#147d91]"/><CardTitle className="font-serif text-3xl">{tier.name}</CardTitle><CardDescription>{tier.note}</CardDescription></CardHeader><CardContent className="space-y-5"><div className="rounded-2xl bg-[#f6f9f9] p-4">{tier.id === "free" ? <><p className="font-serif text-4xl font-bold">£0</p><p className="mt-1 text-sm text-[#667984]">No card required</p></> : <div className="space-y-3"><div><p className="text-xs font-bold uppercase tracking-wider text-[#667984]">Monthly</p><p className="font-serif text-3xl font-bold">{money(monthly)}<span className="text-base font-normal text-[#667984]"> / month</span></p></div><div className="border-t pt-3"><div className="flex items-center gap-2"><p className="text-xs font-bold uppercase tracking-wider text-[#667984]">Annual</p>{saving > 0 && <Badge variant="outline">Save {saving}%</Badge>}</div><p className="font-serif text-3xl font-bold">{money(annual)}<span className="text-base font-normal text-[#667984]"> / year</span></p><p className="text-xs text-[#667984]">Equivalent to {money(annual / 12)} per month</p></div></div>}</div><div><p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#667984]">Included usage</p><div className="space-y-2">{tier.usage.map(item => <p key={item} className="rounded-lg bg-[#edf7f8] px-3 py-2 text-sm font-medium">{item}</p>)}</div></div><div><p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#667984]">Features</p><div className="space-y-2">{tier.features.map(item => <p key={item} className="flex gap-2 text-sm leading-6"><CheckCircle2 className="mt-1 size-4 shrink-0 text-emerald-600"/>{item}</p>)}</div></div>{tier.id === "free" ? <form action={chooseFreePlan}><Button type="submit" className="w-full" variant="outline">Choose Free and enter app</Button></form> : <div className="grid gap-2"><CheckoutButton tier={tier.id} interval="annual" label={`Choose ${tier.name} annual`} primary={tier.id === "pro"}/><CheckoutButton tier={tier.id} interval="monthly" label={`Choose ${tier.name} monthly`}/></div>}</CardContent></Card>})}</section>
+
+      <p className="text-center text-xs leading-5 text-slate-500">You can change your plan later from Account. Paid subscriptions are processed securely through Stripe.</p>
+    </div>
+  </main>
+}
