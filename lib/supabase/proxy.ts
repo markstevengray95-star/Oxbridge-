@@ -5,7 +5,7 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config"
 
 const PRO_ROUTES = [
   "/mistake-dna","/progress-proof","/application-profile","/application-defence","/application-command-centre","/tutorial-lab","/mock-day","/supercurricular-coach","/paper-intervention","/essay-tutor","/essay-comparison","/interview-feedback","/parent-summary","/tutor-autopilot","/written-work-defence","/reading-curriculum","/preparation-readiness","/panel-interview",
-  "/digital-twin","/socratic-whiteboard","/personal-statement-defence","/source-notebook","/evidence-locker","/offline-pack",
+  "/digital-twin","/socratic-whiteboard","/personal-statement-defence","/source-notebook","/evidence-locker","/offline-pack","/interview-pressure",
 ]
 
 const SCHOOL_ROUTES = [
