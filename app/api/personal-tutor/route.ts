@@ -5,6 +5,8 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 type TutorMode = "coach" | "challenge" | "explain" | "plan" | "review"
+type ChatMessage = { role: "student" | "tutor"; text: string }
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
 type TutorRequest = {
   question?: string
@@ -15,8 +17,6 @@ type TutorRequest = {
   reflection?: string
   conversation?: Array<{ role?: string; text?: string }>
 }
-
-type ChatMessage = { role: "student" | "tutor"; text: string }
 
 type CloudContext = {
   intelligence: unknown
@@ -30,8 +30,16 @@ type CloudContext = {
   reflection: string
 }
 
+type StateUpsert = {
+  user_id: string
+  state_key: string
+  state_value: Record<string, unknown>
+  updated_at: string
+}
+
 const CHAT_STATE_KEY = "oxbridge-personal-tutor-chat-v2"
 const REFLECTION_STATE_KEY = "oxbridge-personal-tutor-reflection-v2"
+const TUTOR_MODES: TutorMode[] = ["coach", "challenge", "explain", "plan", "review"]
 
 function extractText(data: unknown) {
   if (!data || typeof data !== "object") return ""
@@ -40,10 +48,26 @@ function extractText(data: unknown) {
   for (const candidate of candidates) {
     if (!candidate || typeof candidate !== "object") continue
     const parts = ((candidate as { content?: { parts?: unknown[] } }).content?.parts ?? [])
-    const text = parts.map(part => part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string" ? String((part as { text?: string }).text) : "").join(" ").trim()
+    const text = parts
+      .map(part => part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string" ? String((part as { text?: string }).text) : "")
+      .join(" ")
+      .trim()
     if (text) return text
   }
   return ""
+}
+
+function cleanConversation(value: unknown): ChatMessage[] {
+  if (!Array.isArray(value)) return []
+  const messages: ChatMessage[] = []
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue
+    const raw = item as { role?: unknown; text?: unknown }
+    if (raw.role !== "student" && raw.role !== "tutor") continue
+    if (typeof raw.text !== "string" || !raw.text.trim()) continue
+    messages.push({ role: raw.role, text: raw.text.trim().slice(0, 1800) })
+  }
+  return messages.slice(-24)
 }
 
 function fallback(body: TutorRequest) {
@@ -55,17 +79,6 @@ function fallback(body: TutorRequest) {
   return `Focus first on ${priority}. Do one active practice task, then write down the exact point where your reasoning changed or became uncertain. Use that evidence to decide the next task rather than doing more random questions.`
 }
 
-function cleanConversation(value: unknown): ChatMessage[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap(item => {
-    if (!item || typeof item !== "object") return []
-    const raw = item as { role?: unknown; text?: unknown }
-    const role = raw.role === "tutor" ? "tutor" : raw.role === "student" ? "student" : null
-    const text = typeof raw.text === "string" ? raw.text.trim().slice(0, 1800) : ""
-    return role && text ? [{ role, text }] : []
-  }).slice(-24)
-}
-
 function modeInstruction(mode: TutorMode) {
   if (mode === "challenge") return "Run this like a demanding Oxbridge tutorial: challenge assumptions, introduce a counterexample or new constraint, and make the student adapt their reasoning. Do not simply reveal the polished answer."
   if (mode === "explain") return "Teach the idea clearly in short chunks, use one concrete example, then ask the student to apply or explain it back. Keep the explanation concise enough that the student still has to think."
@@ -74,7 +87,7 @@ function modeInstruction(mode: TutorMode) {
   return "Coach Socratically. Ask focused questions, give hints when useful, and help the student expose assumptions and reasoning steps before offering conclusions."
 }
 
-async function loadCloudContext(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<CloudContext> {
+async function loadCloudContext(supabase: SupabaseServerClient, userId: string): Promise<CloudContext> {
   const [intelligence, plans, memories, mistakes, evidence, application, supercurricular, stateRows] = await Promise.all([
     supabase.from("student_intelligence").select("snapshot").eq("user_id", userId).maybeSingle(),
     supabase.from("tutor_plans").select("plan,plan_date,status,updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(4),
@@ -104,20 +117,19 @@ async function loadCloudContext(supabase: Awaited<ReturnType<typeof createClient
 }
 
 async function persistTutorState(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: SupabaseServerClient,
   userId: string,
   messages: ChatMessage[],
   reflection: string,
 ) {
   const now = new Date().toISOString()
-  const rows = [
-    {
-      user_id: userId,
-      state_key: CHAT_STATE_KEY,
-      state_value: { messages: messages.slice(-24) },
-      updated_at: now,
-    },
-  ]
+  const rows: StateUpsert[] = [{
+    user_id: userId,
+    state_key: CHAT_STATE_KEY,
+    state_value: { messages: messages.slice(-24) },
+    updated_at: now,
+  }]
+
   if (reflection.trim()) {
     rows.push({
       user_id: userId,
@@ -126,16 +138,26 @@ async function persistTutorState(
       updated_at: now,
     })
   }
+
   await supabase.from("user_state").upsert(rows, { onConflict: "user_id,state_key" })
+}
+
+function withTurn(history: ChatMessage[], question: string, reply: string): ChatMessage[] {
+  return [
+    ...history,
+    { role: "student", text: question },
+    { role: "tutor", text: reply },
+  ].slice(-24) as ChatMessage[]
 }
 
 export async function POST(request: Request) {
   let body: TutorRequest
   try { body = await request.json() as TutorRequest } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }) }
+
   const question = (body.question ?? "").trim().slice(0, 2500)
   if (!question) return NextResponse.json({ error: "Question is required" }, { status: 400 })
 
-  const mode: TutorMode = ["coach", "challenge", "explain", "plan", "review"].includes(body.mode ?? "") ? body.mode as TutorMode : "coach"
+  const mode: TutorMode = TUTOR_MODES.includes(body.mode as TutorMode) ? body.mode as TutorMode : "coach"
   const local = fallback({ ...body, mode })
   const supabase = await createClient()
   const { data: claimsData } = await supabase.auth.getClaims()
@@ -152,8 +174,7 @@ export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY
 
   if (!apiKey) {
-    const messages = [...recentConversation, { role: "student" as const, text: question }, { role: "tutor" as const, text: local }].slice(-24)
-    await persistTutorState(supabase, userId, messages, reflection)
+    await persistTutorState(supabase, userId, withTurn(recentConversation, question, local), reflection)
     return NextResponse.json({ reply: local, provider: "local", mode, cloudContext: true })
   }
 
@@ -199,23 +220,25 @@ Rules:
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
       headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: user }] }], generationConfig: { temperature: mode === "challenge" ? 0.5 : 0.3, maxOutputTokens: 900 } }),
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [{ text: user }] }],
+        generationConfig: { temperature: mode === "challenge" ? 0.5 : 0.3, maxOutputTokens: 900 },
+      }),
       signal: AbortSignal.timeout(20000),
     })
+
     if (!response.ok) {
-      const messages = [...recentConversation, { role: "student" as const, text: question }, { role: "tutor" as const, text: local }].slice(-24)
-      await persistTutorState(supabase, userId, messages, reflection)
+      await persistTutorState(supabase, userId, withTurn(recentConversation, question, local), reflection)
       return NextResponse.json({ reply: local, provider: "local", degraded: true, mode, cloudContext: true })
     }
 
     const data = await response.json() as unknown
     const reply = extractText(data) || local
-    const messages = [...recentConversation, { role: "student" as const, text: question }, { role: "tutor" as const, text: reply }].slice(-24)
-    await persistTutorState(supabase, userId, messages, reflection)
+    await persistTutorState(supabase, userId, withTurn(recentConversation, question, reply), reflection)
     return NextResponse.json({ reply, provider: reply === local ? "local" : "gemini", mode, cloudContext: true })
   } catch {
-    const messages = [...recentConversation, { role: "student" as const, text: question }, { role: "tutor" as const, text: local }].slice(-24)
-    await persistTutorState(supabase, userId, messages, reflection)
+    await persistTutorState(supabase, userId, withTurn(recentConversation, question, local), reflection)
     return NextResponse.json({ reply: local, provider: "local", degraded: true, mode, cloudContext: true })
   }
 }
