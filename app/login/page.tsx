@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, CheckCircle2, GraduationCap, KeyRound, Loader2, LockKeyhole, Mail, RefreshCw, UserPlus } from "lucide-react"
+import { CheckCircle2, GraduationCap, KeyRound, Loader2, LockKeyhole, Mail, RefreshCw, UserPlus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,9 +12,9 @@ import { Input } from "@/components/ui/input"
 type Mode = "signin" | "signup" | "forgot"
 
 function nextPath() {
-  if (typeof window === "undefined") return "/account"
+  if (typeof window === "undefined") return "/student-home"
   const next = new URLSearchParams(window.location.search).get("next")
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/account"
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/student-home"
 }
 
 function confirmationRedirect(next = nextPath()) {
@@ -134,7 +134,10 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-[#f2f5f5] px-4 py-8 text-[#172b3a] sm:px-6 lg:py-12">
       <div className="mx-auto max-w-5xl">
-        <Link href="/" className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-[#526a75]"><ArrowLeft className="size-4" />Back to Oxbridge Prep</Link>
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 font-serif text-lg font-bold text-[#102a43]"><GraduationCap className="size-5 text-[#147d91]" />Oxbridge Tutor</div>
+          <Button asChild size="sm" variant="outline"><Link href="/premium">View plans</Link></Button>
+        </div>
         <div className="grid overflow-hidden rounded-[2rem] border border-[#dbe5e7] bg-white shadow-[0_30px_90px_rgba(16,42,67,.09)] lg:grid-cols-[.9fr_1.1fr]">
           <section className="bg-[#102a43] p-7 text-white sm:p-10">
             <div className="grid size-12 place-items-center rounded-2xl bg-white/10 text-[#8dd7de]"><GraduationCap /></div>
