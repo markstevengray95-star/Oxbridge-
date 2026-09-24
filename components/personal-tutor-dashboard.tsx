@@ -83,13 +83,15 @@ function isTutorMode(value: unknown): value is TutorMode {
 
 function cleanChat(value: unknown): ChatMessage[] {
   if (!Array.isArray(value)) return []
-  return value.flatMap(item => {
-    if (!item || typeof item !== "object") return []
+  const messages: ChatMessage[] = []
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue
     const raw = item as { role?: unknown; text?: unknown }
-    const role = raw.role === "student" || raw.role === "tutor" ? raw.role : null
-    const text = typeof raw.text === "string" ? raw.text.trim() : ""
-    return role && text ? [{ role, text }] : []
-  }).slice(-24)
+    if (raw.role !== "student" && raw.role !== "tutor") continue
+    if (typeof raw.text !== "string" || !raw.text.trim()) continue
+    messages.push({ role: raw.role, text: raw.text.trim() })
+  }
+  return messages.slice(-24)
 }
 
 export function PersonalTutorDashboard() {
@@ -234,7 +236,7 @@ export function PersonalTutorDashboard() {
     const selectedMode = customMode ?? mode
     if (customMode) setMode(customMode)
     setQuestion("")
-    setChat(current => [...current, { role: "student", text }].slice(-24))
+    setChat(current => [...current, { role: "student" as const, text }].slice(-24))
     setAsking(true)
 
     try {
@@ -259,11 +261,11 @@ export function PersonalTutorDashboard() {
       })
       const data = await response.json() as { reply?: string; authRequired?: boolean }
       const reply = data.reply ?? "Focus on the highest-priority action in today's plan, then reflect on what changed in your reasoning."
-      setChat(current => [...current, { role: "tutor", text: reply }].slice(-24))
+      setChat(current => [...current, { role: "tutor" as const, text: reply }].slice(-24))
       if (data.authRequired) setCloudStatus("local")
       else if (response.ok) setCloudStatus("saved")
     } catch {
-      setChat(current => [...current, { role: "tutor", text: "Use today's highest-priority activity first. After it, record one mistake pattern you noticed and one thing you would do differently next time." }].slice(-24))
+      setChat(current => [...current, { role: "tutor" as const, text: "Use today's highest-priority activity first. After it, record one mistake pattern you noticed and one thing you would do differently next time." }].slice(-24))
     } finally {
       setAsking(false)
     }
