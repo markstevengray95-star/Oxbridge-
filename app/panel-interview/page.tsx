@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, ArrowRight, Brain, CheckCircle2, GraduationCap, Loader2, Mic, MicOff, RefreshCw, Sparkles, Users } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ArrowLeft, ArrowRight, Brain, CheckCircle2, Headphones, Loader2, Mic, MicOff, RefreshCw, Sparkles, Users, Volume2, VolumeX } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,168 +12,70 @@ import { Textarea } from "@/components/ui/textarea"
 import { interviewQuestions, tracks, type TrackId } from "@/lib/oxbridge-data"
 import { generatedInterviewQuestion, pathwayDetails } from "@/lib/oxbridge-expanded"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
-import { interviewProfileFor } from "@/lib/prep-suite"
 
-type PanelTurn = { role: "interviewer" | "candidate"; text: string; speaker: string }
+type PanelTurn = { role: "interviewer" | "candidate"; text: string; speaker: string; confidence?: number }
 type Phase = "lobby" | "live" | "review"
 type AiReply = { reply: string; provider: "openai" | "local"; configured?: boolean; degraded?: boolean }
 type Result = { total: number; reasoning: number; subject: number; flexibility: number; clarity: number; error: string; strengths: string[]; next: string[] }
+type Reflection = { changed: string; missed: string; next: string }
+
+type WrittenContext = { title?: string; course?: string; analysis?: { openingQuestion?: string; defenceQuestions?: string[] } }
 
 const profileKey = "oxbridge-tutor-profile-v2"
 const progressKey = "oxbridge-tutor-progress-v2"
+const writtenContextKey = "oxbridge-panel-written-work-v1"
 
 function scoreResponse(text: string, concepts: string[]): Result {
-  const clean = text.toLowerCase().trim()
-  const words = clean ? clean.split(/\s+/).length : 0
-  const reasoningHits = ["because", "therefore", "if", "then", "since", "implies", "hence"].filter(x => clean.includes(x)).length
-  const flexibilityHits = ["however", "alternative", "assumption", "counter", "depends", "unless", "could"].filter(x => clean.includes(x)).length
-  const conceptHits = concepts.filter(x => clean.includes(x.toLowerCase())).length
-  const reasoning = Math.min(25, 7 + reasoningHits * 4 + (words > 75 ? 4 : 0))
-  const subject = Math.min(25, 6 + Math.round((conceptHits / Math.max(1, concepts.length)) * 19))
-  const flexibility = Math.min(25, 6 + flexibilityHits * 4 + (/example|case|limit/i.test(clean) ? 3 : 0))
-  const clarity = Math.min(25, words >= 60 && words <= 360 ? 22 : words >= 32 ? 17 : words >= 15 ? 11 : 5)
-  const total = reasoning + subject + flexibility + clarity
-  const strengths: string[] = [], next: string[] = []
-  if (reasoning >= 18) strengths.push("You exposed the reasoning chain instead of only giving conclusions."); else next.push("Make each inference explicit before moving to the next claim.")
-  if (subject >= 17) strengths.push("You used course-relevant ideas purposefully."); else next.push(`Connect more directly to ${concepts.slice(0, 3).join(", ")}.`)
-  if (flexibility >= 17) strengths.push("You adapted when the panel changed perspective or challenged an assumption."); else next.push("Use the second interviewer as a cue to test an alternative or revise an assumption.")
-  if (clarity >= 18) strengths.push("Your explanations stayed structured across multiple interviewers."); else next.push("Signpost when you are answering Interviewer A versus responding to Interviewer B's challenge.")
-  const error = words < 25 ? "Under-developed reasoning" : conceptHits === 0 ? "Knowledge connection" : reasoningHits < 2 ? "Logical chain" : flexibilityHits === 0 ? "Panel flexibility" : "No dominant error"
-  return { total, reasoning, subject, flexibility, clarity, error, strengths, next }
+  const clean=text.toLowerCase().trim(), words=clean?clean.split(/\s+/).length:0
+  const reasoningHits=["because","therefore","if","then","since","implies","hence"].filter(x=>clean.includes(x)).length
+  const flexibilityHits=["however","alternative","assumption","counter","depends","unless","could","change"].filter(x=>clean.includes(x)).length
+  const conceptHits=concepts.filter(x=>clean.includes(x.toLowerCase())).length
+  const reasoning=Math.min(25,7+reasoningHits*4+(words>75?4:0))
+  const subject=Math.min(25,6+Math.round((conceptHits/Math.max(1,concepts.length))*19))
+  const flexibility=Math.min(25,6+flexibilityHits*4+(/example|case|limit/i.test(clean)?3:0))
+  const clarity=Math.min(25,words>=60&&words<=360?22:words>=32?17:words>=15?11:5)
+  const total=reasoning+subject+flexibility+clarity, strengths:string[]=[], next:string[]=[]
+  if(reasoning>=18)strengths.push("You made the reasoning chain visible.");else next.push("Make each inference explicit before moving to the next claim.")
+  if(subject>=17)strengths.push("You used relevant subject ideas purposefully.");else next.push(`Connect more directly to ${concepts.slice(0,3).join(", ")}.`)
+  if(flexibility>=17)strengths.push("You adapted when the second interviewer changed the pressure on the argument.");else next.push("Use the second interviewer as a cue to test or revise an assumption.")
+  if(clarity>=18)strengths.push("Your explanation stayed structured across both interviewers.");else next.push("State which claim you are defending before adding detail.")
+  const error=words<25?"Under-developed reasoning":conceptHits===0?"Knowledge connection":reasoningHits<2?"Logical chain":flexibilityHits===0?"Panel flexibility":"No dominant error"
+  return {total,reasoning,subject,flexibility,clarity,error,strengths,next}
 }
 
-export default function PanelInterviewPage() {
-  const [phase, setPhase] = useState<Phase>("lobby")
-  const [track, setTrack] = useState<TrackId>("physical")
-  const [course, setCourse] = useState("Physics")
-  const [difficulty, setDifficulty] = useState("Stretch")
-  const [mode, setMode] = useState<InterviewMode>("Realistic")
-  const [personaA, setPersonaA] = useState<InterviewPersonaKey>("Socratic")
-  const [personaB, setPersonaB] = useState<InterviewPersonaKey>("Technical")
-  const [seed, setSeed] = useState(2)
-  const [turns, setTurns] = useState<PanelTurn[]>([])
-  const [question, setQuestion] = useState("")
-  const [activeSpeaker, setActiveSpeaker] = useState<"A" | "B">("A")
-  const [answer, setAnswer] = useState("")
-  const [thinking, setThinking] = useState(false)
-  const [provider, setProvider] = useState<"openai" | "local" | null>(null)
-  const [notice, setNotice] = useState("")
-  const [result, setResult] = useState<Result | null>(null)
-  const [listening, setListening] = useState(false)
-  const recognitionRef = useRef<{ stop: () => void } | null>(null)
+export default function PanelInterviewPage(){
+ const [phase,setPhase]=useState<Phase>("lobby"),[track,setTrack]=useState<TrackId>("physical"),[course,setCourse]=useState("Physics"),[difficulty,setDifficulty]=useState("Stretch"),[mode,setMode]=useState<InterviewMode>("Realistic")
+ const [personaA,setPersonaA]=useState<InterviewPersonaKey>("Socratic"),[personaB,setPersonaB]=useState<InterviewPersonaKey>("Technical"),[seed,setSeed]=useState(2),[turns,setTurns]=useState<PanelTurn[]>([]),[question,setQuestion]=useState(""),[activeSpeaker,setActiveSpeaker]=useState<"A"|"B">("A"),[answer,setAnswer]=useState(""),[thinking,setThinking]=useState(false),[provider,setProvider]=useState<"openai"|"local"|null>(null),[notice,setNotice]=useState(""),[result,setResult]=useState<Result|null>(null),[listening,setListening]=useState(false),[muted,setMuted]=useState(false),[voiceProvider,setVoiceProvider]=useState<"gemini"|"browser"|null>(null),[confidence,setConfidence]=useState(3),[reflection,setReflection]=useState<Reflection>({changed:"",missed:"",next:""}),[writtenContext,setWrittenContext]=useState<WrittenContext|null>(null)
+ const recognitionRef=useRef<{stop:()=>void}|null>(null), audioRef=useRef<HTMLAudioElement|null>(null)
 
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(profileKey) || "{}") as { track?: TrackId; course?: string }
-      if (saved.track) setTrack(saved.track)
-      if (saved.course) setCourse(saved.course)
-    } catch { /* defaults */ }
-  }, [])
+ useEffect(()=>{try{const saved=JSON.parse(localStorage.getItem(profileKey)||"{}") as {track?:TrackId;course?:string};if(saved.track)setTrack(saved.track);if(saved.course)setCourse(saved.course);const wc=JSON.parse(localStorage.getItem(writtenContextKey)||"null") as WrittenContext|null;if(wc){setWrittenContext(wc);if(wc.course)setCourse(wc.course)}}catch{}},[])
+ const original=useMemo(()=>interviewQuestions.filter(q=>q.track===track),[track]), skill=pathwayDetails[track].skills[seed%pathwayDetails[track].skills.length], generated=generatedInterviewQuestion(track,difficulty,skill,seed), base=original[seed%Math.max(1,original.length)], concepts=base?.concepts??pathwayDetails[track].topics
+ const opening=writtenContext?.analysis?.openingQuestion||base?.prompt||generated.prompt, courses=tracks.find(t=>t.id===track)?.courses??[course], interviewerA=interviewerPersonas[personaA], interviewerB=interviewerPersonas[personaB], candidateTurns=turns.filter(t=>t.role==="candidate").length
 
-  const original = useMemo(() => interviewQuestions.filter(q => q.track === track), [track])
-  const profile = interviewProfileFor(course, track)
-  const skill = pathwayDetails[track].skills[seed % pathwayDetails[track].skills.length]
-  const generated = generatedInterviewQuestion(track, difficulty, skill, seed)
-  const base = original[seed % Math.max(1, original.length)]
-  const concepts = base?.concepts ?? pathwayDetails[track].topics
-  const opening = base?.prompt ?? generated.prompt
-  const courses = tracks.find(t => t.id === track)?.courses ?? [course]
-  const interviewerA = interviewerPersonas[personaA]
-  const interviewerB = interviewerPersonas[personaB]
-  const candidateTurns = turns.filter(t => t.role === "candidate").length
+ async function speak(text:string,speaker:"A"|"B"){
+  if(muted)return
+  audioRef.current?.pause();window.speechSynthesis?.cancel()
+  const voice=speaker==="A"?"Gacrux":"Kore"
+  try{const response=await fetch("/api/natural-speech",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,voice})});if(!response.ok)throw new Error("tts");const blob=await response.blob();const url=URL.createObjectURL(blob);const audio=new Audio(url);audioRef.current=audio;audio.onended=()=>URL.revokeObjectURL(url);await audio.play();setVoiceProvider("gemini");return}catch{}
+  if("speechSynthesis" in window){const u=new SpeechSynthesisUtterance(text);u.lang="en-GB";u.rate=speaker==="A"?.96:.93;u.pitch=speaker==="A"?1.03:.88;const voices=window.speechSynthesis.getVoices().filter(v=>v.lang.toLowerCase().startsWith("en"));if(voices.length)u.voice=voices[speaker==="A"?0:Math.min(1,voices.length-1)];window.speechSynthesis.speak(u);setVoiceProvider("browser")}
+ }
 
-  const speak = (text: string) => {
-    if (!("speechSynthesis" in window)) return
-    window.speechSynthesis.cancel()
-    const u = new SpeechSynthesisUtterance(text)
-    u.lang = "en-GB"
-    u.rate = .96
-    u.pitch = activeSpeaker === "A" ? 1 : .92
-    window.speechSynthesis.speak(u)
-  }
+ function startVoice(){type Rec={continuous:boolean;interimResults:boolean;onresult:(e:{results:ArrayLike<{0:{transcript:string}}>} )=>void;onend:()=>void;start:()=>void;stop:()=>void};const w=window as unknown as {SpeechRecognition?:new()=>Rec;webkitSpeechRecognition?:new()=>Rec};const SR=w.SpeechRecognition??w.webkitSpeechRecognition;if(!SR){setNotice("Voice transcription is not supported in this browser. Typed answers remain available.");return}const rec=new SR();rec.continuous=true;rec.interimResults=false;rec.onresult=e=>setAnswer(a=>`${a} ${Array.from(e.results).map(r=>r[0].transcript).join(" ")}`.trim());rec.onend=()=>setListening(false);recognitionRef.current=rec;rec.start();setListening(true)}
+ const stopVoice=()=>{recognitionRef.current?.stop();setListening(false)}
 
-  const startVoice = () => {
-    type Rec = { continuous: boolean; interimResults: boolean; onresult: (e: { results: ArrayLike<{ 0: { transcript: string } }> }) => void; onend: () => void; start: () => void; stop: () => void }
-    const w = window as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec }
-    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition
-    if (!SR) { setNotice("Voice transcription is not supported in this browser. Typed answers remain available."); return }
-    const rec = new SR(); rec.continuous = true; rec.interimResults = false
-    rec.onresult = e => setAnswer(a => `${a} ${Array.from(e.results).map(r => r[0].transcript).join(" ")}`.trim())
-    rec.onend = () => setListening(false)
-    recognitionRef.current = rec; rec.start(); setListening(true)
-  }
+ function startPanel(){const intro=writtenContext?`We have read your written work, “${writtenContext.title||"your submitted piece"}”. We will use it as a starting point, but we may move beyond it.`:interviewerA.opening;const openingTurns:PanelTurn[]=[{role:"interviewer",speaker:"Interviewer A",text:intro},{role:"interviewer",speaker:"Interviewer A",text:opening}];setTurns(openingTurns);setQuestion(opening);setActiveSpeaker("A");setAnswer("");setResult(null);setNotice("");setPhase("live");void speak(`${intro} ${opening}`,"A")}
 
-  const stopVoice = () => { recognitionRef.current?.stop(); setListening(false) }
+ async function submitTurn(){const candidate=answer.trim();if(!candidate||thinking)return;const nextSpeaker: "A"|"B"=activeSpeaker==="A"?"B":"A",nextPersona=nextSpeaker==="A"?personaA:personaB,nextRole=nextSpeaker==="A"?"Lead interviewer":"Second interviewer / challenger",other=nextSpeaker==="A"?`Interviewer B (${interviewerB.label})`:`Interviewer A (${interviewerA.label})`;const candidateTurn:PanelTurn={role:"candidate",speaker:"Candidate",text:candidate,confidence};const history=[...turns,candidateTurn];setTurns(history);setAnswer("");setThinking(true);setNotice("")
+  try{const response=await fetch("/api/interview-turn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({course,track,difficulty,mode,persona:nextPersona,question,answer:candidate,concepts,turns:history,panelMode:true,interviewerRole:`${nextRole} (${nextSpeaker})`,otherInterviewer:other,writtenWork:writtenContext?.analysis??null})});if(!response.ok)throw new Error("panel");const data=await response.json() as AiReply;const nextQuestion=data.reply.replace(/^([^:]{1,40}:\s*)/,"").trim(),label=nextSpeaker==="A"?"Interviewer A":"Interviewer B";setTurns(t=>[...t,{role:"interviewer",speaker:label,text:nextQuestion}]);setQuestion(nextQuestion);setActiveSpeaker(nextSpeaker);setProvider(data.provider);if(data.degraded)setNotice("The cloud interviewer was temporarily unavailable, so this turn used the built-in challenge engine.");void speak(nextQuestion,nextSpeaker)}catch{const fallback=nextSpeaker==="B"?"I want to test that from a different angle. Which assumption would you challenge first, and why?":"Return to your original claim. Does it still survive the challenge you have just been given?";const label=nextSpeaker==="A"?"Interviewer A":"Interviewer B";setTurns(t=>[...t,{role:"interviewer",speaker:label,text:fallback}]);setQuestion(fallback);setActiveSpeaker(nextSpeaker);setProvider("local");setNotice("The cloud panel could not be reached, so built-in panel logic continued the interview.");void speak(fallback,nextSpeaker)}finally{setThinking(false)}
+ }
 
-  const startPanel = () => {
-    const openingTurns: PanelTurn[] = [
-      { role: "interviewer", speaker: "Interviewer A", text: interviewerA.opening },
-      { role: "interviewer", speaker: "Interviewer A", text: opening },
-    ]
-    setTurns(openingTurns); setQuestion(opening); setActiveSpeaker("A"); setAnswer(""); setResult(null); setNotice(""); setPhase("live")
-    speak(interviewerA.opening)
-  }
+ function finish(){const finalTurns=answer.trim()?[...turns,{role:"candidate" as const,speaker:"Candidate",text:answer.trim(),confidence}]:turns,combined=finalTurns.filter(t=>t.role==="candidate").map(t=>t.text).join(" ");if(!combined)return;const scored=scoreResponse(combined,concepts);setTurns([...finalTurns,{role:"interviewer",speaker:"Panel",text:"Thank you. We will finish the interview there."}]);setResult(scored);setPhase("review");try{const saved=JSON.parse(localStorage.getItem(progressKey)||"{}") as Record<string,unknown>,logs=Array.isArray(saved.logs)?saved.logs as Array<Record<string,unknown>>:[],scores=Array.isArray(saved.interviewScores)?saved.interviewScores as number[]:[],misconceptions=saved.misconceptions&&typeof saved.misconceptions==="object"?saved.misconceptions as Record<string,number>:{},confidenceLogs=Array.isArray(saved.confidenceLogs)?saved.confidenceLogs as unknown[]:[];const avgConfidence=finalTurns.filter(t=>t.role==="candidate"&&t.confidence).reduce((sum,t)=>sum+Number(t.confidence??0),0)/Math.max(1,finalTurns.filter(t=>t.role==="candidate"&&t.confidence).length);localStorage.setItem(progressKey,JSON.stringify({...saved,sessions:Number(saved.sessions??0)+1,interviewScores:[...scores,scored.total],misconceptions:scored.error==="No dominant error"?misconceptions:{...misconceptions,[scored.error]:(misconceptions[scored.error]??0)+1},confidenceLogs:[...confidenceLogs,{score:scored.total,confidence:avgConfidence,date:new Date().toISOString(),source:"panel"}].slice(-100),logs:[{id:`panel-${Date.now()}`,title:`Two-Interviewer Panel · ${course}`,score:scored.total,date:new Date().toISOString(),events:finalTurns.map(t=>`${t.speaker}: ${t.text}`),dimensions:{reasoning:scored.reasoning,subject:scored.subject,flexibility:scored.flexibility,clarity:scored.clarity},panel:true},...logs].slice(0,40)}))}catch{}}
+ function saveReflection(){if(!result)return;try{const saved=JSON.parse(localStorage.getItem(progressKey)||"{}") as Record<string,unknown>,items=Array.isArray(saved.postInterviewReflections)?saved.postInterviewReflections as unknown[]:[];localStorage.setItem(progressKey,JSON.stringify({...saved,postInterviewReflections:[{...reflection,course,score:result.total,date:new Date().toISOString(),type:"panel"},...items].slice(0,50)}))}catch{}}
+ function reset(){setSeed(s=>s+1);setPhase("lobby");setTurns([]);setQuestion("");setAnswer("");setResult(null);setProvider(null);setNotice("");setActiveSpeaker("A");setReflection({changed:"",missed:"",next:""});setWrittenContext(null);localStorage.removeItem(writtenContextKey)}
 
-  const submitTurn = async () => {
-    const candidate = answer.trim()
-    if (!candidate || thinking) return
-    const nextSpeaker: "A" | "B" = activeSpeaker === "A" ? "B" : "A"
-    const nextPersona = nextSpeaker === "A" ? personaA : personaB
-    const nextRole = nextSpeaker === "A" ? "Lead interviewer" : "Second interviewer / challenger"
-    const other = nextSpeaker === "A" ? `Interviewer B (${interviewerB.label})` : `Interviewer A (${interviewerA.label})`
-    const candidateTurn: PanelTurn = { role: "candidate", speaker: "Candidate", text: candidate }
-    const history = [...turns, candidateTurn]
-    setTurns(history); setAnswer(""); setThinking(true); setNotice("")
-    try {
-      const response = await fetch("/api/interview-turn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          course, track, difficulty, mode, persona: nextPersona, question, answer: candidate, concepts,
-          turns: history,
-          panelMode: true,
-          interviewerRole: `${nextRole} (${nextSpeaker})`,
-          otherInterviewer: other,
-        }),
-      })
-      if (!response.ok) throw new Error("Panel interviewer unavailable")
-      const data = await response.json() as AiReply
-      const nextQuestion = data.reply.replace(/^([^:]{1,40}:\s*)/, "").trim()
-      const label = nextSpeaker === "A" ? "Interviewer A" : "Interviewer B"
-      setTurns(t => [...t, { role: "interviewer", speaker: label, text: nextQuestion }])
-      setQuestion(nextQuestion); setActiveSpeaker(nextSpeaker); setProvider(data.provider)
-      if (data.degraded) setNotice("The cloud interviewer was temporarily unavailable, so this panel turn used the built-in challenge engine.")
-      speak(nextQuestion)
-    } catch {
-      const fallback = nextSpeaker === "B" ? "I want to test that from a different angle. Which assumption would you challenge first, and why?" : "Return to your original claim. Does it still survive the challenge you have just been given?"
-      const label = nextSpeaker === "A" ? "Interviewer A" : "Interviewer B"
-      setTurns(t => [...t, { role: "interviewer", speaker: label, text: fallback }]); setQuestion(fallback); setActiveSpeaker(nextSpeaker); setProvider("local"); setNotice("The cloud panel could not be reached, so the built-in panel logic continued the interview.")
-      speak(fallback)
-    } finally { setThinking(false) }
-  }
+ if(phase==="lobby")return <main className="min-h-screen bg-[#f3f6f6] text-[#172b3a]"><div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-11"><div className="mb-7 flex items-center justify-between"><Link href="/interviews" className="inline-flex items-center gap-2 text-sm font-semibold text-[#526a75]"><ArrowLeft className="size-4"/>Interview Hub</Link><Badge className="bg-[#102a43] text-white"><Users className="size-3.5"/>Two-person AI panel</Badge></div><section className="grid gap-6 rounded-[2rem] border bg-white p-6 shadow-[0_30px_90px_rgba(16,42,67,.09)] lg:grid-cols-[1.1fr_.9fr] lg:p-10"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Two distinct academic voices</p><h1 className="mt-2 font-serif text-4xl font-bold">Two interviewers. Two voices. One continuous argument.</h1><p className="mt-4 max-w-2xl leading-7 text-[#667984]">Interviewer A leads; Interviewer B challenges from a different angle. Each turn is generated adaptively and spoken with a different Gemini TTS voice. If Gemini TTS is unavailable, the browser falls back to two distinct local voice settings.</p>{writtenContext&&<div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><strong>Written-work defence loaded</strong><p className="mt-1 text-sm">{writtenContext.title||"Your written work"}</p></div>}<div className="mt-7 grid gap-4 sm:grid-cols-2"><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider">Subject family</span><NativeSelect value={track} onChange={e=>{const t=e.target.value as TrackId;setTrack(t);const found=tracks.find(x=>x.id===t);if(found)setCourse(found.courses[0])}}>{tracks.map(t=><NativeSelectOption key={t.id} value={t.id}>{t.short}</NativeSelectOption>)}</NativeSelect></label><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider">Course</span><NativeSelect value={course} onChange={e=>setCourse(e.target.value)}>{courses.map(c=><NativeSelectOption key={c}>{c}</NativeSelectOption>)}</NativeSelect></label><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider">Interviewer A</span><NativeSelect value={personaA} onChange={e=>setPersonaA(e.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(p=><NativeSelectOption key={p}>{p}</NativeSelectOption>)}</NativeSelect></label><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider">Interviewer B</span><NativeSelect value={personaB} onChange={e=>setPersonaB(e.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(p=><NativeSelectOption key={p}>{p}</NativeSelectOption>)}</NativeSelect></label><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider">Difficulty</span><NativeSelect value={difficulty} onChange={e=>setDifficulty(e.target.value)}>{["Foundation","Standard","Stretch","Oxbridge"].map(d=><NativeSelectOption key={d}>{d}</NativeSelectOption>)}</NativeSelect></label><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider">Mode</span><NativeSelect value={mode} onChange={e=>setMode(e.target.value as InterviewMode)}>{["Supportive","Realistic","Pressure"].map(d=><NativeSelectOption key={d}>{d}</NativeSelectOption>)}</NativeSelect></label></div><Button className="mt-6" size="lg" onClick={startPanel}><Headphones/>Start two-voice interview <ArrowRight/></Button></div><Card className="border-0 bg-[#102a43] text-white"><CardHeader><CardTitle className="font-serif text-2xl">Voice identities</CardTitle></CardHeader><CardContent className="space-y-4"><div className="rounded-xl bg-white/10 p-4"><Badge className="bg-white/10 text-white">Interviewer A · Gacrux</Badge><p className="mt-2 text-sm text-white/75">Lead academic: develops the problem and asks you to make the chain of reasoning explicit.</p></div><div className="rounded-xl bg-white/10 p-4"><Badge className="bg-white/10 text-white">Interviewer B · Kore</Badge><p className="mt-2 text-sm text-white/75">Challenger: tests assumptions, counterexamples and changes of condition.</p></div></CardContent></Card></section></div></main>
 
-  const finish = () => {
-    const finalTurns = answer.trim() ? [...turns, { role: "candidate" as const, speaker: "Candidate", text: answer.trim() }] : turns
-    const combined = finalTurns.filter(t => t.role === "candidate").map(t => t.text).join(" ")
-    if (!combined) return
-    const scored = scoreResponse(combined, concepts)
-    setTurns([...finalTurns, { role: "interviewer", speaker: "Panel", text: "Thank you. We will finish the interview there." }]); setResult(scored); setPhase("review")
-    try {
-      const saved = JSON.parse(localStorage.getItem(progressKey) || "{}") as Record<string, unknown>
-      const logs = Array.isArray(saved.logs) ? saved.logs as Array<Record<string, unknown>> : []
-      const scores = Array.isArray(saved.interviewScores) ? saved.interviewScores as number[] : []
-      const misconceptions = saved.misconceptions && typeof saved.misconceptions === "object" ? saved.misconceptions as Record<string, number> : {}
-      localStorage.setItem(progressKey, JSON.stringify({ ...saved, sessions: Number(saved.sessions ?? 0)+1, interviewScores:[...scores,scored.total], misconceptions: scored.error === "No dominant error" ? misconceptions : { ...misconceptions, [scored.error]:(misconceptions[scored.error]??0)+1 }, logs:[{id:`panel-${Date.now()}`,title:`Two-Interviewer Panel · ${course}`,score:scored.total,date:new Date().toLocaleDateString("en-GB"),events:finalTurns.map(t=>`${t.speaker}: ${t.text}`),dimensions:{reasoning:scored.reasoning,subject:scored.subject,flexibility:scored.flexibility,clarity:scored.clarity}},...logs].slice(0,40) }))
-    } catch { /* complete without persistence */ }
-  }
+ if(phase==="live")return <main className="min-h-screen bg-[#eef3f4] text-[#172b3a]"><header className="border-b bg-[#102a43] text-white"><div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4"><div><p className="font-serif text-xl font-bold">Two-Interviewer Panel</p><p className="text-xs text-white/60">{course} · {difficulty}</p></div><div className="flex gap-2"><Badge className="bg-white/10 text-white">{provider??"starting"}</Badge><Badge className="bg-white/10 text-white"><Volume2 className="size-3.5"/>{voiceProvider??"AI voice"}</Badge><Button size="icon" variant="ghost" className="text-white" onClick={()=>setMuted(v=>!v)}>{muted?<VolumeX/>:<Volume2/>}</Button></div></div></header><div className="mx-auto grid max-w-6xl gap-5 px-4 py-6 lg:grid-cols-[1.15fr_.85fr]"><Card><CardHeader><div className="flex items-center justify-between"><div><Badge>{activeSpeaker==="A"?"Interviewer A":"Interviewer B"}</Badge><CardTitle className="mt-2 font-serif text-2xl">{question}</CardTitle></div><Badge variant="outline">Turn {candidateTurns+1}</Badge></div></CardHeader><CardContent className="space-y-4"><Textarea rows={10} value={answer} onChange={e=>setAnswer(e.target.value)} placeholder="Think aloud. Explain the route, assumptions and any uncertainty…"/><div><p className="mb-2 text-sm font-semibold">How confident are you before feedback?</p><div className="flex gap-2">{[1,2,3,4,5].map(value=><Button key={value} size="sm" variant={confidence===value?"default":"outline"} onClick={()=>setConfidence(value)}>{value}</Button>)}</div></div><div className="flex flex-wrap gap-2">{listening?<Button variant="outline" onClick={stopVoice}><MicOff/>Stop dictation</Button>:<Button variant="outline" onClick={startVoice}><Mic/>Dictate</Button>}<Button onClick={submitTurn} disabled={!answer.trim()||thinking}>{thinking?<Loader2 className="animate-spin"/>:<Sparkles/>}{thinking?"Interviewer thinking…":"Answer and continue"}</Button><Button variant="outline" onClick={finish} disabled={!turns.some(t=>t.role==="candidate")&&!answer.trim()}>Finish interview</Button></div>{notice&&<p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">{notice}</p>}</CardContent></Card><Card><CardHeader><CardTitle className="font-serif text-xl">Live transcript</CardTitle></CardHeader><CardContent className="max-h-[65vh] space-y-3 overflow-auto">{turns.map((turn,index)=><div key={index} className={`rounded-xl p-3 ${turn.role==="candidate"?"bg-white border":"bg-[#edf7f8]"}`}><div className="flex justify-between gap-2"><strong className="text-xs uppercase tracking-wider">{turn.speaker}</strong>{turn.confidence&&<span className="text-xs text-slate-500">confidence {turn.confidence}/5</span>}</div><p className="mt-1 text-sm leading-6">{turn.text}</p></div>)}</CardContent></Card></div></main>
 
-  const reset = () => { setSeed(s=>s+1); setPhase("lobby"); setTurns([]); setQuestion(""); setAnswer(""); setResult(null); setProvider(null); setNotice(""); setActiveSpeaker("A") }
-
-  if (phase === "lobby") return <main className="min-h-screen bg-[#f3f6f6] text-[#172b3a]"><div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-11"><div className="mb-7 flex items-center justify-between"><Link href="/interviews" className="inline-flex items-center gap-2 text-sm font-semibold text-[#526a75]"><ArrowLeft className="size-4" />Interview Hub</Link><Badge className="border-0 bg-[#102a43] text-white"><Users className="mr-1 size-3" />Two-interviewer panel</Badge></div><section className="grid overflow-hidden rounded-[2rem] border bg-white shadow-[0_30px_90px_rgba(16,42,67,.09)] lg:grid-cols-[1.1fr_.9fr]"><div className="p-6 sm:p-9 lg:p-12"><div className="mb-7 flex items-center gap-3"><span className="grid size-12 place-items-center rounded-2xl bg-[#102a43] text-[#8dd7de]"><Users className="size-5" /></span><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Academic panel</p><h1 className="font-serif text-3xl font-bold sm:text-4xl">Two different interviewers. One shared argument.</h1></div></div><p className="max-w-2xl leading-7 text-[#667984]">Interviewer A leads the problem. Interviewer B deliberately approaches your reasoning from a different angle. Both share the transcript, so you may be asked to reconcile what you said to one academic with a later challenge from the other.</p><div className="mt-8 grid gap-4 sm:grid-cols-2"><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Subject family</span><NativeSelect value={track} onChange={e=>{const next=e.target.value as TrackId;setTrack(next);const found=tracks.find(t=>t.id===next);if(found)setCourse(found.courses[0])}}>{tracks.map(t=><NativeSelectOption key={t.id} value={t.id}>{t.short}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Course</span><NativeSelect value={course} onChange={e=>setCourse(e.target.value)}>{courses.map(c=><NativeSelectOption key={c}>{c}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interviewer A</span><NativeSelect value={personaA} onChange={e=>setPersonaA(e.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(p=><NativeSelectOption key={p}>{p}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interviewer B</span><NativeSelect value={personaB} onChange={e=>setPersonaB(e.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(p=><NativeSelectOption key={p}>{p}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Difficulty</span><NativeSelect value={difficulty} onChange={e=>setDifficulty(e.target.value)}>{["Foundation","Stretch","Challenge"].map(d=><NativeSelectOption key={d}>{d}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Session</span><NativeSelect value={mode} onChange={e=>setMode(e.target.value as InterviewMode)}>{["Tutor","Realistic","No-hint","Stress"].map(m=><NativeSelectOption key={m}>{m}</NativeSelectOption>)}</NativeSelect></label></div><Button className="mt-7 h-12 rounded-xl px-6" onClick={startPanel}>Enter panel interview <ArrowRight /></Button></div><aside className="border-t bg-[#102a43] p-6 text-white sm:p-9 lg:border-l lg:border-t-0 lg:p-10"><h2 className="font-serif text-2xl font-bold">Panel roles</h2><div className="mt-5 space-y-4"><div className="rounded-2xl bg-white/8 p-4"><p className="text-xs font-bold uppercase tracking-wider text-[#8dd7de]">Interviewer A</p><p className="mt-1 font-semibold">{interviewerA.label}</p><p className="mt-2 text-sm leading-6 text-white/65">Leads the academic thread and returns to the central problem after detours.</p></div><div className="rounded-2xl bg-white/8 p-4"><p className="text-xs font-bold uppercase tracking-wider text-[#8dd7de]">Interviewer B</p><p className="mt-1 font-semibold">{interviewerB.label}</p><p className="mt-2 text-sm leading-6 text-white/65">Challenges a different assumption, piece of evidence or interpretation.</p></div></div><div className="mt-6 flex flex-wrap gap-2">{profile.emphasis.slice(0,6).map(x=><Badge key={x} className="border-white/15 bg-white/10 text-white">{x}</Badge>)}</div></aside></section></div></main>
-
-  if (phase === "review" && result) return <main className="min-h-screen bg-[#f3f6f6] text-[#172b3a]"><div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-6 flex justify-between gap-3"><Link href="/interviews" className="inline-flex items-center gap-2 text-sm font-semibold text-[#526a75]"><ArrowLeft className="size-4" />Interview Hub</Link><Button variant="outline" onClick={reset}><RefreshCw />New panel</Button></div><section className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]"><Card className="border-0 bg-[#102a43] text-white"><CardHeader><p className="text-xs font-bold uppercase tracking-[.16em] text-blue-200/70">Panel skills profile</p><CardTitle className="font-serif text-6xl">{result.total}<span className="text-xl text-white/45">/100</span></CardTitle><CardDescription className="text-white/60">Practice signal only; not an admissions prediction.</CardDescription></CardHeader><CardContent className="space-y-4">{[["Reasoning",result.reasoning],["Subject use",result.subject],["Panel flexibility",result.flexibility],["Communication",result.clarity]].map(([label,value])=><div key={String(label)}><div className="mb-1 flex justify-between text-xs"><span>{label}</span><span>{value}/25</span></div><Progress value={Number(value)*4} className="bg-white/15" /></div>)}<div className="rounded-xl bg-white/8 p-3"><p className="font-semibold">Next target · {result.error}</p>{result.next.slice(0,2).map(x=><p key={x} className="mt-2 text-sm text-white/70">→ {x}</p>)}</div></CardContent></Card><Card><CardHeader><CardTitle className="font-serif text-2xl">Shared panel transcript</CardTitle><CardDescription>Notice whether the second perspective changed, refined or strengthened the original reasoning.</CardDescription></CardHeader><CardContent className="max-h-[650px] space-y-3 overflow-y-auto">{turns.map((turn,i)=><div key={i} className={`rounded-2xl p-4 ${turn.role==="candidate"?"ml-8 border bg-white":turn.speaker==="Interviewer A"?"mr-8 bg-[#edf7f8]":"mr-8 bg-[#f5f1ea]"}`}><p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-[#147d91]">{turn.speaker}</p><p className="text-sm leading-6">{turn.text}</p></div>)}</CardContent></Card></section><div className="mt-5 grid gap-3 sm:grid-cols-2">{result.strengths.map(x=><div key={x} className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6"><CheckCircle2 className="mb-2 size-5 text-emerald-700" />{x}</div>)}</div></div></main>
-
-  const activeLabel = activeSpeaker === "A" ? "Interviewer A" : "Interviewer B"
-  const activePersona = activeSpeaker === "A" ? interviewerA : interviewerB
-  return <main className="min-h-screen bg-[#eef3f3] text-[#172b3a]"><div className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur"><div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-[#102a43] text-[#8dd7de]"><GraduationCap className="size-4" /></span><div><p className="text-sm font-bold">Panel Interview · {course}</p><p className="text-xs text-[#71828a]">{activeLabel} · {activePersona.label}</p></div></div><div className="flex gap-2"><Badge variant={activeSpeaker==="A"?"default":"outline"}>A</Badge><Badge variant={activeSpeaker==="B"?"default":"outline"}>B</Badge></div></div><Progress value={Math.min(100,candidateTurns*20)} className="h-1 rounded-none" /></div><div className="mx-auto grid max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8"><Card className="overflow-hidden"><CardHeader className={`border-b p-5 sm:p-7 ${activeSpeaker==="A"?"bg-white":"bg-[#fbf8f3]"}`}><div className="flex flex-wrap gap-2"><Badge>{activeLabel}</Badge><Badge variant="outline">{activePersona.label}</Badge>{provider&&<Badge variant="outline">{provider==="openai"?"AI":"Local fallback"}</Badge>}</div><CardTitle className="mt-4 font-serif text-2xl leading-snug sm:text-3xl">{question}</CardTitle></CardHeader><CardContent className="space-y-5 p-5 sm:p-7">{notice&&<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div>}<details className="rounded-xl border bg-[#f8fafb] p-4" open={candidateTurns<2}><summary className="cursor-pointer text-sm font-semibold">Panel conversation</summary><div className="mt-3 max-h-48 space-y-2 overflow-y-auto">{turns.slice(-8).map((t,i)=><p key={i} className="text-sm leading-6 text-[#60737d]"><strong>{t.speaker}:</strong> {t.text}</p>)}</div></details><Textarea value={answer} onChange={e=>setAnswer(e.target.value)} rows={12} className="min-h-64 text-base leading-7" placeholder={`Answer ${activeLabel}, but remember the other interviewer can return to anything you say…`} /><div className="flex flex-wrap items-center justify-between gap-3"><Button variant={listening?"default":"outline"} onClick={listening?stopVoice:startVoice}>{listening?<MicOff/>:<Mic/>}{listening?"Stop voice":"Answer by voice"}</Button><div className="flex gap-2"><Button variant="outline" onClick={submitTurn} disabled={!answer.trim()||thinking}>{thinking?<Loader2 className="animate-spin"/>:<Sparkles/>}{thinking?"Other interviewer thinking…":"Submit to panel"}</Button><Button onClick={finish} disabled={(!answer.trim()&&candidateTurns===0)||thinking}>Finish panel</Button></div></div></CardContent></Card><aside className="space-y-4"><Card className={activeSpeaker==="A"?"border-[#68c6d0]":""}><CardHeader><CardTitle className="font-serif text-lg">Interviewer A</CardTitle><CardDescription>{interviewerA.label}</CardDescription></CardHeader><CardContent className="text-sm leading-6 text-[#657582]">Lead thread: definitions, structure and the central problem.</CardContent></Card><Card className={activeSpeaker==="B"?"border-[#d4ad72]":""}><CardHeader><CardTitle className="font-serif text-lg">Interviewer B</CardTitle><CardDescription>{interviewerB.label}</CardDescription></CardHeader><CardContent className="text-sm leading-6 text-[#657582]">Second perspective: evidence, exceptions, transfer or challenge.</CardContent></Card><Card className="bg-[#edf7f8]"><CardContent className="p-4 text-sm leading-6 text-[#526a75]"><Brain className="mb-2 size-5 text-[#147d91]" />A strong panel response does not try to please both interviewers. Keep one coherent argument and revise it only when a challenge genuinely changes the reasoning.</CardContent></Card></aside></div></main>
+ return <main className="min-h-screen bg-[#f4f7f7] text-[#172b3a]"><div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6"><div className="flex items-center justify-between"><Button variant="ghost" onClick={reset}><ArrowLeft/>New panel</Button><Badge>Panel review</Badge></div>{result&&<><section className="grid gap-4 md:grid-cols-4">{[["Reasoning",result.reasoning*4],["Subject",result.subject*4],["Adaptability",result.flexibility*4],["Clarity",result.clarity*4]].map(([label,value])=><Card key={String(label)}><CardHeader><CardDescription>{label}</CardDescription><CardTitle className="font-serif text-3xl">{Number(value)}%</CardTitle></CardHeader><CardContent><Progress value={Number(value)}/></CardContent></Card>)}</section><section className="grid gap-5 lg:grid-cols-2"><Card><CardHeader><CardTitle className="font-serif text-2xl">What worked</CardTitle></CardHeader><CardContent className="space-y-2">{result.strengths.map(item=><p key={item} className="text-sm leading-6">• {item}</p>)}<CardTitle className="pt-4 font-serif text-xl">Next focus</CardTitle>{result.next.map(item=><p key={item} className="text-sm leading-6">• {item}</p>)}</CardContent></Card><Card><CardHeader><CardTitle className="font-serif text-2xl">Three-question reflection</CardTitle><CardDescription>This feeds your Tutor memory and later interview heatmap.</CardDescription></CardHeader><CardContent className="space-y-4"><label><span className="mb-1 block text-sm font-semibold">Where did your thinking change?</span><Textarea rows={3} value={reflection.changed} onChange={e=>setReflection(r=>({...r,changed:e.target.value}))}/></label><label><span className="mb-1 block text-sm font-semibold">What did you initially miss?</span><Textarea rows={3} value={reflection.missed} onChange={e=>setReflection(r=>({...r,missed:e.target.value}))}/></label><label><span className="mb-1 block text-sm font-semibold">What will you try differently next time?</span><Textarea rows={3} value={reflection.next} onChange={e=>setReflection(r=>({...r,next:e.target.value}))}/></label><Button onClick={saveReflection}><CheckCircle2/>Save reflection</Button></CardContent></Card></section><div className="flex flex-wrap gap-2"><Button asChild><Link href="/preparation-readiness">Open interview heatmap <ArrowRight/></Link></Button><Button asChild variant="outline"><Link href="/interview-feedback"><Brain/>Detailed feedback</Link></Button><Button variant="outline" onClick={reset}><RefreshCw/>Another panel</Button></div></>}</div></main>
 }
