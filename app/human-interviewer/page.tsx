@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowLeft, CheckCircle2, Clock3, Mic, MicOff, RotateCcw, Save, UserRound, Users } from "lucide-react"
+import { ArrowLeft, Brain, CheckCircle2, Clock3, Mic, MicOff, RotateCcw, Save, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
