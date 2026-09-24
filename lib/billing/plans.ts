@@ -5,7 +5,7 @@ export type BillingInterval = "monthly" | "annual"
 const DEFAULT_LIMITS: Record<SubscriptionTier, number> = {
   free: 5,
   pro: 40,
-  school: 600,
+  school: 40,
 }
 
 export const PRICING = {
