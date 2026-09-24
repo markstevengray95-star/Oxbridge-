@@ -3,11 +3,13 @@ import { getGeminiApiKeyCandidates, hasGeminiApiKey } from "@/lib/gemini/api-key
 
 export const runtime = "nodejs"
 
-type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
-type SpeechRequest = { text?: string; voice?: GeminiVoice }
+type GeminiVoice = "Gacrux" | "Kore" | "Sulafat" | "Sadaltager" | "Iapetus" | "Schedar" | "Achird" | "Algieba" | "Rasalgethi" | "Aoede" | "Orus" | "Charon"
+type DeliveryPreset = "natural" | "formal" | "warm" | "challenging"
+type SpeechRequest = { text?: string; voice?: GeminiVoice; delivery?: DeliveryPreset; interviewer?: "A" | "B" }
 type AudioBlock = { data?: unknown; mime_type?: unknown; mimeType?: unknown }
 
-const VOICES: GeminiVoice[] = ["Gacrux", "Sulafat", "Sadaltager", "Kore"]
+const VOICES: GeminiVoice[] = ["Gacrux", "Kore", "Sulafat", "Sadaltager", "Iapetus", "Schedar", "Achird", "Algieba", "Rasalgethi", "Aoede", "Orus", "Charon"]
+const DELIVERY: DeliveryPreset[] = ["natural", "formal", "warm", "challenging"]
 
 function cleanText(value: unknown) { return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 2200) : "" }
 
@@ -24,15 +26,52 @@ function findAudio(value: unknown): AudioBlock | null {
   return null
 }
 
-function styleFor(voice: GeminiVoice) {
-  if (voice === "Kore") return "firm, precise British university academic; calm but probing; measured pace; restrained intonation"
-  if (voice === "Sulafat") return "warm, conversational British university academic; thoughtful, unhurried, natural small pauses"
-  if (voice === "Sadaltager") return "knowledgeable, measured British university academic; analytical and composed; understated delivery"
-  return "mature British university academic; natural, thoughtful and conversational; realistic pauses; no announcer tone"
+function voiceCharacter(voice: GeminiVoice) {
+  const map: Record<GeminiVoice, string> = {
+    Gacrux: "mature and thoughtful",
+    Kore: "firm and precise",
+    Sulafat: "warm and conversational",
+    Sadaltager: "knowledgeable and measured",
+    Iapetus: "clear and composed",
+    Schedar: "even and understated",
+    Achird: "friendly but academically serious",
+    Algieba: "smooth and calm",
+    Rasalgethi: "informative and assured",
+    Aoede: "light, natural and conversational",
+    Orus: "firm and direct",
+    Charon: "grounded and analytical",
+  }
+  return map[voice]
+}
+
+function deliveryStyle(preset: DeliveryPreset) {
+  if (preset === "formal") return "formal tutorial-room delivery, measured pace, restrained intonation, crisp questions"
+  if (preset === "warm") return "warm tutorial-room delivery, gently encouraging, unhurried, naturally responsive"
+  if (preset === "challenging") return "probing tutorial-room delivery, intellectually demanding but never aggressive, purposeful pauses"
+  return "natural tutorial-room conversation, varied sentence rhythm, subtle pauses, responsive timing, no announcer cadence"
+}
+
+function styleFor(voice: GeminiVoice, delivery: DeliveryPreset, interviewer: "A" | "B") {
+  const role = interviewer === "B" ? "second university interviewer who often challenges or reframes" : "lead university interviewer who guides the discussion"
+  return [
+    `British university academic; ${role}`,
+    `${voiceCharacter(voice)} voice`,
+    deliveryStyle(delivery),
+    "sound like a real person speaking across a small interview room, not a narrator or synthetic assistant",
+    "use natural micro-pauses around clauses and slight changes in emphasis where a human interviewer would",
+    "avoid exaggerated acting, sing-song intonation, sales voice, motivational tone, or robotic sentence-final cadence",
+  ].join("; ")
 }
 
 export async function GET() {
-  return NextResponse.json({ gemini: hasGeminiApiKey(), voices: VOICES, defaultVoice: "Gacrux", panelVoices: { A: "Gacrux", B: "Kore" }, model: process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-tts" })
+  return NextResponse.json({
+    gemini: hasGeminiApiKey(),
+    voices: VOICES,
+    deliveryPresets: DELIVERY,
+    defaultVoice: "Gacrux",
+    panelVoices: { A: "Gacrux", B: "Kore" },
+    model: process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-tts",
+  })
 }
 
 export async function POST(request: Request) {
@@ -44,6 +83,8 @@ export async function POST(request: Request) {
   if (!candidates.length) return NextResponse.json({ error: "Gemini speech credentials are not configured" }, { status: 503 })
 
   const voice: GeminiVoice = VOICES.includes(body.voice as GeminiVoice) ? body.voice as GeminiVoice : "Gacrux"
+  const delivery: DeliveryPreset = DELIVERY.includes(body.delivery as DeliveryPreset) ? body.delivery as DeliveryPreset : "natural"
+  const interviewer: "A" | "B" = body.interviewer === "B" ? "B" : "A"
   const model = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-tts"
   let lastStatus = 502
 
@@ -54,7 +95,7 @@ export async function POST(request: Request) {
         headers: { "x-goog-api-key": candidate.value, "Content-Type": "application/json" },
         body: JSON.stringify({
           model,
-          input: [{ type: "user_input", content: [{ type: "text", text, annotations: [{ type: "speech_metadata", style: styleFor(voice) }] }] }],
+          input: [{ type: "user_input", content: [{ type: "text", text, annotations: [{ type: "speech_metadata", style: styleFor(voice, delivery, interviewer) }] }] }],
           response_format: { type: "audio", mime_type: "audio/wav" },
           generation_config: { speech_config: [{ voice }] },
         }),
@@ -69,7 +110,7 @@ export async function POST(request: Request) {
       if (!audio || typeof audio.data !== "string") continue
       const bytes = Buffer.from(audio.data, "base64")
       const mime = typeof audio.mime_type === "string" ? audio.mime_type : typeof audio.mimeType === "string" ? audio.mimeType : "audio/wav"
-      return new Response(bytes, { status: 200, headers: { "Content-Type": mime, "Cache-Control": "no-store", "X-Voice-Provider": "gemini", "X-Voice-Name": voice } })
+      return new Response(bytes, { status: 200, headers: { "Content-Type": mime, "Cache-Control": "no-store", "X-Voice-Provider": "gemini", "X-Voice-Name": voice, "X-Voice-Delivery": delivery } })
     } catch { /* try the next configured credential */ }
   }
 
