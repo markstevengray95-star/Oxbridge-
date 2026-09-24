@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { isConfiguredAdminEmail } from "@/lib/auth/admin-access"
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config"
 
 const PRO_ROUTES = [
@@ -51,10 +52,21 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims()
   const user = data?.claims
   const userId = typeof user?.sub === "string" ? user.sub : null
+  const userEmail = typeof user?.email === "string" ? user.email : null
   const pathname = request.nextUrl.pathname
   const requiresPro = matchesAny(pathname, PRO_ROUTES)
   const requiresSchool = matchesAny(pathname, SCHOOL_ROUTES)
-  const protectedRoute = pathname.startsWith("/account") || pathname.startsWith("/dashboard") || pathname.startsWith("/school-classroom") || requiresPro || requiresSchool
+  const adminLogin = pathname === "/admin/login"
+  const requiresAdmin = pathname === "/admin" || (pathname.startsWith("/admin/") && !adminLogin)
+  const protectedRoute = pathname.startsWith("/account") || pathname.startsWith("/dashboard") || pathname.startsWith("/school-classroom") || requiresPro || requiresSchool || requiresAdmin
+
+  if (!userId && requiresAdmin) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/admin/login"
+    url.search = ""
+    url.searchParams.set("next", pathname)
+    return NextResponse.redirect(url)
+  }
 
   if (!userId && protectedRoute) {
     const url = request.nextUrl.clone()
@@ -71,7 +83,33 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (userId && (requiresPro || requiresSchool)) {
+  let isAdmin = userId ? isConfiguredAdminEmail(userEmail) : false
+
+  if (userId && !isAdmin && (requiresAdmin || requiresPro || requiresSchool || adminLogin)) {
+    const { data: adminRole } = await supabase
+      .from("app_admins")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle()
+    isAdmin = adminRole?.role === "admin"
+  }
+
+  if (userId && adminLogin && isAdmin) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/admin"
+    url.search = ""
+    return NextResponse.redirect(url)
+  }
+
+  if (userId && requiresAdmin && !isAdmin) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/admin/login"
+    url.search = ""
+    url.searchParams.set("error", "not-authorized")
+    return NextResponse.redirect(url)
+  }
+
+  if (userId && (requiresPro || requiresSchool) && !isAdmin) {
     const { data: subscription } = await supabase
       .from("subscriptions")
       .select("tier,status")
