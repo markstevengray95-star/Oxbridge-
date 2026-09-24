@@ -32,6 +32,7 @@ export function AccountDataMirror() {
     const supabase = createClient()
     let cancelled = false
     let activeUserId: string | null = null
+    let cloudReadyUserId: string | null = null
     let timer: number | null = null
     let syncing = false
     let lastFingerprint = ""
@@ -42,7 +43,7 @@ export function AccountDataMirror() {
     }
 
     async function syncDerivedData(userId: string, force = false) {
-      if (cancelled || syncing || userId !== activeUserId || !navigator.onLine) return
+      if (cancelled || syncing || userId !== activeUserId || userId !== cloudReadyUserId || !navigator.onLine) return
 
       const profileRaw = localStorage.getItem(PROFILE_KEY)
       const progressRaw = localStorage.getItem(PROGRESS_KEY)
@@ -102,12 +103,12 @@ export function AccountDataMirror() {
       }
     }
 
-    async function initialise(userId: string) {
+    async function setActiveUser(userId: string) {
+      if (userId === activeUserId) return
       activeUserId = userId
+      cloudReadyUserId = null
       lastFingerprint = ""
       stopTimer()
-      await syncDerivedData(userId, true)
-      timer = window.setInterval(() => { void syncDerivedData(userId) }, 10000)
     }
 
     async function refreshUser() {
@@ -115,11 +116,12 @@ export function AccountDataMirror() {
       const userId = data.user?.id ?? null
       if (!userId) {
         activeUserId = null
+        cloudReadyUserId = null
         lastFingerprint = ""
         stopTimer()
         return
       }
-      if (userId !== activeUserId) await initialise(userId)
+      await setActiveUser(userId)
     }
 
     void refreshUser()
@@ -128,33 +130,51 @@ export function AccountDataMirror() {
       const userId = session?.user?.id ?? null
       if (!userId) {
         activeUserId = null
+        cloudReadyUserId = null
         lastFingerprint = ""
         stopTimer()
         return
       }
-      if (userId !== activeUserId) void initialise(userId)
+      void setActiveUser(userId)
     })
 
+    const onCloudReady = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string }>).detail
+      const userId = detail?.userId
+      if (!userId || userId !== activeUserId) return
+      cloudReadyUserId = userId
+      lastFingerprint = ""
+      stopTimer()
+      void syncDerivedData(userId, true)
+      timer = window.setInterval(() => { void syncDerivedData(userId) }, 10000)
+    }
+    const onCloudNotReady = () => {
+      cloudReadyUserId = null
+      lastFingerprint = ""
+      stopTimer()
+    }
     const onStorage = (event: StorageEvent) => {
       const userId = activeUserId
-      if (!userId) return
+      if (!userId || userId !== cloudReadyUserId) return
       if (event.key === PROFILE_KEY || event.key === PROGRESS_KEY || event.key === PLAN_ONBOARDING_STATE_KEY) {
         void syncDerivedData(userId)
       }
     }
     const onCloudUpdate = () => {
       const userId = activeUserId
-      if (userId) void syncDerivedData(userId, true)
+      if (userId && userId === cloudReadyUserId) void syncDerivedData(userId, true)
     }
     const onFocus = () => {
       const userId = activeUserId
-      if (userId) void syncDerivedData(userId)
+      if (userId && userId === cloudReadyUserId) void syncDerivedData(userId)
     }
     const onOnline = () => {
       const userId = activeUserId
-      if (userId) void syncDerivedData(userId, true)
+      if (userId && userId === cloudReadyUserId) void syncDerivedData(userId, true)
     }
 
+    window.addEventListener("oxbridge-cloud-ready", onCloudReady)
+    window.addEventListener("oxbridge-cloud-not-ready", onCloudNotReady)
     window.addEventListener("storage", onStorage)
     window.addEventListener("oxbridge-cloud-state-updated", onCloudUpdate)
     window.addEventListener("focus", onFocus)
@@ -164,6 +184,8 @@ export function AccountDataMirror() {
       cancelled = true
       stopTimer()
       authListener.subscription.unsubscribe()
+      window.removeEventListener("oxbridge-cloud-ready", onCloudReady)
+      window.removeEventListener("oxbridge-cloud-not-ready", onCloudNotReady)
       window.removeEventListener("storage", onStorage)
       window.removeEventListener("oxbridge-cloud-state-updated", onCloudUpdate)
       window.removeEventListener("focus", onFocus)
