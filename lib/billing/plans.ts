@@ -36,6 +36,14 @@ export function displayPrice(tier: SubscriptionTier, interval: BillingInterval) 
   return 0
 }
 
+export function schoolExtraSeatMonthlyPrice() {
+  return numberFromEnv("SCHOOL_EXTRA_SEAT_MONTHLY_PRICE_GBP", 5.99)
+}
+
+export function schoolExtraSeatPriceId() {
+  return process.env.STRIPE_SCHOOL_EXTRA_SEAT_PRICE_ID || ""
+}
+
 export function annualSavingPercent(tier: Exclude<SubscriptionTier, "free">) {
   const monthly = displayPrice(tier, "monthly")
   const annual = displayPrice(tier, "annual")
