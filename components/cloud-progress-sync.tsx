@@ -2,10 +2,13 @@
 
 import { useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { APPLICATION_KEY, HUMAN_REVIEW_KEY, MOCK_DAY_KEY, PARENT_SUMMARY_KEY, PROFILE_KEY, PROGRESS_KEY, SUPERCURRICULAR_KEY, TUTORIAL_LAB_KEY, TUTOR_KEY } from "@/lib/personal-tutor"
+import { PROGRESS_KEY } from "@/lib/personal-tutor"
 
-const STATE_KEYS = [PROFILE_KEY, PROGRESS_KEY, TUTOR_KEY, APPLICATION_KEY, SUPERCURRICULAR_KEY, HUMAN_REVIEW_KEY, TUTORIAL_LAB_KEY, MOCK_DAY_KEY, PARENT_SUMMARY_KEY] as const
-const RESTORE_MARKER = "oxbridge-cloud-restore-v2"
+const APP_STATE_PREFIX = "oxbridge-"
+const LOCAL_CACHE_OWNER_KEY = "__oxbridge_local_cache_owner_v1"
+const RESTORE_MARKER = "oxbridge-cloud-restore-v3"
+const RAW_STORAGE_FORMAT_KEY = "__oxbridge_storage_format"
+const RAW_STORAGE_FORMAT = "raw-v1"
 
 type ProgressLog = {
   id?: unknown
@@ -14,16 +17,34 @@ type ProgressLog = {
   events?: unknown
 }
 
-function parseStored(raw: string | null) {
-  if (!raw) return null
+function isAppStateKey(key: string | null): key is string {
+  return Boolean(key?.startsWith(APP_STATE_PREFIX))
+}
+
+function localAppStateKeys() {
+  const keys: string[] = []
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index)
+    if (isAppStateKey(key)) keys.push(key)
+  }
+  return keys.sort()
+}
+
+function clearLocalAppState() {
+  for (const key of localAppStateKeys()) localStorage.removeItem(key)
+}
+
+function toCloudValue(raw: string): unknown {
   try {
     return JSON.parse(raw) as unknown
   } catch {
-    return null
+    return { [RAW_STORAGE_FORMAT_KEY]: RAW_STORAGE_FORMAT, value: raw }
   }
 }
 
-function serialise(value: unknown) {
+function fromCloudValue(value: unknown) {
+  const record = asRecord(value)
+  if (record?.[RAW_STORAGE_FORMAT_KEY] === RAW_STORAGE_FORMAT && typeof record.value === "string") return record.value
   try {
     return JSON.stringify(value ?? {})
   } catch {
@@ -67,6 +88,20 @@ export function CloudProgressSync() {
     let timer: number | null = null
     let activeUserId: string | null = null
     const lastSeen = new Map<string, string>()
+
+    function stopTimer() {
+      if (timer) window.clearInterval(timer)
+      timer = null
+    }
+
+    function resetSignedOutCache() {
+      activeUserId = null
+      lastSeen.clear()
+      stopTimer()
+      clearLocalAppState()
+      localStorage.removeItem(LOCAL_CACHE_OWNER_KEY)
+      sessionStorage.removeItem(RESTORE_MARKER)
+    }
 
     async function importInterviewLogs(userId: string, progressValue: unknown) {
       const progress = asRecord(progressValue)
@@ -143,88 +178,122 @@ export function CloudProgressSync() {
     }
 
     async function pushKey(userId: string, key: string, raw: string) {
-      const value = parseStored(raw)
-      if (value === null) return
+      if (!isAppStateKey(key) || cancelled || userId !== activeUserId) return
+      const value = toCloudValue(raw)
       const { error } = await supabase.from("user_state").upsert({
         user_id: userId,
         state_key: key,
         state_value: value,
+        updated_at: new Date().toISOString(),
       }, { onConflict: "user_id,state_key" })
-      if (!error) {
-        lastSeen.set(key, raw)
-        if (key === PROGRESS_KEY) await importInterviewLogs(userId, value)
-      } else {
+
+      if (error) {
         console.warn("Oxbridge cloud save failed", key, error.message)
+        return
       }
+
+      lastSeen.set(key, raw)
+      if (key === PROGRESS_KEY) await importInterviewLogs(userId, value)
+    }
+
+    async function deleteKey(userId: string, key: string) {
+      if (!isAppStateKey(key) || cancelled || userId !== activeUserId) return
+      const { error } = await supabase
+        .from("user_state")
+        .delete()
+        .eq("user_id", userId)
+        .eq("state_key", key)
+
+      if (error) {
+        console.warn("Oxbridge cloud delete failed", key, error.message)
+        return
+      }
+      lastSeen.delete(key)
     }
 
     async function syncLocalChanges() {
-      if (!activeUserId || cancelled) return
-      for (const key of STATE_KEYS) {
+      const userId = activeUserId
+      if (!userId || cancelled) return
+
+      const currentKeys = new Set(localAppStateKeys())
+      const keys = new Set([...currentKeys, ...lastSeen.keys()])
+
+      for (const key of keys) {
+        if (cancelled || userId !== activeUserId) return
         const raw = localStorage.getItem(key)
-        if (!raw || lastSeen.get(key) === raw) continue
-        await pushKey(activeUserId, key, raw)
+        if (raw === null) {
+          if (lastSeen.has(key)) await deleteKey(userId, key)
+          continue
+        }
+        if (lastSeen.get(key) !== raw) await pushKey(userId, key, raw)
       }
     }
 
     async function initialise(userId: string) {
+      stopTimer()
+      const previousOwner = localStorage.getItem(LOCAL_CACHE_OWNER_KEY)
+      const switchedAccount = Boolean(previousOwner && previousOwner !== userId)
+      if (switchedAccount) clearLocalAppState()
+
       activeUserId = userId
       lastSeen.clear()
+      localStorage.setItem(LOCAL_CACHE_OWNER_KEY, userId)
 
       const { data, error } = await supabase
         .from("user_state")
-        .select("state_key,state_value,updated_at")
+        .select("state_key,state_value")
         .eq("user_id", userId)
-        .in("state_key", [...STATE_KEYS])
 
-      if (cancelled) return
+      if (cancelled || userId !== activeUserId) return
       if (error) {
         console.warn("Oxbridge cloud restore failed", error.message)
         return
       }
 
-      const rows = new Map((data ?? []).map(row => [row.state_key, row]))
-      let restored = false
+      const rows = new Map(
+        (data ?? [])
+          .filter(row => isAppStateKey(row.state_key))
+          .map(row => [row.state_key, row] as const),
+      )
+      const keys = new Set([...rows.keys(), ...localAppStateKeys()])
+      let restored = switchedAccount
 
-      for (const key of STATE_KEYS) {
+      for (const key of keys) {
+        if (cancelled || userId !== activeUserId) return
         const localRaw = localStorage.getItem(key)
         const cloudRow = rows.get(key)
 
         if (cloudRow) {
-          const cloudRaw = serialise(cloudRow.state_value)
+          const cloudRaw = fromCloudValue(cloudRow.state_value)
           if (localRaw !== cloudRaw) {
             localStorage.setItem(key, cloudRaw)
             restored = true
           }
           lastSeen.set(key, cloudRaw)
           if (key === PROGRESS_KEY) await importInterviewLogs(userId, cloudRow.state_value)
-        } else if (localRaw) {
+        } else if (localRaw !== null) {
           await pushKey(userId, key, localRaw)
         }
       }
 
-      const marker = `${userId}:${STATE_KEYS.join(",")}`
+      const marker = `${userId}:all-app-state-v3`
       if (restored && sessionStorage.getItem(RESTORE_MARKER) !== marker) {
         sessionStorage.setItem(RESTORE_MARKER, marker)
         window.location.reload()
         return
       }
 
-      if (timer) window.clearInterval(timer)
-      timer = window.setInterval(() => { void syncLocalChanges() }, 2500)
+      timer = window.setInterval(() => { void syncLocalChanges() }, 1000)
     }
 
     async function refreshUser() {
       const { data } = await supabase.auth.getUser()
       const userId = data.user?.id ?? null
       if (!userId) {
-        activeUserId = null
-        lastSeen.clear()
-        if (timer) window.clearInterval(timer)
-        timer = null
+        resetSignedOutCache()
         return
       }
-      await initialise(userId)
+      if (userId !== activeUserId) await initialise(userId)
     }
 
     void refreshUser()
@@ -232,30 +301,35 @@ export function CloudProgressSync() {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       const userId = session?.user?.id ?? null
       if (!userId) {
-        activeUserId = null
-        lastSeen.clear()
-        if (timer) window.clearInterval(timer)
-        timer = null
+        resetSignedOutCache()
         return
       }
       if (userId !== activeUserId) void initialise(userId)
     })
 
     const onStorage = (event: StorageEvent) => {
-      if (!activeUserId || !event.key || !STATE_KEYS.includes(event.key as (typeof STATE_KEYS)[number]) || !event.newValue) return
-      void pushKey(activeUserId, event.key, event.newValue)
+      const userId = activeUserId
+      if (!userId || !isAppStateKey(event.key)) return
+      if (event.newValue === null) void deleteKey(userId, event.key)
+      else void pushKey(userId, event.key, event.newValue)
     }
 
     const onFocus = () => { void syncLocalChanges() }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") void syncLocalChanges()
+    }
+
     window.addEventListener("storage", onStorage)
     window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibilityChange)
 
     return () => {
       cancelled = true
-      if (timer) window.clearInterval(timer)
+      stopTimer()
       authListener.subscription.unsubscribe()
       window.removeEventListener("storage", onStorage)
       window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [])
 
