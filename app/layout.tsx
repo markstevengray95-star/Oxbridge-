@@ -4,6 +4,7 @@ import Script from "next/script";
 import { GlobalFocusNav } from "@/components/global-focus-nav";
 import { CommandPalette } from "@/components/command-palette";
 import { CloudProgressSync } from "@/components/cloud-progress-sync";
+import { AccountDataMirror } from "@/components/account-data-mirror";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,6 +29,7 @@ export default function RootLayout({
     <html lang="en-GB">
       <body className="antialiased">
         <CloudProgressSync />
+        <AccountDataMirror />
         <GlobalFocusNav />
         {children}
         <CommandPalette />
