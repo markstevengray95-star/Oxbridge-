@@ -11,7 +11,9 @@ export const GET = getLiveConfig
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: claimsData } = await supabase.auth.getClaims()
-  const userId = claimsData?.claims?.sub
+  const claims = claimsData?.claims
+  const userId = typeof claims?.sub === "string" ? claims.sub : null
+  const email = typeof claims?.email === "string" ? claims.email : null
 
   if (!userId) {
     return NextResponse.json({
@@ -23,7 +25,7 @@ export async function POST(request: Request) {
   let reservationId: string | null = null
 
   try {
-    const quota = await reserveGeminiSession(userId)
+    const quota = await reserveGeminiSession(userId, email)
     reservationId = quota.reservationId
 
     if (!quota.allowed) {
