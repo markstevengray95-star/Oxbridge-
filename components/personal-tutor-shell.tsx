@@ -1,33 +1,22 @@
-"use client"
-
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
-import { AlarmClock, ArrowRight, X } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { BookOpenCheck, Brain, Mic2, TimerReset } from "lucide-react"
 import { PersonalTutorDashboard } from "@/components/personal-tutor-dashboard"
+import { TutorEvidenceStrip } from "@/components/tutor-evidence-strip"
 import { NextgenTutorPanel } from "@/components/nextgen-tutor-panel"
-import { PROGRESS_KEY } from "@/lib/personal-tutor"
-
-type Intervention = { id?: string; test?: string; retestAccuracy?: number; nextRetestAt?: string; targets?: string[] }
-
-function readInterventions() {
-  try {
-    const progress = JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}") as { interventionResults?: Intervention[] }
-    return Array.isArray(progress.interventionResults) ? progress.interventionResults : []
-  } catch { return [] }
-}
 
 export function PersonalTutorShell() {
-  const [interventions, setInterventions] = useState<Intervention[]>([])
-  const [dismissed, setDismissed] = useState(false)
-  useEffect(() => { setInterventions(readInterventions()) }, [])
-  const due = useMemo(() => interventions.find(item => item.nextRetestAt && new Date(item.nextRetestAt).getTime() <= Date.now()), [interventions])
+  return (
+    <>
+      <PersonalTutorDashboard />
+      <TutorEvidenceStrip />
+      <NextgenTutorPanel />
 
-  return <>
-    <PersonalTutorDashboard />
-    <NextgenTutorPanel />
-    {due && !dismissed && <div className="fixed bottom-4 right-4 z-[120] w-[min(26rem,calc(100vw-2rem))]"><Card className="border-amber-300 bg-amber-50 shadow-2xl"><CardHeader className="pb-2"><div className="flex items-start justify-between gap-3"><div><Badge className="mb-2 bg-amber-700"><AlarmClock className="size-3.5" />Retention check due</Badge><CardTitle className="font-serif text-xl">Bring this weakness back now</CardTitle></div><Button size="icon" variant="ghost" onClick={() => setDismissed(true)} aria-label="Dismiss retention reminder"><X className="size-4" /></Button></div><CardDescription>{due.test ?? "Admissions test"} · previous targeted retest {due.retestAccuracy ?? "—"}%{due.targets?.length ? ` · ${due.targets.slice(0, 2).join(" / ")}` : ""}</CardDescription></CardHeader><CardContent><p className="mb-3 text-sm leading-6 text-amber-950">The delay has passed, so this check tests retention rather than same-session familiarity.</p><Button asChild className="w-full"><Link href="/paper-intervention">Start spaced retest <ArrowRight /></Link></Button></CardContent></Card></div>}
-  </>
+      <nav className="fixed bottom-3 left-1/2 z-[120] flex w-[min(94vw,28rem)] -translate-x-1/2 items-center justify-around rounded-2xl border border-[#dbe5e7] bg-white/95 p-2 shadow-[0_16px_50px_rgba(16,42,67,.18)] backdrop-blur md:hidden" aria-label="Tutor quick actions">
+        <Link href="/tutor" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-semibold text-[#172b3a]"><Brain className="size-4 text-[#147d91]" />Tutor</Link>
+        <Link href="/gemini-live-interview" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-semibold text-[#172b3a]"><Mic2 className="size-4 text-[#147d91]" />Interview</Link>
+        <Link href="/test-player" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-semibold text-[#172b3a]"><TimerReset className="size-4 text-[#147d91]" />Test</Link>
+        <Link href="/reading-room" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-semibold text-[#172b3a]"><BookOpenCheck className="size-4 text-[#147d91]" />Read</Link>
+      </nav>
+    </>
+  )
 }
