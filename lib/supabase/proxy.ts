@@ -8,13 +8,20 @@ const PRO_ROUTES = [
   "/progress-proof",
   "/application-profile",
   "/application-defence",
+  "/application-command-centre",
   "/tutorial-lab",
   "/mock-day",
   "/supercurricular-coach",
   "/paper-intervention",
   "/essay-tutor",
+  "/essay-comparison",
   "/interview-feedback",
   "/parent-summary",
+  "/tutor-autopilot",
+  "/written-work-defence",
+  "/reading-curriculum",
+  "/preparation-readiness",
+  "/panel-interview",
 ]
 
 const SCHOOL_ROUTES = [
@@ -38,9 +45,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     cookies: {
-      getAll() {
-        return request.cookies.getAll()
-      },
+      getAll() { return request.cookies.getAll() },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
         response = NextResponse.next({ request })
@@ -61,74 +66,37 @@ export async function updateSession(request: NextRequest) {
   const protectedRoute = pathname.startsWith("/account") || pathname.startsWith("/dashboard") || pathname.startsWith("/school-classroom") || requiresPro || requiresSchool || requiresAdmin
 
   if (!userId && requiresAdmin) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/admin/login"
-    url.search = ""
-    url.searchParams.set("next", pathname)
-    return NextResponse.redirect(url)
+    const url = request.nextUrl.clone(); url.pathname = "/admin/login"; url.search = ""; url.searchParams.set("next", pathname); return NextResponse.redirect(url)
   }
-
   if (!userId && protectedRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/login"
-    url.search = ""
-    url.searchParams.set("next", pathname)
-    return NextResponse.redirect(url)
+    const url = request.nextUrl.clone(); url.pathname = "/login"; url.search = ""; url.searchParams.set("next", pathname); return NextResponse.redirect(url)
   }
-
   if (userId && pathname === "/login") {
-    const url = request.nextUrl.clone()
-    url.pathname = "/account"
-    url.search = ""
-    return NextResponse.redirect(url)
+    const url = request.nextUrl.clone(); url.pathname = "/account"; url.search = ""; return NextResponse.redirect(url)
   }
 
   let isAdmin = userId ? isConfiguredAdminEmail(userEmail) : false
-
   if (userId && !isAdmin && (requiresAdmin || requiresPro || requiresSchool || adminLogin)) {
-    const { data: adminRole } = await supabase
-      .from("app_admins")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle()
+    const { data: adminRole } = await supabase.from("app_admins").select("role").eq("user_id", userId).maybeSingle()
     isAdmin = adminRole?.role === "admin"
   }
 
   if (userId && adminLogin && isAdmin) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/admin"
-    url.search = ""
-    return NextResponse.redirect(url)
+    const url = request.nextUrl.clone(); url.pathname = "/admin"; url.search = ""; return NextResponse.redirect(url)
   }
-
   if (userId && requiresAdmin && !isAdmin) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/admin/login"
-    url.search = ""
-    url.searchParams.set("error", "not-authorized")
-    return NextResponse.redirect(url)
+    const url = request.nextUrl.clone(); url.pathname = "/admin/login"; url.search = ""; url.searchParams.set("error", "not-authorized"); return NextResponse.redirect(url)
   }
 
+  // Administrators are intentionally unrestricted: route gates and subscription checks are skipped here.
   if (userId && (requiresPro || requiresSchool) && !isAdmin) {
-    const { data: subscription } = await supabase
-      .from("subscriptions")
-      .select("tier,status")
-      .eq("user_id", userId)
-      .maybeSingle()
-
+    const { data: subscription } = await supabase.from("subscriptions").select("tier,status").eq("user_id", userId).maybeSingle()
     const tier = effectiveTier(subscription?.tier, subscription?.status)
     const hasPro = tier === "pro" || tier === "school"
     const hasSchool = tier === "school"
-
     if ((requiresSchool && !hasSchool) || (requiresPro && !hasPro)) {
-      const url = request.nextUrl.clone()
-      url.pathname = "/premium"
-      url.search = ""
-      url.searchParams.set("feature", pathname)
-      url.searchParams.set("required", requiresSchool ? "school" : "pro")
-      return NextResponse.redirect(url)
+      const url = request.nextUrl.clone(); url.pathname = "/premium"; url.search = ""; url.searchParams.set("feature", pathname); url.searchParams.set("required", requiresSchool ? "school" : "pro"); return NextResponse.redirect(url)
     }
   }
-
   return response
 }
