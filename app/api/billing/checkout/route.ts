@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getStripe } from "@/lib/stripe/server"
-import { stripePriceForTier, type SubscriptionTier } from "@/lib/billing/plans"
+import { stripePriceForTier, type BillingInterval, type SubscriptionTier } from "@/lib/billing/plans"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -21,16 +21,18 @@ export async function POST(request: Request) {
 
     if (!userId) {
       const login = new URL("/login", request.url)
-      login.searchParams.set("next", "/account")
+      login.searchParams.set("next", "/premium")
       return NextResponse.redirect(login, 303)
     }
 
     const formData = await request.formData()
     const requestedTier = String(formData.get("tier") || "pro") as SubscriptionTier
     const tier = requestedTier === "school" ? "school" : "pro"
-    const priceId = stripePriceForTier(tier)
+    const requestedInterval = String(formData.get("interval") || "monthly")
+    const interval: BillingInterval = requestedInterval === "annual" ? "annual" : "monthly"
+    const priceId = stripePriceForTier(tier, interval)
 
-    if (!priceId) return redirectAccount(request, `${tier}-price-not-configured`)
+    if (!priceId) return redirectAccount(request, `${tier}-${interval}-price-not-configured`)
 
     const stripe = getStripe()
     const admin = createAdminClient()
@@ -68,15 +70,17 @@ export async function POST(request: Request) {
       line_items: [{ price: priceId, quantity: 1 }],
       allow_promotion_codes: true,
       success_url: `${origin}/account?billing=success`,
-      cancel_url: `${origin}/account?billing=cancelled`,
+      cancel_url: `${origin}/premium?billing=cancelled`,
       metadata: {
         supabase_user_id: userId,
         tier,
+        interval,
       },
       subscription_data: {
         metadata: {
           supabase_user_id: userId,
           tier,
+          interval,
         },
       },
     })
