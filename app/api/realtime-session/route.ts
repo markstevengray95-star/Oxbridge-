@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { createLiveSession, getLiveConfig } from "@/lib/gemini/live-session"
+import { createLiveSession, getLiveConfig } from "@/lib/gemini/live-session-secure"
 import { releaseGeminiReservation, reserveGeminiSession } from "@/lib/billing/usage"
 
 export const runtime = "nodejs"
