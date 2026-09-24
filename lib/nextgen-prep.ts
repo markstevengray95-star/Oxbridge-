@@ -219,7 +219,7 @@ export function buildReasoningReplay(course: string, turns: LiveTurnRecord[], du
           ? "Some strong reasoning was given with low confidence; avoid abandoning a sound argument simply because it is challenged."
           : "Confidence and feedback are broadly aligned in the evidence recorded so far.",
     },
-    nextOralRetestAt,
+    nextOralRetestAt: nextRetestAt,
     focus,
   }
 }
