@@ -24,5 +24,10 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Dependency audit detail
+        run: |
+          npm audit --json > audit.json || true
+          cat audit.json
+
       - name: Type-aware production build
         run: npm run build
