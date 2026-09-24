@@ -7,7 +7,7 @@ const PRO_ROUTES = [
   "/mistake-dna","/progress-proof","/application-profile","/application-defence","/application-command-centre","/tutorial-lab","/mock-day","/supercurricular-coach","/paper-intervention","/essay-tutor","/essay-comparison","/interview-feedback","/parent-summary","/tutor-autopilot","/written-work-defence","/reading-curriculum","/preparation-readiness","/panel-interview",
   "/digital-twin","/socratic-whiteboard","/personal-statement-defence","/source-notebook","/evidence-locker","/offline-pack","/interview-pressure",
 ]
-const SCHOOL_ROUTES = ["/school-dashboard","/human-review","/teacher-coach","/teacher-live-console"]
+const SCHOOL_ROUTES = ["/school-dashboard","/school-overview","/human-review","/teacher-coach","/teacher-live-console"]
 function matchesAny(pathname: string, routes: string[]) { return routes.some(route => pathname === route || pathname.startsWith(`${route}/`)) }
 function effectiveTier(tier: unknown, status: unknown) { const active=status==="active"||status==="trialing"; if(active&&tier==="school")return "school" as const;if(active&&tier==="pro")return "pro" as const;return "free" as const }
 
