@@ -2,12 +2,7 @@ import { NextResponse } from "next/server"
 
 export const runtime = "nodejs"
 
-type InterviewTurn = {
-  role: "interviewer" | "candidate"
-  text: string
-  speaker?: string
-}
-
+type InterviewTurn = { role: "interviewer" | "candidate"; text: string; speaker?: string }
 type InterviewRequest = {
   course?: string
   track?: string
@@ -21,6 +16,7 @@ type InterviewRequest = {
   interviewerRole?: string
   otherInterviewer?: string
   panelMode?: boolean
+  delivery?: string
 }
 
 function localFollowUp(body: InterviewRequest) {
@@ -28,14 +24,19 @@ function localFollowUp(body: InterviewRequest) {
   const lower = answer.toLowerCase()
   const words = answer ? answer.split(/\s+/).length : 0
   const persona = body.persona ?? "Socratic"
-  const panelLead = body.panelMode ? `${body.interviewerRole ?? "Panel interviewer"}: ` : ""
-  const prefix = persona === "Technical" ? "That needs a more precise step. " : persona === "Evidence-led" ? "You have a claim there, but the evidence needs tightening. " : persona === "Sceptical" ? "I can see the direction, but one part is still unconvincing. " : persona === "Terse" ? "There is something useful there. " : ""
-
-  if (words < 28) return `${panelLead}${prefix}You have given me the conclusion, but not enough of the chain that gets you there. Can you make the reasoning explicit?`
-  if (!/assum|suppos|given|if\s/i.test(lower)) return `${panelLead}${prefix}Your reasoning depends on something you have not stated yet. Which assumption is doing the most work, and what would change if it failed?`
-  if (!/however|alternative|counter|unless|could|depends/i.test(lower)) return `${panelLead}${prefix}You have developed one line of argument clearly, but you have not tested it against an alternative. What is the strongest counterexample or competing explanation?`
-  if (!/because|therefore|hence|implies|since/i.test(lower)) return `${panelLead}${prefix}You have useful ingredients, but the inferential link is still implicit. What is the exact step connecting your evidence to that conclusion?`
-  return `${panelLead}${prefix}Your chain is becoming clearer. Let me change one condition: which part of your reasoning survives, and which part would you now revise?`
+  const openings = persona === "Technical"
+    ? ["Right — let's make that more precise.", "Okay. I want the exact step there.", "Let's pin that down."]
+    : persona === "Evidence-led"
+      ? ["Okay — what supports that?", "Right. Let's look at the evidence for that.", "I see the claim; now justify it."]
+      : persona === "Sceptical"
+        ? ["I'm not fully convinced yet.", "I can see the route you're taking.", "Perhaps — but I want to test that."]
+        : ["Right.", "Okay.", "Mm — take that a little further."]
+  const open = openings[Math.abs(words + answer.length) % openings.length]
+  if (words < 28) return `${open} You've given me the conclusion. Can you talk me through the step that gets you there?`
+  if (!/assum|suppos|given|if\s/i.test(lower)) return `${open} What are you assuming there, and what happens if that assumption is wrong?`
+  if (!/however|alternative|counter|unless|could|depends/i.test(lower)) return `${open} What's the strongest alternative explanation or counterexample to what you've just said?`
+  if (!/because|therefore|hence|implies|since/i.test(lower)) return `${open} What exactly links your evidence to that conclusion?`
+  return `${open} Let's change one condition. Which part of your argument still works, and which part would you revise?`
 }
 
 function extractGeminiText(data: unknown) {
@@ -48,10 +49,7 @@ function extractGeminiText(data: unknown) {
     if (!content || typeof content !== "object") continue
     const parts = (content as { parts?: unknown }).parts
     if (!Array.isArray(parts)) continue
-    const text = parts
-      .map(part => part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string" ? String((part as { text?: string }).text) : "")
-      .join(" ")
-      .trim()
+    const text = parts.map(part => part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string" ? String((part as { text?: string }).text) : "").join(" ").trim()
     if (text) return text
   }
   return ""
@@ -59,75 +57,61 @@ function extractGeminiText(data: unknown) {
 
 export async function POST(request: Request) {
   let body: InterviewRequest
-  try {
-    body = await request.json() as InterviewRequest
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
-  }
-
+  try { body = await request.json() as InterviewRequest } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }) }
   const answer = (body.answer ?? "").trim()
   if (!answer) return NextResponse.json({ error: "Candidate answer is required" }, { status: 400 })
 
   const fallback = localFollowUp(body)
   const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
-    return NextResponse.json({ reply: fallback, provider: "local", configured: false })
-  }
+  if (!apiKey) return NextResponse.json({ reply: fallback, provider: "local", configured: false })
 
-  const recentTurns = Array.isArray(body.turns) ? body.turns.slice(-12) : []
+  const recentTurns = Array.isArray(body.turns) ? body.turns.slice(-16) : []
   const panelInstructions = body.panelMode ? [
     `You are ${body.interviewerRole ?? "one member of a two-person academic interview panel"}.`,
     `The other interviewer is ${body.otherInterviewer ?? "another academic"}.`,
-    "Act as a genuinely distinct second academic: build on the shared conversation but do not merely repeat the other interviewer's question.",
-    "You may refer back to a claim the candidate made to the other interviewer and test whether it survives a different perspective.",
+    "Behave like a genuinely different academic with your own angle. Continue the same conversation; do not reset the topic or repeat the other interviewer.",
+    "You can briefly refer to something the candidate said to the other interviewer and test it from a new direction.",
+    "The two interviewers should feel like colleagues in the same room, not two chatbot personas taking turns mechanically.",
   ] : []
 
   const systemPrompt = [
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     ...panelInstructions,
-    "Your job is to test and develop reasoning, not to reward polished memorised answers.",
-    "Respond like a real academic in conversation, not like an AI assistant, examiner report, or tutoring worksheet.",
-    "For every substantive candidate answer, produce exactly TWO natural spoken parts without labels: (1) one short, specific observation or piece of feedback tied directly to something the candidate actually said; (2) exactly ONE concise follow-up question or challenge that develops that reasoning.",
-    "The feedback can notice a useful idea, missing justification, unstated assumption, ambiguity, revision, or weak inferential step. Avoid generic praise such as 'great answer', 'well done', or 'excellent'.",
-    "Do not reveal the full solution, do not give a model answer, and do not simply announce whether the candidate is correct.",
-    "Probe assumptions, evidence, definitions, limiting cases, counterexamples, calculations, diagrams, transfer to a changed condition, or the exact inferential step as appropriate to the subject.",
-    "Use natural professional British English. Keep the whole reply concise enough to sound natural aloud, normally 25-65 words.",
+    "Sound like a real academic speaking naturally in a tutorial room, not like an AI tutor, marking rubric, examiner report or scripted assessment.",
+    "Ask exactly one substantive follow-up question per turn.",
+    "You may begin with a very short natural reaction such as 'Right', 'Okay', 'Mm', 'I see', or a brief reference to the candidate's point, but do not use a reaction every turn and do not repeat the same phrase.",
+    "Do not routinely give explicit feedback before every question. Real interviews often move directly into the next challenge.",
+    "Keep most turns to 12-45 spoken words. Occasionally a slightly longer setup is appropriate when introducing new information.",
+    "Use contractions and natural spoken British English where appropriate. Vary sentence length and rhythm. Avoid stock phrases such as 'Your reasoning is becoming clearer'.",
+    "Do not praise generically. If you acknowledge something, make it specific and brief.",
+    "Do not reveal a model answer or full solution. Help the candidate think by changing a condition, asking for justification, requesting a limiting case, counterexample, estimate, diagram, calculation, definition or transfer step.",
+    "If the candidate changes their mind for a defensible reason, notice it naturally and ask what caused the revision.",
+    "If the candidate is stuck, give one small conceptual nudge and then a smaller question rather than solving it.",
     `Course: ${body.course ?? "unspecified"}. Subject family: ${body.track ?? "unspecified"}. Difficulty: ${body.difficulty ?? "Stretch"}.`,
-    `Interviewer persona: ${body.persona ?? "Socratic"}. Session mode: ${body.mode ?? "Realistic"}.`,
-    `Concepts that may be relevant: ${(body.concepts ?? []).slice(0, 8).join(", ") || "course-specific reasoning"}.`,
-    "If the candidate changes their mind for a defensible reason, explicitly notice the revision and explore why it is justified.",
-    "If the candidate is stuck, give a small conceptual nudge in the feedback sentence, then ask a smaller question rather than solving the problem.",
+    `Interviewer persona: ${body.persona ?? "Socratic"}. Session mode: ${body.mode ?? "Realistic"}. Voice delivery: ${body.delivery ?? "natural"}.`,
+    `Potentially relevant concepts: ${(body.concepts ?? []).slice(0, 8).join(", ") || "course-specific reasoning"}.`,
   ].join("\n")
 
   const conversation = recentTurns.map(turn => `${turn.speaker || (turn.role === "interviewer" ? "Interviewer" : "Candidate")}: ${turn.text}`).join("\n")
-  const userPrompt = `Current question: ${body.question ?? "Continue the academic discussion."}\n\nRecent conversation:\n${conversation || "No earlier turns."}\n\nCandidate's latest answer:\n${answer}\n\nGive one specific conversational observation about that answer, then ask exactly one follow-up question based on it.`
+  const userPrompt = `Current question: ${body.question ?? "Continue the academic discussion."}\n\nRecent conversation:\n${conversation || "No earlier turns."}\n\nCandidate's latest answer:\n${answer}\n\nContinue the conversation naturally with exactly one follow-up question.`
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
-      headers: {
-        "x-goog-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
+      headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          maxOutputTokens: 220,
-          temperature: 0.72,
-          topP: 0.92,
-        },
+        generationConfig: { maxOutputTokens: 180, temperature: 0.86, topP: 0.94 },
       }),
       signal: AbortSignal.timeout(15000),
     })
-
     if (!response.ok) {
       const detail = await response.text().catch(() => "")
       console.error("Gemini interview request failed", response.status, detail.slice(0, 500))
       return NextResponse.json({ reply: fallback, provider: "local", configured: true, degraded: true })
     }
-
     const data = await response.json() as unknown
     const reply = extractGeminiText(data) || fallback
     return NextResponse.json({ reply, provider: reply === fallback ? "local" : "gemini", configured: true })
