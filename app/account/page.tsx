@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { Brain, ClipboardCheck, CreditCard, GraduationCap, LogOut, Mic2, ShieldCheck, Sparkles } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { effectiveTier, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
+import { isStripeConfigured } from "@/lib/stripe/server"
 import { getGeminiUsageState } from "@/lib/billing/usage"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,6 +19,7 @@ type PageProps = {
 const billingMessages: Record<string, string> = {
   success: "Checkout completed. Stripe is confirming your subscription; your plan will update automatically.",
   cancelled: "Checkout was cancelled. Your current plan has not changed.",
+  "stripe-not-configured": "Checkout is temporarily unavailable. The server Stripe key is missing from this deployment.",
   "checkout-error": "Checkout could not be started. Check the Stripe configuration and try again.",
   "portal-error": "The billing portal could not be opened. Check the Stripe portal configuration and try again.",
   "no-billing-account": "No Stripe billing account is linked to this user yet.",
@@ -51,8 +53,7 @@ export default async function AccountPage({ searchParams }: PageProps) {
   const status = (subscription?.status ?? "inactive") as SubscriptionStatus
   const tier = effectiveTier(rawTier, status)
   const geminiPercent = usage.unlimited ? 100 : usage.limitMinutes > 0 ? Math.min(100, Math.round((usage.usedMinutes / usage.limitMinutes) * 100)) : 100
-  const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY)
-  const anyPaidPriceConfigured = Boolean(process.env.STRIPE_PRO_MONTHLY_PRICE_ID || process.env.STRIPE_PRO_PRICE_ID || process.env.STRIPE_PRO_ANNUAL_PRICE_ID || process.env.STRIPE_SCHOOL_MONTHLY_PRICE_ID || process.env.STRIPE_SCHOOL_PRICE_ID || process.env.STRIPE_SCHOOL_ANNUAL_PRICE_ID)
+  const stripeConfigured = isStripeConfigured()
   const billingMessage = params.billing ? billingMessages[params.billing] : ""
   const renews = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("en-GB") : null
   const accessLabel = usage.isAdmin ? "ADMIN" : tier.toUpperCase()
@@ -76,7 +77,7 @@ export default async function AccountPage({ searchParams }: PageProps) {
         </div>
 
         <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
-          <Card className="border-[#dbe5e7]"><CardHeader><CardTitle className="font-serif text-2xl">Subscription & billing</CardTitle><CardDescription>{usage.isAdmin ? "Administrator access bypasses normal feature and AI quotas." : "Choose monthly or annual billing from the pricing page. Stripe handles checkout and billing management."}</CardDescription></CardHeader><CardContent className="space-y-4">{usage.isAdmin ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"><p className="font-semibold">No upgrade is required for this account.</p><p className="mt-1">You can test Free, Pro and School features through the admin console without changing the subscription record.</p></div> : <><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-[#147d91]">Free</p><p className="mt-2 text-sm leading-6 text-[#667984]">Core preparation tools, personal cloud progress and a limited monthly Gemini Live allowance.</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-[#147d91]">Pro & School</p><p className="mt-2 text-sm leading-6 text-[#667984]">Monthly and discounted annual plans are available from the pricing page.</p></div></div><div className="flex flex-wrap gap-2"><Button asChild><Link href="/premium"><CreditCard />View pricing</Link></Button>{subscription?.stripe_customer_id && <form action="/api/billing/portal" method="post"><Button type="submit" variant="outline"><CreditCard />Manage billing</Button></form>}</div>{(!stripeConfigured || !anyPaidPriceConfigured) && <p className="text-xs leading-5 text-amber-800">Stripe credentials and Price IDs need to be configured on the deployment before paid checkout is available.</p>}</>}</CardContent></Card>
+          <Card className="border-[#dbe5e7]"><CardHeader><CardTitle className="font-serif text-2xl">Subscription & billing</CardTitle><CardDescription>{usage.isAdmin ? "Administrator access bypasses normal feature and AI quotas." : "Choose monthly or annual billing from the pricing page. Stripe handles checkout and billing management."}</CardDescription></CardHeader><CardContent className="space-y-4">{usage.isAdmin ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"><p className="font-semibold">No upgrade is required for this account.</p><p className="mt-1">You can test Free, Pro and School features through the admin console without changing the subscription record.</p></div> : <><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-[#147d91]">Free</p><p className="mt-2 text-sm leading-6 text-[#667984]">Core preparation tools, personal cloud progress and a limited monthly Gemini Live allowance.</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-[#147d91]">Pro & School</p><p className="mt-2 text-sm leading-6 text-[#667984]">Monthly and discounted annual plans are available from the pricing page.</p></div></div><div className="flex flex-wrap gap-2"><Button asChild><Link href="/premium"><CreditCard />View pricing</Link></Button>{subscription?.stripe_customer_id && <form action="/api/billing/portal" method="post"><Button type="submit" variant="outline"><CreditCard />Manage billing</Button></form>}</div>{!stripeConfigured && <p className="text-xs leading-5 text-amber-800">Paid checkout is temporarily unavailable. Please try again later.</p>}</>}</CardContent></Card>
 
           <Card className="border-[#dbe5e7]"><CardHeader><CardTitle className="font-serif text-2xl">Continue preparing</CardTitle></CardHeader><CardContent className="space-y-2"><Button className="w-full justify-start" asChild><Link href="/tutor"><Brain />Personal tutor</Link></Button><Button className="w-full justify-start" variant="outline" asChild><Link href="/gemini-live-interview"><Mic2 />Live interview</Link></Button><Button className="w-full justify-start" variant="outline" asChild><Link href="/interviews"><Sparkles />Interview hub</Link></Button><Button className="w-full justify-start" variant="outline" asChild><Link href="/course-bank"><ClipboardCheck />Admissions tests</Link></Button>{usage.isAdmin && <Button className="w-full justify-start" variant="outline" asChild><Link href="/admin"><ShieldCheck />Admin console</Link></Button>}<Button className="w-full justify-start" variant="outline" asChild><Link href="/"><GraduationCap />Home</Link></Button></CardContent></Card>
         </div>
@@ -86,3 +87,4 @@ export default async function AccountPage({ searchParams }: PageProps) {
     </main>
   )
 }
+

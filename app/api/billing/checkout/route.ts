@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { getStripe } from "@/lib/stripe/server"
-import { stripePriceForTier, type BillingInterval, type SubscriptionTier } from "@/lib/billing/plans"
+import { getStripe, isStripeConfigured } from "@/lib/stripe/server"
+import { type BillingInterval, type SubscriptionTier } from "@/lib/billing/plans"
+import { checkoutLineItem } from "@/lib/billing/checkout"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -30,20 +31,21 @@ export async function POST(request: Request) {
     const tier = requestedTier === "school" ? "school" : "pro"
     const requestedInterval = String(formData.get("interval") || "monthly")
     const interval: BillingInterval = requestedInterval === "annual" ? "annual" : "monthly"
-    const priceId = stripePriceForTier(tier, interval)
-
-    if (!priceId) return redirectAccount(request, `${tier}-${interval}-price-not-configured`)
+    if (!isStripeConfigured()) return redirectAccount(request, "stripe-not-configured")
+    const lineItem = checkoutLineItem(tier, interval)
 
     const stripe = getStripe()
     const admin = createAdminClient()
     const { data: userData } = await supabase.auth.getUser()
     const email = userData.user?.email || undefined
 
-    const { data: currentSubscription } = await admin
+    const { data: currentSubscription, error: subscriptionError } = await admin
       .from("subscriptions")
       .select("stripe_customer_id")
       .eq("user_id", userId)
       .maybeSingle()
+
+    if (subscriptionError) throw new Error(subscriptionError.message)
 
     let customerId = currentSubscription?.stripe_customer_id || ""
 
@@ -67,7 +69,7 @@ export async function POST(request: Request) {
       mode: "subscription",
       customer: customerId,
       client_reference_id: userId,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [lineItem],
       allow_promotion_codes: true,
       success_url: `${origin}/account?billing=success`,
       cancel_url: `${origin}/premium?billing=cancelled`,
