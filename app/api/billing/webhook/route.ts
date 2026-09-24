@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import type Stripe from "stripe"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getStripe } from "@/lib/stripe/server"
-import { tierFromStripePrice, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
+import { liveCreditPackMinutes, tierFromStripePrice, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -56,14 +56,8 @@ async function trimOverflowMembers(organizationId: string, seatLimit: number) {
 
 async function recomputeSeatLimit(organizationId: string) {
   const admin = createAdminClient()
-  const { data: addons } = await admin
-    .from("school_seat_addons")
-    .select("quantity,status")
-    .eq("organization_id", organizationId)
-
-  const extraSeats = (addons ?? [])
-    .filter(addon => addon.status === "active" || addon.status === "trialing")
-    .reduce((total, addon) => total + Number(addon.quantity || 0), 0)
+  const { data: addons } = await admin.from("school_seat_addons").select("quantity,status").eq("organization_id", organizationId)
+  const extraSeats = (addons ?? []).filter(addon => addon.status === "active" || addon.status === "trialing").reduce((total, addon) => total + Number(addon.quantity || 0), 0)
   const seatLimit = 5 + extraSeats
   await admin.from("school_organizations").update({ seat_limit: seatLimit, updated_at: new Date().toISOString() }).eq("id", organizationId)
   await trimOverflowMembers(organizationId, seatLimit)
@@ -106,10 +100,7 @@ async function syncSeatAddon(subscription: Stripe.Subscription) {
   const items = configuredPrice ? subscription.items.data.filter(item => item.price?.id === configuredPrice) : subscription.items.data
   const quantity = Math.max(1, items.reduce((total, item) => total + Number(item.quantity || 0), 0))
   const status = statusFromStripe(subscription.status)
-  const periodEnd = subscription.items.data
-    .map(item => item.current_period_end)
-    .filter((value): value is number => typeof value === "number")
-    .sort((a, b) => b - a)[0]
+  const periodEnd = subscription.items.data.map(item => item.current_period_end).filter((value): value is number => typeof value === "number").sort((a, b) => b - a)[0]
 
   const { error } = await admin.from("school_seat_addons").upsert({
     organization_id: organizationId,
@@ -123,7 +114,6 @@ async function syncSeatAddon(subscription: Stripe.Subscription) {
     updated_at: new Date().toISOString(),
   }, { onConflict: "stripe_subscription_id" })
   if (error) throw new Error(error.message)
-
   await recomputeSeatLimit(organizationId)
 }
 
@@ -141,11 +131,46 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 
   const { error } = await admin.from("subscriptions").upsert({ user_id: userId, tier, status, stripe_customer_id: customerId || null, stripe_subscription_id: subscription.id, current_period_end: itemPeriodEnd ? new Date(itemPeriodEnd * 1000).toISOString() : null, cancel_at_period_end: Boolean(subscription.cancel_at_period_end), updated_at: new Date().toISOString() }, { onConflict: "user_id" })
   if (error) throw new Error(error.message)
-
   await ensureSchoolOrganization(userId, subscription.id, tier === "school" && (status === "active" || status === "trialing"))
 }
 
+async function syncPaidAddonCheckout(session: Stripe.Checkout.Session) {
+  const kind = session.metadata?.kind || ""
+  if (kind !== "live_credit_pack" && kind !== "human_interview_review") return false
+  const userId = session.metadata?.supabase_user_id || session.client_reference_id || ""
+  if (!userId) throw new Error(`Paid add-on ${session.id} has no Supabase user`)
+  const admin = createAdminClient()
+
+  if (kind === "live_credit_pack") {
+    const packs = Math.min(5, Math.max(1, Number(session.metadata?.pack_count || 1)))
+    const minutesPerPack = Math.max(5, Number(session.metadata?.minutes_per_pack || liveCreditPackMinutes()))
+    const minutes = Math.floor(packs * minutesPerPack)
+    const { error } = await admin.from("usage_events").insert({
+      user_id: userId,
+      event_type: "gemini_live_credit_minutes",
+      quantity: minutes,
+      metadata: { source: "stripe", kind, checkout_session_id: session.id, pack_count: packs, minutes_per_pack: minutesPerPack },
+    })
+    if (error) throw new Error(error.message)
+    return true
+  }
+
+  const { error } = await admin.from("human_review_orders").upsert({
+    user_id: userId,
+    stripe_checkout_session_id: session.id,
+    status: "queued",
+    source_type: (session.metadata?.source_type || "interview").slice(0, 40),
+    title: (session.metadata?.title || "Expert interview review").slice(0, 120),
+    notes: (session.metadata?.notes || "").slice(0, 450),
+    metadata: { payment_status: session.payment_status, customer_id: typeof session.customer === "string" ? session.customer : session.customer?.id || null },
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "stripe_checkout_session_id" })
+  if (error) throw new Error(error.message)
+  return true
+}
+
 async function syncCheckoutSession(session: Stripe.Checkout.Session) {
+  if (await syncPaidAddonCheckout(session)) return
   const stripe = getStripe()
   if (session.metadata?.kind === "school_seat_addon") {
     if (typeof session.subscription === "string") await syncSeatAddon(await stripe.subscriptions.retrieve(session.subscription))

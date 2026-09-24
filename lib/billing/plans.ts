@@ -3,24 +3,15 @@ export type SubscriptionStatus = "inactive" | "trialing" | "active" | "past_due"
 export type BillingInterval = "monthly" | "annual"
 
 const DEFAULT_LIMITS: Record<SubscriptionTier, number> = {
-  free: 15,
-  pro: 240,
+  free: 5,
+  pro: 40,
   school: 600,
 }
 
 export const PRICING = {
-  free: {
-    monthly: 0,
-    annual: 0,
-  },
-  pro: {
-    monthly: 14.99,
-    annual: 119,
-  },
-  school: {
-    monthly: 59,
-    annual: 499,
-  },
+  free: { monthly: 0, annual: 0 },
+  pro: { monthly: 14.99, annual: 119 },
+  school: { monthly: 59, annual: 499 },
 } as const
 
 function numberFromEnv(name: string, fallback: number) {
@@ -36,13 +27,14 @@ export function displayPrice(tier: SubscriptionTier, interval: BillingInterval) 
   return 0
 }
 
-export function schoolExtraSeatMonthlyPrice() {
-  return numberFromEnv("SCHOOL_EXTRA_SEAT_MONTHLY_PRICE_GBP", 5.99)
-}
+export function schoolExtraSeatMonthlyPrice() { return numberFromEnv("SCHOOL_EXTRA_SEAT_MONTHLY_PRICE_GBP", 5.99) }
+export function schoolExtraSeatPriceId() { return process.env.STRIPE_SCHOOL_EXTRA_SEAT_PRICE_ID || "" }
 
-export function schoolExtraSeatPriceId() {
-  return process.env.STRIPE_SCHOOL_EXTRA_SEAT_PRICE_ID || ""
-}
+export function liveCreditPackMinutes() { return Math.max(5, Math.floor(numberFromEnv("LIVE_CREDIT_PACK_MINUTES", 30))) }
+export function liveCreditPackPrice() { return numberFromEnv("LIVE_CREDIT_PACK_PRICE_GBP", 4.99) }
+export function liveCreditPackPriceId() { return process.env.STRIPE_LIVE_CREDIT_PACK_PRICE_ID || "" }
+export function humanReviewPrice() { return numberFromEnv("HUMAN_INTERVIEW_REVIEW_PRICE_GBP", 24.99) }
+export function humanReviewPriceId() { return process.env.STRIPE_HUMAN_INTERVIEW_REVIEW_PRICE_ID || "" }
 
 export function annualSavingPercent(tier: Exclude<SubscriptionTier, "free">) {
   const monthly = displayPrice(tier, "monthly")
@@ -58,7 +50,7 @@ export function monthlyGeminiMinutes(tier: SubscriptionTier) {
 }
 
 export function geminiReservationMinutes() {
-  return numberFromEnv("GEMINI_SESSION_RESERVATION_MINUTES", 15)
+  return Math.max(1, Math.floor(numberFromEnv("GEMINI_SESSION_RESERVATION_MINUTES", 5)))
 }
 
 export function effectiveTier(tier: SubscriptionTier | null | undefined, status: SubscriptionStatus | null | undefined): SubscriptionTier {
