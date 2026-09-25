@@ -102,7 +102,7 @@ export function GlobalFocusNav() {
       <div className="flex min-h-14 flex-wrap items-center gap-2 py-1">
         <Link href="/tutor" className="mr-1 flex shrink-0 items-center gap-2 rounded-xl px-2 py-2 font-serif text-base font-bold text-[#102a43] hover:bg-[#edf7f8] sm:text-lg">
           <GraduationCap className="size-5 text-[#147d91]" />
-          <span className="hidden sm:inline">Oxbridge Tutor</span>
+          <span className="hidden sm:inline">ScholarBridge</span>
         </Link>
 
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 py-1">
