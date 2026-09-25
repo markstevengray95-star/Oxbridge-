@@ -33,5 +33,8 @@ jobs:
       - name: Full paper uniqueness checks
         run: node tests/full-paper-uniqueness.mjs
 
+      - name: Question reliability checks
+        run: node tests/question-reliability.mjs
+
       - name: Type-aware production build
         run: npm run build
