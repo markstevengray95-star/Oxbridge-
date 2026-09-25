@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
+import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
 import { buildOfflineWritingReport } from "@/lib/writing/offline-review"
 import { attachStrictEssayScoring, scoreStrictEssay } from "@/lib/writing/strict-score"
 import { inputSchema, mechanics, reviewInstructions, responseJsonSchema, splitParagraphs, validateReport } from "@/lib/writing/review"
@@ -28,9 +29,10 @@ export async function POST(request: Request) {
   if (!key) return fallback("AI review is not configured on this deployment, so the deterministic offline review was used instead. It stays evidence-anchored but is not an official admissions assessment.")
   try {
     const model = process.env.GEMINI_WRITING_MODEL || process.env.GEMINI_MODEL || "gemini-3.8-flash"
+    const writingSystem = `${STUDENT_AI_SAFETY_POLICY}\n\n${reviewInstructions(mode)}\n\nAdditional writing-review rule: assess only the supplied academic writing. Do not infer the student's mental health, disability, personality, socioeconomic status, ethnicity, religion, sexuality, family circumstances or other sensitive traits from style, vocabulary, topic choice or performance.`
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: reviewInstructions(mode) }] }, contents: [{ role: "user", parts: [{ text: JSON.stringify({ task: test, question: prompt, course, paragraphs: paragraphs.map((text, index) => ({ index, text })) }) }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 12000, responseMimeType: "application/json", responseJsonSchema } }), signal: AbortSignal.timeout(50000),
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: writingSystem }] }, contents: [{ role: "user", parts: [{ text: JSON.stringify({ task: test, question: prompt, course, paragraphs: paragraphs.map((text, index) => ({ index, text })) }) }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 12000, responseMimeType: "application/json", responseJsonSchema } }), signal: AbortSignal.timeout(50000),
     })
     if (!response.ok) return fallback("The AI review is temporarily unavailable, so the deterministic offline review was used automatically.")
     const data = await response.json() as { candidates?: { finishReason?: string; content?: { parts?: { text?: string; thought?: boolean }[] } }[] }
