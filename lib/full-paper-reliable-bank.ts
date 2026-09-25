@@ -1,5 +1,6 @@
 import { uniqueFullPaperQuestionBank } from "@/lib/full-paper-unique-bank"
 import { reliabilityUpgradeQuestionBank } from "@/lib/question-bank-reliability-upgrades"
+import { ucatQrReliabilityUpgradeBank } from "@/lib/ucat-qr-reliability-upgrades"
 import { auditQuestionReliability, repairQuestionReliability, reliabilityScore } from "@/lib/question-reliability"
 
 const replacementSections = new Set([
@@ -14,7 +15,11 @@ const originalRepaired = uniqueFullPaperQuestionBank
   .map(repairQuestionReliability)
   .filter(question => !replacementSections.has(`${question.test}:${question.section}`))
 
-const upgradedRepaired = reliabilityUpgradeQuestionBank.map(repairQuestionReliability)
+const primaryUpgrades = reliabilityUpgradeQuestionBank
+  .filter(question => !(question.test === "UCAT" && question.section === "Quantitative Reasoning"))
+
+const rawUpgrades = [...primaryUpgrades, ...ucatQrReliabilityUpgradeBank]
+const upgradedRepaired = rawUpgrades.map(repairQuestionReliability)
 const repaired = [...upgradedRepaired, ...originalRepaired]
 
 export const reliableFullPaperQuestionBank = repaired.filter(question =>
@@ -25,8 +30,8 @@ export const reliableFullPaperQuestionBankStats = {
   total: reliableFullPaperQuestionBank.length,
   upgraded: upgradedRepaired.length,
   replacedSections: replacementSections.size,
-  repairedOptions: repaired.filter(question =>
-    JSON.stringify(question.options) !== JSON.stringify(repairQuestionReliability(question).options),
+  repairedOptions: rawUpgrades.filter((question, index) =>
+    JSON.stringify(question.options) !== JSON.stringify(upgradedRepaired[index]?.options),
   ).length,
   filteredBlocking: repaired.length - reliableFullPaperQuestionBank.length,
   averageReliability: reliableFullPaperQuestionBank.length
