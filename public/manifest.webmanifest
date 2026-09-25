@@ -1,7 +1,7 @@
 {
-  "name": "Oxbridge Tutor",
-  "short_name": "Oxbridge Tutor",
-  "description": "Oxford and Cambridge interview, admissions-test and application preparation studio",
+  "name": "ScholarBridge",
+  "short_name": "ScholarBridge",
+  "description": "AI-powered Oxford and Cambridge interview, admissions-test and application preparation studio",
   "start_url": "/student-home",
   "display": "standalone",
   "background_color": "#f8fafc",
