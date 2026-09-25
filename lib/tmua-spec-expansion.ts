@@ -1,0 +1,337 @@
+import type { TestQuestion } from "@/lib/oxbridge-data"
+
+function rotate<T>(items: T[], shift: number) {
+  const amount = ((shift % items.length) + items.length) % items.length
+  return [...items.slice(amount), ...items.slice(0, amount)]
+}
+
+function mc(
+  id: string,
+  difficulty: TestQuestion["difficulty"],
+  prompt: string,
+  correct: string,
+  distractors: [string, string, string],
+  explanation: string,
+  seed: number,
+): TestQuestion {
+  const options = rotate([correct, ...distractors], seed % 4)
+  return {
+    id,
+    test: "TMUA",
+    section: "Applications of Mathematical Knowledge",
+    difficulty,
+    prompt,
+    options,
+    answer: options.indexOf(correct),
+    explanation,
+  }
+}
+
+// This bank deliberately broadens Paper 1 across the major Part 1 domains in
+// the current UAT-UK TMUA specification. It is original practice material, not
+// reproduced live-test content.
+export const tmuaSpecificationExpansionBank: TestQuestion[] = [
+  // MM1 — Algebra and functions
+  mc(
+    "tmua-spec-algebra-surds",
+    "Stretch",
+    "A quantity simplifies to 1/(√5 − 2). Which exact expression is equivalent after rationalising the denominator?",
+    "√5 + 2",
+    ["√5 − 2", "(√5 + 2)/5", "5 + 2√5"],
+    "Multiply numerator and denominator by the conjugate √5+2. The denominator becomes 5−4=1, leaving √5+2.",
+    1,
+  ),
+  mc(
+    "tmua-spec-algebra-remainder",
+    "Stretch",
+    "Let p(x)=2x³−3x+5. Without carrying out polynomial division, what is the remainder when p(x) is divided by x−2?",
+    "15",
+    ["9", "11", "17"],
+    "By the Remainder Theorem the remainder is p(2)=2(8)−3(2)+5=16−6+5=15.",
+    2,
+  ),
+  mc(
+    "tmua-spec-algebra-simultaneous",
+    "Challenge",
+    "The graphs y=x+2 and y=x²−4 intersect at two points. What is the positive x-coordinate of an intersection?",
+    "3",
+    ["1", "2", "6"],
+    "Equating the expressions gives x²−4=x+2, so x²−x−6=0=(x−3)(x+2). The positive solution is x=3.",
+    3,
+  ),
+  mc(
+    "tmua-spec-algebra-inequality",
+    "Stretch",
+    "For which real values of x is x²−5x+6<0?",
+    "2 < x < 3",
+    ["x < 2 or x > 3", "x ≤ 2 or x ≥ 3", "2 ≤ x ≤ 3"],
+    "The quadratic factorises as (x−2)(x−3). An upward-opening quadratic is negative strictly between its two roots, so 2<x<3.",
+    4,
+  ),
+
+  // MM2 — Sequences and series
+  mc(
+    "tmua-spec-sequences-infinite-geometric",
+    "Stretch",
+    "A convergent geometric series has first term 12 and common ratio 1/3. What is its sum to infinity?",
+    "18",
+    ["16", "24", "36"],
+    "For |r|<1, S∞=a/(1−r). Hence S∞=12/(1−1/3)=12/(2/3)=18.",
+    5,
+  ),
+  mc(
+    "tmua-spec-sequences-recurrence",
+    "Stretch",
+    "A sequence is defined by x₁=3 and xₙ₊₁=2xₙ−1. What is x₄?",
+    "17",
+    ["13", "15", "19"],
+    "Apply the recurrence successively: x₂=5, x₃=9 and x₄=17. Skipping an iteration gives the common distractor values.",
+    6,
+  ),
+  mc(
+    "tmua-spec-sequences-finite-geometric",
+    "Challenge",
+    "The first six terms of a geometric series are 3, 6, 12, …. What is the sum of these six terms?",
+    "189",
+    ["96", "126", "192"],
+    "Here a=3, r=2 and n=6. The finite sum is 3(2⁶−1)/(2−1)=3×63=189.",
+    7,
+  ),
+  mc(
+    "tmua-spec-sequences-binomial",
+    "Challenge",
+    "In the expansion of (2+x)⁵, what is the coefficient of x²?",
+    "80",
+    ["40", "60", "160"],
+    "The x² term is C(5,2)·2³·x². Its coefficient is 10×8=80.",
+    8,
+  ),
+
+  // MM3 — Coordinate geometry and circles
+  mc(
+    "tmua-spec-coordinate-perpendicular",
+    "Stretch",
+    "A line is perpendicular to y=2x+3. Which value must be the gradient of the perpendicular line?",
+    "−1/2",
+    ["1/2", "−2", "2"],
+    "Perpendicular non-vertical lines have gradients whose product is −1. Therefore m=−1/2 because 2(−1/2)=−1.",
+    9,
+  ),
+  mc(
+    "tmua-spec-coordinate-circle-centre",
+    "Challenge",
+    "The circle x²+y²−6x+4y−12=0 is written in completed-square form. What is its centre?",
+    "(3, −2)",
+    ["(−3, 2)", "(3, 2)", "(−3, −2)"],
+    "Completing squares gives (x−3)²+(y+2)²=25. The centre is therefore (3,−2), with signs opposite those inside the brackets.",
+    10,
+  ),
+  mc(
+    "tmua-spec-coordinate-circle-tangent",
+    "Challenge",
+    "The point (3,4) lies on x²+y²=25. What is the gradient of the tangent to the circle at that point?",
+    "−3/4",
+    ["3/4", "−4/3", "4/3"],
+    "The radius from (0,0) to (3,4) has gradient 4/3. A tangent is perpendicular to the radius, so its gradient is the negative reciprocal −3/4.",
+    11,
+  ),
+  mc(
+    "tmua-spec-coordinate-chord",
+    "Challenge",
+    "A circle has centre (0,0) and radius 10. The vertical line x=6 cuts the circle in a chord. What is the chord length?",
+    "16",
+    ["8", "12", "20"],
+    "The perpendicular from the centre bisects the chord. Half the chord has length √(10²−6²)=√64=8, so the whole chord is 16.",
+    12,
+  ),
+
+  // MM4 — Trigonometry
+  mc(
+    "tmua-spec-trigonometry-exact-values",
+    "Stretch",
+    "Using exact special-angle values, what is sin30°+cos60°?",
+    "1",
+    ["1/2", "√2/2", "√3/2"],
+    "sin30°=1/2 and cos60°=1/2. Their sum is exactly 1.",
+    13,
+  ),
+  mc(
+    "tmua-spec-trigonometry-radians",
+    "Stretch",
+    "An arc of a circle has radius 6 and subtends an angle π/3 radians at the centre. What is its arc length?",
+    "2π",
+    ["π", "3π", "6π"],
+    "Arc length is rθ when θ is measured in radians. Thus s=6×π/3=2π.",
+    14,
+  ),
+  mc(
+    "tmua-spec-trigonometry-cosine-rule",
+    "Challenge",
+    "Two sides of a triangle have lengths 5 and 7, and the included angle is 60°. What is the exact length of the opposite side?",
+    "√39",
+    ["√29", "√49", "√59"],
+    "By the cosine rule, c²=5²+7²−2·5·7·cos60°=25+49−35=39, so c=√39.",
+    15,
+  ),
+  mc(
+    "tmua-spec-trigonometry-equation",
+    "Challenge",
+    "For 0<x<2π, which pair gives all solutions of 2sin x=1?",
+    "π/6 and 5π/6",
+    ["π/6 and 7π/6", "5π/6 and 7π/6", "π/3 and 2π/3"],
+    "sin x=1/2. In one full cycle sine is positive in quadrants I and II, giving x=π/6 and x=5π/6.",
+    16,
+  ),
+
+  // MM5 — Exponentials and logarithms
+  mc(
+    "tmua-spec-explog-exponential-equation",
+    "Stretch",
+    "Solve 3^(2x)=27 for x.",
+    "3/2",
+    ["1", "2", "3"],
+    "Since 27=3³, equal bases give 2x=3 and hence x=3/2.",
+    17,
+  ),
+  mc(
+    "tmua-spec-explog-log-laws",
+    "Stretch",
+    "Using logarithm laws, simplify log₂32−log₂4.",
+    "3",
+    ["2", "4", "6"],
+    "log₂32=5 and log₂4=2, so the difference is 3. Equivalently, log₂(32/4)=log₂8=3.",
+    18,
+  ),
+  mc(
+    "tmua-spec-explog-quadratic-substitution",
+    "Challenge",
+    "The equation 25^x−6·5^x+5=0 has two real solutions. What is the sum of those solutions?",
+    "1",
+    ["0", "2", "5"],
+    "Let y=5^x. Then y²−6y+5=(y−1)(y−5)=0, so 5^x is 1 or 5. Thus x=0 or 1 and the sum is 1.",
+    19,
+  ),
+  mc(
+    "tmua-spec-explog-domain-equation",
+    "Challenge",
+    "For x>9, solve log₁₀x+log₁₀(x−9)=1.",
+    "10",
+    ["9", "11", "20"],
+    "Combine logs: log₁₀[x(x−9)]=1, so x(x−9)=10. This gives x²−9x−10=0=(x−10)(x+1). The domain leaves x=10.",
+    20,
+  ),
+
+  // MM6 — Differentiation
+  mc(
+    "tmua-spec-differentiation-stationary",
+    "Challenge",
+    "For f(x)=x³−6x²+9x, what is the smaller x-coordinate of a stationary point?",
+    "1",
+    ["0", "2", "3"],
+    "f′(x)=3x²−12x+9=3(x−1)(x−3). Stationary points occur at x=1 and x=3, so the smaller is 1.",
+    21,
+  ),
+  mc(
+    "tmua-spec-differentiation-normal",
+    "Challenge",
+    "The curve y=x² is considered at x=2. What is the gradient of the normal at this point?",
+    "−1/4",
+    ["1/4", "−4", "4"],
+    "dy/dx=2x, so the tangent gradient at x=2 is 4. The normal gradient is the negative reciprocal, −1/4.",
+    22,
+  ),
+  mc(
+    "tmua-spec-differentiation-rate",
+    "Stretch",
+    "A displacement is s=t³−3t²+2. What is the instantaneous rate of change ds/dt at t=3?",
+    "9",
+    ["3", "6", "12"],
+    "Differentiate first: ds/dt=3t²−6t. At t=3 this is 27−18=9.",
+    23,
+  ),
+  mc(
+    "tmua-spec-differentiation-increasing",
+    "Stretch",
+    "For f(x)=x²−4x, on which interval is f strictly increasing?",
+    "x > 2",
+    ["x < 2", "x > 4", "x < 4"],
+    "f′(x)=2x−4. Strict increase requires f′(x)>0, so 2x−4>0 and therefore x>2.",
+    24,
+  ),
+
+  // MM7 — Integration
+  mc(
+    "tmua-spec-integration-definite",
+    "Stretch",
+    "Evaluate ∫₀²(3x²+1) dx.",
+    "10",
+    ["8", "9", "12"],
+    "An antiderivative is x³+x. Evaluating from 0 to 2 gives (8+2)−0=10.",
+    25,
+  ),
+  mc(
+    "tmua-spec-integration-area",
+    "Stretch",
+    "What is the area between y=x, the x-axis, x=1 and x=4?",
+    "15/2",
+    ["9/2", "7", "8"],
+    "The function is positive on the interval, so the area is ∫₁⁴x dx=[x²/2]₁⁴=(16−1)/2=15/2.",
+    26,
+  ),
+  mc(
+    "tmua-spec-integration-ftc",
+    "Challenge",
+    "Define F(x)=∫₁ˣ(t²+2)dt. What is F′(3)?",
+    "11",
+    ["9", "10", "12"],
+    "By the Fundamental Theorem of Calculus, F′(x)=x²+2. Hence F′(3)=9+2=11.",
+    27,
+  ),
+  mc(
+    "tmua-spec-integration-contiguous",
+    "Challenge",
+    "Suppose ∫₀²f(x)dx=5 and ∫₂⁵f(x)dx=−1. What is ∫₀⁵f(x)dx?",
+    "4",
+    ["−6", "5", "6"],
+    "Definite integrals over contiguous intervals add: ∫₀⁵f=∫₀²f+∫₂⁵f=5+(−1)=4.",
+    28,
+  ),
+
+  // MM8 — Graphs of functions
+  mc(
+    "tmua-spec-graphs-horizontal-translation",
+    "Stretch",
+    "The graph y=f(x) is transformed to y=f(x−3). Which description is correct?",
+    "A translation 3 units to the right",
+    ["A translation 3 units to the left", "A vertical stretch by factor 3", "A translation 3 units upward"],
+    "Replacing x by x−3 means each original x-coordinate must increase by 3 to produce the same function value, so the graph moves 3 units right.",
+    29,
+  ),
+  mc(
+    "tmua-spec-graphs-reflection-stretch",
+    "Challenge",
+    "Relative to y=f(x), what transformation produces y=−2f(x)?",
+    "Reflection in the x-axis and vertical stretch factor 2",
+    ["Reflection in the y-axis and horizontal stretch factor 2", "Vertical translation down 2 units", "Horizontal compression factor 2 only"],
+    "Multiplying function values by −1 reflects in the x-axis; multiplying their magnitudes by 2 produces a vertical stretch by factor 2.",
+    30,
+  ),
+  mc(
+    "tmua-spec-graphs-intersections",
+    "Challenge",
+    "How many intersection points do the graphs y=x² and y=4x−3 have?",
+    "2",
+    ["0", "1", "3"],
+    "Intersections satisfy x²=4x−3, so x²−4x+3=(x−1)(x−3)=0. Two distinct real x-values give two intersections.",
+    31,
+  ),
+  mc(
+    "tmua-spec-graphs-cubic-roots",
+    "Stretch",
+    "The function f(x)=x(x−2)(x+1) is sketched. Which set gives all x-intercepts of its graph?",
+    "−1, 0 and 2",
+    ["−2, 0 and 1", "−1 and 2 only", "0, 1 and 2"],
+    "An x-intercept occurs where a factor is zero. The three factors vanish at x=0, x=2 and x=−1 respectively.",
+    32,
+  ),
+]
