@@ -16,11 +16,7 @@ export default async function PostLoginPage({ searchParams }: PageProps) {
   const email = typeof data?.claims?.email === "string" ? data.claims.email : null
   if (!userId) redirect("/login?next=/post-login")
 
-  let isAdmin = isConfiguredAdminEmail(email)
-  if (!isAdmin) {
-    const { data: adminRole } = await supabase.from("app_admins").select("role").eq("user_id", userId).maybeSingle()
-    isAdmin = adminRole?.role === "admin"
-  }
+  const isAdmin = isConfiguredAdminEmail(email)
   if (isAdmin) redirect("/student-home")
 
   const [{ data: subscription }, { data: seat }, { data: onboarding }] = await Promise.all([
