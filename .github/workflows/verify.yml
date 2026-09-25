@@ -48,5 +48,8 @@ jobs:
       - name: Full paper form-separation checks
         run: node tests/full-paper-form-separation.mjs
 
+      - name: Paper assembly integrity checks
+        run: node tests/paper-assembly-integrity.mjs
+
       - name: Type-aware production build
         run: npm run build
