@@ -105,6 +105,11 @@ assert.match(attached.report.limitations[0], /not an official Oxford or Cambridg
 
 const routeSource = fs.readFileSync('app/api/essay-analysis/route.ts', 'utf8')
 assert.match(routeSource, /attachStrictEssayScoring/)
-assert.match(routeSource, /rubricVersion: 4/)
+assert.match(routeSource, /rubricVersion: 5/)
 
-console.log('PASS: university classification bands, strict weighted scoring, relevance/task/reasoning ceilings, report language, and API wiring')
+const panelSource = fs.readFileSync('components/writing/review-panel.tsx', 'utf8')
+assert.match(panelSource, /Practice classification:/)
+assert.match(panelSource, /rubricVersion: 5/)
+assert.match(panelSource, /classification = result\.strictScore\?\.classification/)
+
+console.log('PASS: university classification bands, strict weighted scoring, relevance/task/reasoning ceilings, versioned report language, UI persistence, and API wiring')
