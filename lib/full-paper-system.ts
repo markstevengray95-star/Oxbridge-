@@ -53,10 +53,79 @@ function seededRank(id: string, seed: number) {
 }
 
 function questionFamilyKey(question: TestQuestion) {
-  // Generated banks end ids with a variant number. Removing only the final
-  // numeric segment preserves meaningful passage/task families while stopping
-  // one parameterised template from dominating a paper.
   return question.id.replace(/-\d+$/, "")
+}
+
+function reliableSectionPool(test: FullPaperTest, sourceSection: string, salt: string) {
+  const seed = hashString(`${test}:${sourceSection}:${salt}:stable-pool`)
+  const ranked = reliableFullPaperQuestionBank
+    .filter(question => question.test === test && question.section === sourceSection)
+    .filter(question => auditQuestionReliability(question).blocking.length === 0)
+    .sort((a, b) => {
+      const reliabilityDifference = reliabilityScore(b) - reliabilityScore(a)
+      if (reliabilityDifference !== 0) return reliabilityDifference
+      return seededRank(a.id, seed) - seededRank(b.id, seed)
+    })
+
+  // Keep the strongest version when two banks happen to contain the same
+  // number-normalised prompt structure.
+  const bySignature = new Map<string, TestQuestion>()
+  for (const question of ranked) {
+    const signature = promptSignature(question.prompt)
+    if (!bySignature.has(signature)) bySignature.set(signature, question)
+  }
+  return [...bySignature.values()]
+}
+
+function balanceFamilies(pool: TestQuestion[], seed: number) {
+  const groups = new Map<string, TestQuestion[]>()
+  for (const question of pool) {
+    const family = questionFamilyKey(question)
+    const items = groups.get(family) ?? []
+    items.push(question)
+    groups.set(family, items)
+  }
+
+  const orderedGroups = [...groups.entries()]
+    .map(([family, questions]) => ({
+      family,
+      questions: [...questions].sort((a, b) => {
+        const reliabilityDifference = reliabilityScore(b) - reliabilityScore(a)
+        if (reliabilityDifference !== 0) return reliabilityDifference
+        return seededRank(a.id, seed) - seededRank(b.id, seed)
+      }),
+    }))
+    .sort((a, b) => {
+      const qualityDifference = reliabilityScore(b.questions[0]) - reliabilityScore(a.questions[0])
+      if (qualityDifference !== 0) return qualityDifference
+      return seededRank(a.family, seed) - seededRank(b.family, seed)
+    })
+
+  const result: TestQuestion[] = []
+  const maximumFamilySize = Math.max(0, ...orderedGroups.map(group => group.questions.length))
+  for (let round = 0; round < maximumFamilySize; round++) {
+    for (const group of orderedGroups) {
+      const question = group.questions[round]
+      if (question) result.push(question)
+    }
+  }
+  return result
+}
+
+function partitionDistinctForm(pool: TestQuestion[], count: number, form: PaperForm, label: string) {
+  if (pool.length < count * 2) {
+    throw new Error(`Reliable bank cannot create two distinct ${label} forms: need ${count * 2} unique prompt structures, found ${pool.length}.`)
+  }
+
+  // Alternate the strongest 2× required questions between forms. This gives
+  // both forms a comparable reliability profile while guaranteeing no prompt
+  // structure appears in both Form 1 and Form 2.
+  const universe = pool.slice(0, count * 2)
+  const selected = universe.filter((_, index) => index % 2 === form - 1).slice(0, count)
+  if (selected.length !== count) {
+    throw new Error(`Could not allocate ${count} distinct questions to ${label} Form ${form}.`)
+  }
+  return selected
 }
 
 function pickUniqueQuestions(
@@ -67,54 +136,111 @@ function pickUniqueQuestions(
   salt: string,
 ) {
   const seed = hashString(`${test}:${sourceSection}:form-${form}:${salt}`)
-  const pool = reliableFullPaperQuestionBank
-    .filter(question => question.test === test && question.section === sourceSection)
-    .filter(question => auditQuestionReliability(question).blocking.length === 0)
-    .sort((a, b) => {
-      const reliabilityDifference = reliabilityScore(b) - reliabilityScore(a)
-      if (reliabilityDifference !== 0) return reliabilityDifference
-      return seededRank(a.id, seed) - seededRank(b.id, seed)
-    })
-
-  const usedIds = new Set<string>()
-  const usedSignatures = new Set<string>()
-  const familyUses = new Map<string, number>()
-  const selected: TestQuestion[] = []
-
-  // Select in rounds: one item per family first, then a second per family, etc.
-  // This keeps realistic passage clusters while preventing repetitive numeric
-  // families or one SJT scenario type from filling most of a paper.
-  for (let round = 0; selected.length < count && round < 12; round++) {
-    for (const question of pool) {
-      if (selected.length === count) break
-      const signature = promptSignature(question.prompt)
-      const family = questionFamilyKey(question)
-      if ((familyUses.get(family) ?? 0) !== round) continue
-      if (usedIds.has(question.id) || usedSignatures.has(signature)) continue
-      usedIds.add(question.id)
-      usedSignatures.add(signature)
-      familyUses.set(family, round + 1)
-      selected.push(question)
-    }
-  }
-
-  // Defensive fallback for any section whose ids do not expose family structure.
-  if (selected.length < count) {
-    for (const question of pool) {
-      if (selected.length === count) break
-      const signature = promptSignature(question.prompt)
-      if (usedIds.has(question.id) || usedSignatures.has(signature)) continue
-      usedIds.add(question.id)
-      usedSignatures.add(signature)
-      selected.push(question)
-    }
-  }
-
-  if (selected.length !== count) {
-    throw new Error(`Reliable unique question pool too small for ${test} / ${sourceSection}: needed ${count}, found ${selected.length}.`)
-  }
-
+  const stablePool = reliableSectionPool(test, sourceSection, salt)
+  const balanced = balanceFamilies(stablePool, hashString(`${test}:${sourceSection}:${salt}:families`))
+  const selected = partitionDistinctForm(balanced, count, form, `${test} / ${sourceSection}`)
   return prepareQuestionSet(selected, seed)
+}
+
+function lnatPassageKey(question: TestQuestion) {
+  const upgraded = question.id.match(/^upgrade-lnat-(\d+)-\d+$/)
+  if (upgraded) return `upgrade-lnat-${upgraded[1]}`
+  const reserve = question.id.match(/^uniq-lnat-(?:main|assume|strength|critic)-(\d+)$/)
+  if (reserve) return `reserve-lnat-${reserve[1]}`
+  return null
+}
+
+function ucatVrPassageKey(question: TestQuestion) {
+  const upgraded = question.id.match(/^upgrade-ucat-vr-(\d+)-\d+$/)
+  if (upgraded) return `upgrade-ucat-vr-${upgraded[1]}`
+  const reserve = question.id.match(/^uniq-ucat-vr-(?:support|beyond|attitude|info)-(\d+)$/)
+  if (reserve) return `reserve-ucat-vr-${reserve[1]}`
+  return null
+}
+
+type PassageGroup = { key: string; questions: TestQuestion[]; score: number }
+
+function passageGroups(
+  test: FullPaperTest,
+  sourceSection: string,
+  salt: string,
+  keyForQuestion: (question: TestQuestion) => string | null,
+) {
+  const seed = hashString(`${test}:${sourceSection}:${salt}:passages`)
+  const pool = reliableSectionPool(test, sourceSection, salt)
+  const groups = new Map<string, TestQuestion[]>()
+  for (const question of pool) {
+    const key = keyForQuestion(question)
+    if (!key) continue
+    const items = groups.get(key) ?? []
+    items.push(question)
+    groups.set(key, items)
+  }
+
+  return [...groups.entries()]
+    .map(([key, questions]): PassageGroup => {
+      const ordered = [...questions].sort((a, b) => {
+        const reliabilityDifference = reliabilityScore(b) - reliabilityScore(a)
+        if (reliabilityDifference !== 0) return reliabilityDifference
+        return seededRank(a.id, seed) - seededRank(b.id, seed)
+      })
+      return {
+        key,
+        questions: ordered,
+        score: ordered.reduce((sum, question) => sum + reliabilityScore(question), 0) / Math.max(1, ordered.length),
+      }
+    })
+    .sort((a, b) => {
+      const scoreDifference = b.score - a.score
+      if (scoreDifference !== 0) return scoreDifference
+      return seededRank(a.key, seed) - seededRank(b.key, seed)
+    })
+}
+
+function allocatePassageGroups(groups: PassageGroup[], groupCount: number, form: PaperForm, label: string) {
+  if (groups.length < groupCount * 2) {
+    throw new Error(`${label} needs ${groupCount * 2} distinct passage groups for two forms; found ${groups.length}.`)
+  }
+  const universe = groups.slice(0, groupCount * 2)
+  const selected = universe.filter((_, index) => index % 2 === form - 1).slice(0, groupCount)
+  if (selected.length !== groupCount) throw new Error(`Could not allocate ${groupCount} ${label} passages to Form ${form}.`)
+  return selected
+}
+
+function pickLnatQuestions(form: PaperForm) {
+  const groups = allocatePassageGroups(
+    passageGroups("LNAT", "Argumentative passages", "section-a", lnatPassageKey),
+    12,
+    form,
+    "LNAT",
+  )
+
+  // LNAT Section A has 42 questions across 12 passages, with three or four
+  // questions attached to each passage. Six passages get four questions and
+  // six get three, preserving each passage block in the displayed order.
+  const fourQuestionGroups = groups
+    .filter(group => group.questions.length >= 4)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
+  if (fourQuestionGroups.length < 6 || groups.some(group => group.questions.length < 3)) {
+    throw new Error(`LNAT Form ${form} does not have enough reliable grouped passage questions.`)
+  }
+  const fourKeys = new Set(fourQuestionGroups.map(group => group.key))
+  const selected = groups.flatMap(group => group.questions.slice(0, fourKeys.has(group.key) ? 4 : 3))
+  if (selected.length !== 42) throw new Error(`LNAT Form ${form} should contain 42 grouped questions; found ${selected.length}.`)
+  return prepareQuestionSet(selected, hashString(`LNAT:form-${form}:grouped`))
+}
+
+function pickUcatVrQuestions(form: PaperForm) {
+  const groups = allocatePassageGroups(
+    passageGroups("UCAT", "Verbal Reasoning", "vr", ucatVrPassageKey).filter(group => group.questions.length >= 4),
+    11,
+    form,
+    "UCAT Verbal Reasoning",
+  )
+  const selected = groups.flatMap(group => group.questions.slice(0, 4))
+  if (selected.length !== 44) throw new Error(`UCAT VR Form ${form} should contain 44 grouped questions; found ${selected.length}.`)
+  return prepareQuestionSet(selected, hashString(`UCAT:VR:form-${form}:grouped`))
 }
 
 function finalisePaper(paper: FullPaperDefinition): FullPaperDefinition {
@@ -129,12 +255,8 @@ function finalisePaper(paper: FullPaperDefinition): FullPaperDefinition {
       if (reliability.blocking.length) {
         throw new Error(`Unreliable question in ${paper.id}: ${question.id} (${reliability.blocking.map(issue => issue.code).join(", ")})`)
       }
-      if (seenIds.has(question.id)) {
-        throw new Error(`Duplicate question id in ${paper.id}: ${question.id}`)
-      }
-      if (seenPrompts.has(signature)) {
-        throw new Error(`Duplicate or number-only question template in ${paper.id}: ${question.id}`)
-      }
+      if (seenIds.has(question.id)) throw new Error(`Duplicate question id in ${paper.id}: ${question.id}`)
+      if (seenPrompts.has(signature)) throw new Error(`Duplicate or number-only question template in ${paper.id}: ${question.id}`)
       seenIds.add(question.id)
       seenPrompts.add(signature)
     }
@@ -162,7 +284,7 @@ export const paperCatalog: Array<{
   { test: "TMUA", title: "TMUA Full Mock", structure: "2 papers · 20 questions each · 75 minutes per paper", totalMinutes: 150 },
   { test: "ESAT", title: "ESAT Full Mock", structure: "3 modules · 27 questions each · 40 minutes per module", totalMinutes: 120 },
   { test: "TARA", title: "TARA Full Mock", structure: "22 Critical Thinking + 22 Problem Solving + 40-minute writing task", totalMinutes: 120 },
-  { test: "LNAT", title: "LNAT Full Mock", structure: "42 passage questions in 95 minutes + one essay in 40 minutes", totalMinutes: 135 },
+  { test: "LNAT", title: "LNAT Full Mock", structure: "12 passages · 42 questions in 95 minutes + one essay in 40 minutes", totalMinutes: 135 },
   { test: "UCAT", title: "UCAT Full Mock", structure: "VR 44 · DM 35 · QR 36 · SJT 69 with current section timings", totalMinutes: 111 },
 ]
 
@@ -179,7 +301,7 @@ export function buildFullPaper(
       title: `TMUA Practice Form ${form}`,
       subtitle: "Full two-paper simulation",
       totalMinutes: 150,
-      note: "Raw marks are for practice only. No calculator. There is no negative marking. Questions are reliability-screened, numerically checked and balanced across distinct reasoning families before answer positions are shuffled.",
+      note: "Raw marks are for practice only. No calculator. There is no negative marking. Questions are reliability-screened, numerically checked and balanced across distinct reasoning families. Forms 1 and 2 use separate prompt pools.",
       sections: [
         {
           id: "paper-1",
@@ -215,7 +337,7 @@ export function buildFullPaper(
       title: `ESAT Practice Form ${form}`,
       subtitle: selected.join(" · "),
       totalMinutes: selected.length * 40,
-      note: "Mathematics 1 is compulsory. This mock uses two additional modules selected by the student. No calculator and no negative marking. Generated numerical answers are checked for equivalent options and explanation consistency before selection.",
+      note: "Mathematics 1 is compulsory. This mock uses two additional modules selected by the student. No calculator and no negative marking. Generated numerical answers are checked for equivalent options and explanation consistency, and Forms 1 and 2 draw from separate prompt pools.",
       sections: selected.map(module => ({
         id: `module-${esatCode[module]}`,
         title: module,
@@ -237,7 +359,7 @@ export function buildFullPaper(
       title: `TARA Practice Form ${form}`,
       subtitle: "Critical Thinking · Problem Solving · Writing Task",
       totalMinutes: 120,
-      note: "The writing task is left unscored. Multiple-choice questions are reliability-screened and balanced across causal reasoning, assumptions, strengthening, weakening, logical flaws and varied problem-solving structures.",
+      note: "The writing task is left unscored. Multiple-choice questions are reliability-screened and balanced across causal reasoning, assumptions, strengthening, weakening, logical flaws and varied problem-solving structures. Forms 1 and 2 use separate MCQ prompt pools.",
       sections: [
         {
           id: "critical-thinking",
@@ -279,15 +401,15 @@ export function buildFullPaper(
       title: `LNAT Practice Form ${form}`,
       subtitle: "Section A · Multiple Choice + Section B · Essay",
       totalMinutes: 135,
-      note: "Section A is automatically marked. Section B is saved for review but is not assigned a fabricated numerical score. Passage questions are checked for reliability and balanced across conclusion, assumption, strengthening and criticism tasks.",
+      note: "Section A contains 12 argumentative passages with three or four linked questions per passage. Questions are kept in passage blocks, reliability-screened, and Forms 1 and 2 use different passages. Section B is saved for review but is not assigned a fabricated numerical score.",
       sections: [
         {
           id: "section-a",
           title: "Section A · Argumentative Passages",
           kind: "mcq",
           durationMinutes: 95,
-          questions: pickUniqueQuestions("LNAT", "Argumentative passages", 42, form, "section-a"),
-          instructions: "Answer 42 questions based on argumentative passages. Once Section B starts, Section A stays locked.",
+          questions: pickLnatQuestions(form),
+          instructions: "Answer 42 questions across 12 argumentative passages. Each passage has three or four linked questions. Once Section B starts, Section A stays locked.",
         },
         {
           id: "section-b",
@@ -309,15 +431,15 @@ export function buildFullPaper(
     title: `UCAT Practice Form ${form}`,
     subtitle: "Current four-subtest structure",
     totalMinutes: 111,
-    note: "This practice mode reports raw marks and accuracy only. Each subtest is reliability-screened, numerical equivalence is checked, and question families are balanced before the paper is shown.",
+    note: "This practice mode reports raw marks and accuracy only. Each subtest is reliability-screened, numerical equivalence is checked, and Forms 1 and 2 draw from separate prompt pools. Verbal Reasoning preserves 11 passage blocks of four linked questions.",
     sections: [
       {
         id: "vr",
         title: "Verbal Reasoning",
         kind: "mcq",
         durationMinutes: 22,
-        questions: pickUniqueQuestions("UCAT", "Verbal Reasoning", 44, form, "vr"),
-        instructions: "44 questions · 22 minutes. Use only the information presented in each passage.",
+        questions: pickUcatVrQuestions(form),
+        instructions: "44 questions · 22 minutes · 11 passages with four linked questions each. Use only the information presented in each passage.",
       },
       {
         id: "dm",
@@ -333,7 +455,7 @@ export function buildFullPaper(
         kind: "mcq",
         durationMinutes: 26,
         questions: pickUniqueQuestions("UCAT", "Quantitative Reasoning", 36, form, "qr"),
-        instructions: "36 questions · 26 minutes. This practice interface focuses on pacing and numerical problem solving.",
+        instructions: "36 questions · 26 minutes. Interpret the data before choosing a calculation route.",
       },
       {
         id: "sjt",
