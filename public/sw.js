@@ -1,4 +1,4 @@
-const CACHE='oxbridge-tutor-v11';
+const CACHE='oxbridge-tutor-v12';
 const SHELL=['/','/student-home','/interviews','/interview-room','/ai-interview','/elevenlabs-interview','/live-interview','/panel-interview','/cambridge-interview-day','/advanced-practice','/adaptive-paper','/essay-tutor','/timing-trainer','/question-quality','/reasoning-lab','/intervention-session','/written-work-vault','/personal-statement-map','/working-analysis','/accessibility-profiles','/learning-support','/requirements','/cambridge-assessments','/source-health','/timeline','/backup-center','/course-bank','/unseen-lab','/reading-room','/knowledge-graph','/research-project','/mock-week','/technology-rehearsal','/teacher-coach','/manifest.webmanifest','/favicon.svg'];
 
 self.addEventListener('install',event=>{
