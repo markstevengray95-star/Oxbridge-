@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { buildOfflineWritingReport } from "@/lib/writing/offline-review"
-import { scoreStrictEssay } from "@/lib/writing/strict-score"
+import { attachStrictEssayScoring, scoreStrictEssay } from "@/lib/writing/strict-score"
 import { inputSchema, mechanics, reviewInstructions, responseJsonSchema, splitParagraphs, validateReport } from "@/lib/writing/review"
 
 export const runtime = "nodejs"
@@ -37,10 +37,16 @@ export async function POST(request: Request) {
     const candidate = data.candidates?.[0]
     if (candidate?.finishReason !== "STOP") return fallback("The AI response was incomplete, so no partial AI judgement was shown. The deterministic offline review was used instead.")
     const output = candidate.content?.parts?.filter(p => !p.thought).map(p => p.text ?? "").join("") || ""
-    const report = validateReport(JSON.parse(output), essay, mode)
+    let report = validateReport(JSON.parse(output), essay, mode)
     if (!prompt && mode === "essay") report.criteria[0].level = null
     if (!course && mode === "statement") report.criteria[4].level = null
-    return NextResponse.json({ provider: "gemini", report, strictScore: scoreFor(report), mechanics: basic, rubricVersion: 4 })
+    let strictScore = mode === "essay" ? scoreStrictEssay(report, prompt, essay) : null
+    if (mode === "essay" && prompt) {
+      const attached = attachStrictEssayScoring(report, prompt, essay)
+      report = attached.report
+      strictScore = attached.strictScore
+    }
+    return NextResponse.json({ provider: "gemini", report, strictScore, mechanics: basic, rubricVersion: 4 })
   } catch {
     return fallback("The AI review timed out or could not be verified against the draft, so the deterministic offline review was used instead.")
   }
