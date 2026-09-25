@@ -30,6 +30,9 @@ jobs:
       - name: Offline topic-alignment regression checks
         run: node tests/offline-topic-alignment.cjs
 
+      - name: Offline task-aware essay regression checks
+        run: node tests/offline-analysis-v3.cjs
+
       - name: Full paper uniqueness checks
         run: node tests/full-paper-uniqueness.mjs
 
