@@ -20,7 +20,7 @@ export function checkoutLineItem(tier: "pro" | "school", interval: BillingInterv
       unit_amount: unitAmount,
       recurring: { interval: interval === "annual" ? "year" : "month" },
       product_data: {
-        name: tier === "pro" ? "Oxbridge Pro" : "Oxbridge School",
+        name: tier === "pro" ? "ScholarBridge Pro" : "ScholarBridge School",
         metadata: { tier },
       },
     },
