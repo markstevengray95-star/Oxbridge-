@@ -6,6 +6,7 @@ import { auditQuestionReliability, reliabilityScore } from "@/lib/question-relia
 import type { FullPaperQuestion } from "@/lib/full-paper-question"
 import { isYesNoStatementQuestion, validateFullPaperQuestion } from "@/lib/full-paper-question"
 import { ucatDecisionMakingStatementBank } from "@/lib/ucat-dm-statement-bank"
+import { tmuaPaper1CoreTopics, tmuaPaper1Topic } from "@/lib/tmua-topic-coverage"
 
 export type FullPaperTest = TestQuestion["test"]
 export type PaperForm = 1 | 2
@@ -137,6 +138,62 @@ function pickUniqueQuestions(
   const stablePool = reliableSectionPool(test, sourceSection, salt)
   const balanced = balanceFamilies(stablePool, hashString(`${test}:${sourceSection}:${salt}:families`))
   const selected = partitionDistinctForm(balanced, count, form, `${test} / ${sourceSection}`)
+  return prepareQuestionSet(selected, seed)
+}
+
+function pickTmuaPaper1Questions(form: PaperForm): TestQuestion[] {
+  const sectionName = "Applications of Mathematical Knowledge"
+  const stablePool = reliableSectionPool("TMUA", sectionName, "paper-1")
+  const seed = hashString(`TMUA:${sectionName}:form-${form}:spec-breadth`)
+
+  // Reserve one different high-reliability item per specification domain for
+  // each form. Both forms therefore cover the full Part 1 breadth without
+  // sharing a prompt structure.
+  const reservedByForm = new Map<PaperForm, TestQuestion[]>([[1, []], [2, []]])
+  const reservedIds = new Set<string>()
+
+  for (const topic of tmuaPaper1CoreTopics) {
+    const topicPool = stablePool
+      .filter(question => tmuaPaper1Topic(question) === topic)
+      .sort((a, b) => {
+        const reliabilityDifference = reliabilityScore(b) - reliabilityScore(a)
+        if (reliabilityDifference !== 0) return reliabilityDifference
+        return seededRank(a.id, hashString(`TMUA:${topic}:reserved`)) - seededRank(b.id, hashString(`TMUA:${topic}:reserved`))
+      })
+
+    if (topicPool.length < 2) {
+      throw new Error(`TMUA Paper 1 requires at least two reliable ${topic} questions to create distinct forms; found ${topicPool.length}.`)
+    }
+
+    const form1Question = topicPool[0]
+    const form2Question = topicPool[1]
+    reservedByForm.get(1)?.push(form1Question)
+    reservedByForm.get(2)?.push(form2Question)
+    reservedIds.add(form1Question.id)
+    reservedIds.add(form2Question.id)
+  }
+
+  const remaining = stablePool.filter(question => !reservedIds.has(question.id))
+  const coreRemaining = balanceFamilies(
+    remaining.filter(question => tmuaPaper1Topic(question) !== "Other"),
+    hashString("TMUA:paper-1:core-fill"),
+  )
+  const foundationalRemaining = balanceFamilies(
+    remaining.filter(question => tmuaPaper1Topic(question) === "Other"),
+    hashString("TMUA:paper-1:foundation-fill"),
+  )
+
+  // 8 guaranteed domains + 8 additional core-topic questions + 4 useful
+  // foundational questions = 20. The filler pools are also partitioned across
+  // forms, preserving the zero-overlap guarantee.
+  const topicReserved = reservedByForm.get(form) ?? []
+  const coreFill = partitionDistinctForm(coreRemaining, 8, form, "TMUA Paper 1 core-topic filler")
+  const foundationFill = partitionDistinctForm(foundationalRemaining, 4, form, "TMUA Paper 1 foundational filler")
+  const selected = [...topicReserved, ...coreFill, ...foundationFill]
+
+  if (selected.length !== 20) {
+    throw new Error(`TMUA Paper 1 Form ${form} should contain 20 questions; found ${selected.length}.`)
+  }
   return prepareQuestionSet(selected, seed)
 }
 
@@ -363,15 +420,15 @@ export function buildFullPaper(
       title: `TMUA Practice Form ${form}`,
       subtitle: "Full two-paper simulation",
       totalMinutes: 150,
-      note: "Raw marks are for practice only. No calculator. There is no negative marking. Questions are reliability-screened, numerically checked and balanced across distinct reasoning families. Forms 1 and 2 use separate prompt pools.",
+      note: "Raw marks are for practice only. No calculator. There is no negative marking. Paper 1 is deliberately balanced across the major current specification domains as well as foundational mathematics; Paper 2 focuses on mathematical reasoning. Forms 1 and 2 use separate prompt pools.",
       sections: [
         {
           id: "paper-1",
           title: "Paper 1 · Applications of Mathematical Knowledge",
           kind: "mcq",
           durationMinutes: 75,
-          questions: pickUniqueQuestions("TMUA", "Applications of Mathematical Knowledge", 20, form, "paper-1"),
-          instructions: "Answer 20 multiple-choice questions. You may move freely within this paper until you submit it or time expires.",
+          questions: pickTmuaPaper1Questions(form),
+          instructions: "Answer 20 multiple-choice questions spanning the major specification domains. You may move freely within this paper until you submit it or time expires.",
         },
         {
           id: "paper-2",
