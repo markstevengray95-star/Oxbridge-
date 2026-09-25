@@ -1,8 +1,9 @@
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { effectiveTier, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
 import { isConfiguredAdminEmail } from "@/lib/auth/admin-access"
-import { onboardingCompleted, PLAN_ONBOARDING_STATE_KEY } from "@/lib/onboarding"
+import { FREE_PLAN_COOKIE, onboardingCompleted, PLAN_ONBOARDING_STATE_KEY } from "@/lib/onboarding"
 
 export const dynamic = "force-dynamic"
 
@@ -19,6 +20,9 @@ export default async function PostLoginPage({ searchParams }: PageProps) {
   const isAdmin = isConfiguredAdminEmail(email)
   if (isAdmin) redirect("/student-home")
 
+  const cookieStore = await cookies()
+  const cookieFreePlan = cookieStore.get(FREE_PLAN_COOKIE)?.value === userId
+
   const [{ data: subscription }, { data: seat }, { data: onboarding }] = await Promise.all([
     supabase.from("subscriptions").select("tier,status").eq("user_id", userId).maybeSingle(),
     supabase.from("school_seat_entitlements").select("active").eq("user_id", userId).maybeSingle(),
@@ -29,7 +33,7 @@ export default async function PostLoginPage({ searchParams }: PageProps) {
     ? "school"
     : effectiveTier((subscription?.tier ?? "free") as SubscriptionTier, (subscription?.status ?? "inactive") as SubscriptionStatus)
 
-  if (tier === "pro" || tier === "school" || onboardingCompleted(onboarding?.state_value)) redirect("/student-home")
+  if (tier === "pro" || tier === "school" || cookieFreePlan || onboardingCompleted(onboarding?.state_value)) redirect("/student-home")
   if (params.billing === "success") redirect("/premium?billing=success")
   redirect("/premium?onboarding=required")
 }
