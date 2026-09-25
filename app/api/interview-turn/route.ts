@@ -1,36 +1,14 @@
 import { NextResponse } from "next/server"
+import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
 
 export const runtime = "nodejs"
 
 type InterviewTurn = { role: "interviewer" | "candidate"; text: string; speaker?: string }
-type InterviewRequest = {
-  course?: string
-  track?: string
-  difficulty?: string
-  persona?: string
-  mode?: string
-  question?: string
-  answer?: string
-  concepts?: string[]
-  turns?: InterviewTurn[]
-  interviewerRole?: string
-  otherInterviewer?: string
-  panelMode?: boolean
-  delivery?: string
-}
+type InterviewRequest = { course?: string; track?: string; difficulty?: string; persona?: string; mode?: string; question?: string; answer?: string; concepts?: string[]; turns?: InterviewTurn[]; interviewerRole?: string; otherInterviewer?: string; panelMode?: boolean; delivery?: string }
 
 function localFollowUp(body: InterviewRequest) {
-  const answer = (body.answer ?? "").trim()
-  const lower = answer.toLowerCase()
-  const words = answer ? answer.split(/\s+/).length : 0
-  const persona = body.persona ?? "Socratic"
-  const openings = persona === "Technical"
-    ? ["Right — let's make that more precise.", "Okay. I want the exact step there.", "Let's pin that down."]
-    : persona === "Evidence-led"
-      ? ["Okay — what supports that?", "Right. Let's look at the evidence for that.", "I see the claim; now justify it."]
-      : persona === "Sceptical"
-        ? ["I'm not fully convinced yet.", "I can see the route you're taking.", "Perhaps — but I want to test that."]
-        : ["Right.", "Okay.", "Mm — take that a little further."]
+  const answer = (body.answer ?? "").trim(), lower = answer.toLowerCase(), words = answer ? answer.split(/\s+/).length : 0, persona = body.persona ?? "Socratic"
+  const openings = persona === "Technical" ? ["Right — let's make that more precise.", "Okay. I want the exact step there.", "Let's pin that down."] : persona === "Evidence-led" ? ["Okay — what supports that?", "Right. Let's look at the evidence for that.", "I see the claim; now justify it."] : persona === "Sceptical" ? ["I'm not fully convinced yet.", "I can see the route you're taking.", "Perhaps — but I want to test that."] : ["Right.", "Okay.", "Mm — take that a little further."]
   const open = openings[Math.abs(words + answer.length) % openings.length]
   if (words < 28) return `${open} You've given me the conclusion. Can you talk me through the step that gets you there?`
   if (!/assum|suppos|given|if\s/i.test(lower)) return `${open} What are you assuming there, and what happens if that assumption is wrong?`
@@ -60,7 +38,6 @@ export async function POST(request: Request) {
   try { body = await request.json() as InterviewRequest } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }) }
   const answer = (body.answer ?? "").trim()
   if (!answer) return NextResponse.json({ error: "Candidate answer is required" }, { status: 400 })
-
   const fallback = localFollowUp(body)
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return NextResponse.json({ reply: fallback, provider: "local", configured: false })
@@ -75,6 +52,7 @@ export async function POST(request: Request) {
   ] : []
 
   const systemPrompt = [
+    STUDENT_AI_SAFETY_POLICY,
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     ...panelInstructions,
     "Sound like a real academic speaking naturally in a tutorial room, not like an AI tutor, marking rubric, examiner report or scripted assessment.",
@@ -97,21 +75,8 @@ export async function POST(request: Request) {
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST",
-      headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-        generationConfig: { maxOutputTokens: 180, temperature: 0.86, topP: 0.94 },
-      }),
-      signal: AbortSignal.timeout(15000),
-    })
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "")
-      console.error("Gemini interview request failed", response.status, detail.slice(0, 500))
-      return NextResponse.json({ reply: fallback, provider: "local", configured: true, degraded: true })
-    }
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" }, body: JSON.stringify({ systemInstruction: { parts: [{ text: systemPrompt }] }, contents: [{ role: "user", parts: [{ text: userPrompt }] }], generationConfig: { maxOutputTokens: 180, temperature: 0.86, topP: 0.94 } }), signal: AbortSignal.timeout(15000) })
+    if (!response.ok) { const detail = await response.text().catch(() => ""); console.error("Gemini interview request failed", response.status, detail.slice(0, 500)); return NextResponse.json({ reply: fallback, provider: "local", configured: true, degraded: true }) }
     const data = await response.json() as unknown
     const reply = extractGeminiText(data) || fallback
     return NextResponse.json({ reply, provider: reply === fallback ? "local" : "gemini", configured: true })
