@@ -28,7 +28,7 @@ function load(file) {
   return exports
 }
 
-const { analyseOfflineEssayTask, buildOfflineWritingReport } = load('lib/writing/offline-review-v3.ts')
+const { analyseOfflineEssayTask, buildOfflineWritingReport } = load('lib/writing/offline-review-v4.ts')
 
 const policyPrompt = 'Should social media companies be legally responsible for harmful content posted by users?'
 const policyEssay = [
@@ -111,6 +111,6 @@ assert.ok((echoReport.criteria[0].level ?? 4) <= 1, `prompt-echo essay should be
 assert.equal(echoReport.priorities[0].title, 'Complete the exact task')
 
 const tsconfig = JSON.parse(fs.readFileSync('tsconfig.json', 'utf8'))
-assert.equal(tsconfig.compilerOptions.paths['@/lib/writing/offline-review'][0], './lib/writing/offline-review-v3')
+assert.equal(tsconfig.compilerOptions.paths['@/lib/writing/offline-review'][0], './lib/writing/offline-review-v4')
 
-console.log('PASS: v3 task classification, prompt-echo protection, comparison/extent/causal completion, drift detection, relevance annotations, and production alias wiring')
+console.log('PASS: task classification, prompt-echo protection, comparison/extent/causal completion, drift detection, relevance annotation precedence, and production alias wiring')
