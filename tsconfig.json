@@ -23,6 +23,9 @@
       }
     ],
     "paths": {
+      "@/lib/writing/offline-review": [
+        "./lib/writing/offline-review-v2"
+      ],
       "@/*": [
         "./*"
       ]
