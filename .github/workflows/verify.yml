@@ -51,5 +51,8 @@ jobs:
       - name: Paper assembly integrity checks
         run: node tests/paper-assembly-integrity.mjs
 
+      - name: TMUA specification breadth checks
+        run: node tests/tmua-topic-coverage.mjs
+
       - name: Type-aware production build
         run: npm run build
