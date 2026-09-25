@@ -27,5 +27,8 @@ jobs:
       - name: Cloud sync regression checks
         run: node tests/cloud-sync-config.cjs
 
+      - name: Offline topic-alignment regression checks
+        run: node tests/offline-topic-alignment.cjs
+
       - name: Type-aware production build
         run: npm run build
