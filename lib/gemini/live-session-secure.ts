@@ -1,36 +1,21 @@
 import { NextResponse } from "next/server"
 import { getGeminiApiKeyCandidates, hasGeminiApiKey } from "@/lib/gemini/api-key"
+import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
 
 type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
-type SessionRequest = {
-  course?: string
-  track?: string
-  persona?: string
-  mode?: string
-  voice?: GeminiVoice
-  material?: string
-  preparationNotes?: string
-  focus?: string
-  panel?: boolean
-}
-
+type SessionRequest = { course?: string; track?: string; persona?: string; mode?: string; voice?: GeminiVoice; material?: string; preparationNotes?: string; focus?: string; panel?: boolean }
 type GoogleTokenResponse = { name?: unknown; authToken?: { name?: unknown } }
 type GoogleErrorResponse = { error?: { code?: unknown; message?: unknown; status?: unknown } }
 
 const VOICES: GeminiVoice[] = ["Gacrux", "Sulafat", "Sadaltager", "Kore"]
 const DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.8-live"
-export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-24-r8-nextgen-context"
+export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-25-r9-student-safety"
 
 function safeText(value: unknown, fallback: string, max = 120) {
   const text = typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : ""
   return text ? text.slice(0, max) : fallback
 }
-
-function safeLongText(value: unknown, max = 6000) {
-  const text = typeof value === "string" ? value.trim() : ""
-  return text.slice(0, max)
-}
-
+function safeLongText(value: unknown, max = 6000) { const text = typeof value === "string" ? value.trim() : ""; return text.slice(0, max) }
 function normalizeLiveModelName(value: string | undefined) {
   const raw = (value || DEFAULT_GEMINI_LIVE_MODEL).trim()
   const withoutQuery = raw.split("?", 1)[0].replace(/\/+$/, "")
@@ -40,70 +25,31 @@ function normalizeLiveModelName(value: string | undefined) {
   const model = candidate.replace(/^\/+|\/+$/g, "").trim()
   return model || DEFAULT_GEMINI_LIVE_MODEL
 }
-
-function parseGoogleError(text: string) {
-  try {
-    const parsed = JSON.parse(text) as GoogleErrorResponse
-    return { message: typeof parsed.error?.message === "string" ? parsed.error.message : "", status: typeof parsed.error?.status === "string" ? parsed.error.status : "" }
-  } catch { return { message: "", status: "" } }
-}
+function parseGoogleError(text: string) { try { const parsed = JSON.parse(text) as GoogleErrorResponse; return { message: typeof parsed.error?.message === "string" ? parsed.error.message : "", status: typeof parsed.error?.status === "string" ? parsed.error.status : "" } } catch { return { message: "", status: "" } } }
 
 function modeInstructions(mode: string) {
-  if (mode === "Tutor") return [
-    "This is coached interview practice. Keep the exchange realistic, but if the candidate gets stuck, first ask a smaller diagnostic question that exposes the missing step.",
-    "A feedback sentence may identify one concrete next reasoning move, but still do not give the full solution.",
-  ]
+  if (mode === "Tutor") return ["This is coached interview practice. Keep the exchange realistic, but if the candidate gets stuck, first ask a smaller diagnostic question that exposes the missing step.", "A feedback sentence may identify one concrete next reasoning move, but still do not give the full solution."]
   if (mode === "No-hint") return ["Do not give hints, rescue steps, or leading prompts. If the reasoning is weak, identify the exact missing justification in one sentence and then ask a probing question."]
-  if (mode === "Stress") return [
-    "Use a brisker and more formal pace. Challenge unsupported claims quickly, while remaining professional, calm, and fair.",
-    "Keep turns especially short. Do not use praise filler or theatrical hostility.",
-  ]
+  if (mode === "Stress") return ["Use a brisker and more formal pace. Challenge unsupported claims quickly, while remaining professional, calm, and fair.", "Keep turns especially short. Do not use praise filler or theatrical hostility."]
   return ["Keep the tone realistic: interested but understated, with little generic praise and genuine academic challenge."]
 }
-
 function subjectInstructions(course: string, track: string) {
   const key = `${track} ${course}`.toLowerCase()
-  if (/physics|engineering|physical|chemistry|materials|earth/.test(key)) return [
-    "For quantitative science questions, value the candidate's model and assumptions as much as the final number. Ask for estimates, limiting cases, units, sketches, mechanisms, or what would change under a new condition when appropriate.",
-    "Prefer problems that can be reasoned from school-level foundations rather than questions that depend on memorising obscure university content.",
-  ]
-  if (/math|computer|mathematics|computing/.test(key)) return [
-    "For mathematical or computing questions, ask the candidate to define quantities, test small or extreme cases, justify each step, find counterexamples, generalise, or compare alternative approaches.",
-    "Reward a corrected line of reasoning more than speed. Do not reveal a proof or algorithm before the candidate has had a genuine chance to construct it.",
-  ]
-  if (/medicine|medical|biology|biological|biochemistry|biomedical/.test(key)) return [
-    "For biological or medical-science questions, probe mechanism, evidence, experimental design, data interpretation, confounders, uncertainty, and causal claims.",
-    "Keep any clinical scenarios educational and non-diagnostic; the purpose is academic reasoning, not personal medical advice.",
-  ]
-  if (/law|history|english|classics|philosophy|humanit|language|literature|theology/.test(key)) return [
-    "For humanities questions, probe definitions, textual or historical evidence, assumptions, counterarguments, alternative interpretations, and what evidence would change the candidate's view.",
-    "When using a short unseen passage or proposition, make the candidate work from what is provided rather than testing prior factual recall alone.",
-  ]
-  if (/econom|ppe|politic|geograph|social|psycholog|sociolog|land economy/.test(key)) return [
-    "For social-science questions, probe causal reasoning, assumptions, incentives, trade-offs, evidence quality, alternative explanations, and how conclusions change when conditions change.",
-    "Separate descriptive claims from value judgements and ask the candidate to justify both carefully when relevant.",
-  ]
+  if (/physics|engineering|physical|chemistry|materials|earth/.test(key)) return ["For quantitative science questions, value the candidate's model and assumptions as much as the final number. Ask for estimates, limiting cases, units, sketches, mechanisms, or what would change under a new condition when appropriate.", "Prefer problems that can be reasoned from school-level foundations rather than questions that depend on memorising obscure university content."]
+  if (/math|computer|mathematics|computing/.test(key)) return ["For mathematical or computing questions, ask the candidate to define quantities, test small or extreme cases, justify each step, find counterexamples, generalise, or compare alternative approaches.", "Reward a corrected line of reasoning more than speed. Do not reveal a proof or algorithm before the candidate has had a genuine chance to construct it."]
+  if (/medicine|medical|biology|biological|biochemistry|biomedical/.test(key)) return ["For biological or medical-science questions, probe mechanism, evidence, experimental design, data interpretation, confounders, uncertainty, and causal claims.", "Keep any clinical scenarios educational and non-diagnostic; the purpose is academic reasoning, not personal medical advice."]
+  if (/law|history|english|classics|philosophy|humanit|language|literature|theology/.test(key)) return ["For humanities questions, probe definitions, textual or historical evidence, assumptions, counterarguments, alternative interpretations, and what evidence would change the candidate's view.", "When using a short unseen passage or proposition, make the candidate work from what is provided rather than testing prior factual recall alone."]
+  if (/econom|ppe|politic|geograph|social|psycholog|sociolog|land economy/.test(key)) return ["For social-science questions, probe causal reasoning, assumptions, incentives, trade-offs, evidence quality, alternative explanations, and how conclusions change when conditions change.", "Separate descriptive claims from value judgements and ask the candidate to justify both carefully when relevant."]
   return ["Choose academically demanding questions that are answerable through reasoning from accessible foundations, then adapt the difficulty to the candidate's response."]
 }
 
 function interviewInstructions(course: string, track: string, persona: string, mode: string, material: string, preparationNotes: string, focus: string, panel: boolean) {
-  const contextInstructions = material ? [
-    "The candidate has been given unseen pre-interview material. Use it actively rather than ignoring it.",
-    `UNSEEN MATERIAL: ${material}`,
-    preparationNotes ? `CANDIDATE PREPARATION NOTES: ${preparationNotes}` : "The candidate supplied no preparation notes.",
-    "Begin by asking the candidate to interpret, question or defend something from the material. Do not supply an authoritative interpretation first.",
-  ] : []
-  const focusInstructions = focus ? [
-    `DELAYED RETEST FOCUS: ${focus}`,
-    "Test this reasoning habit naturally in a different problem. Do not tell the candidate the exact weakness before they have attempted the task.",
-  ] : []
-  const panelInstructions = panel ? [
-    "This is a two-interviewer simulation. Alternate academic roles between Interviewer A and Interviewer B on successive substantive model turns.",
-    "Interviewer A should usually develop the candidate's line of reasoning. Interviewer B should usually test assumptions, counterexamples or alternative interpretations.",
-    "Prefix every substantive response with exactly 'A:' or 'B:' so the client can render two distinct interviewer roles. Keep the usual one-feedback-sentence plus one-follow-up-question structure after the prefix.",
-  ] : []
+  const contextInstructions = material ? ["The candidate has been given unseen pre-interview material. Use it actively rather than ignoring it.", `UNSEEN MATERIAL: ${material}`, preparationNotes ? `CANDIDATE PREPARATION NOTES: ${preparationNotes}` : "The candidate supplied no preparation notes.", "Begin by asking the candidate to interpret, question or defend something from the material. Do not supply an authoritative interpretation first."] : []
+  const focusInstructions = focus ? [`DELAYED RETEST FOCUS: ${focus}`, "Test this reasoning habit naturally in a different problem. Do not tell the candidate the exact weakness before they have attempted the task."] : []
+  const panelInstructions = panel ? ["This is a two-interviewer simulation. Alternate academic roles between Interviewer A and Interviewer B on successive substantive model turns.", "Interviewer A should usually develop the candidate's line of reasoning. Interviewer B should usually test assumptions, counterexamples or alternative interpretations.", "Prefix every substantive response with exactly 'A:' or 'B:' so the client can render two distinct interviewer roles. Keep the usual one-feedback-sentence plus one-follow-up-question structure after the prefix."] : []
 
   return [
+    STUDENT_AI_SAFETY_POLICY,
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     `Course: ${course}. Subject family: ${track}. Interviewer style: ${persona}. Session mode: ${mode}.`,
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
@@ -118,37 +64,28 @@ function interviewInstructions(course: string, track: string, persona: string, m
     ...panelInstructions,
     "AFTER EVERY SUBSTANTIVE CANDIDATE ANSWER, your spoken response must contain exactly two substantive sentences before you stop: sentence one is one short, specific feedback sentence grounded in what the candidate actually said; sentence two is exactly one follow-up question that develops, tests, or challenges that reasoning.",
     "Do not put filler such as 'Right', 'Okay', 'Interesting', or generic praise before the feedback sentence. The first spoken sentence must itself contain the useful feedback because the client saves that sentence as the written feedback note.",
-    "The feedback sentence should identify one concrete strength, missing justification, assumption, ambiguity, correction, useful revision, or reasoning habit. Avoid generic praise such as 'great answer', 'excellent', 'good job', or 'well done'.",
+    "The feedback sentence should identify one concrete academic strength, missing justification, assumption, ambiguity, correction, useful revision, or reasoning habit. Do not infer personality, confidence, anxiety, mental state, disability or other sensitive characteristics from speech, pauses, camera input, handwriting or performance.",
     "The follow-up must be a genuine academic question, not a coaching question about feelings, confidence, admissions chances, or whether the candidate wants to continue.",
-    "If the answer is very short, unclear, or incorrect, do not simply announce the answer. Name the specific missing step or problematic assumption and then ask a smaller question that makes the candidate's reasoning explicit.",
+    "If the answer is very short, unclear, or incorrect, do not simply announce the answer. Name the specific missing academic step or problematic assumption and then ask a smaller question that makes the candidate's reasoning explicit.",
     "Probe assumptions, evidence, definitions, limiting cases, counterexamples, calculations, diagrams, estimates, mechanisms, alternative interpretations, or transfer to a changed condition depending on the course and answer.",
-    "If the client tells you that a camera snapshot or whiteboard has been analysed, treat that analysis as evidence about the candidate's visible working and ask one question grounded in it. Do not pretend you saw anything that the analysis did not state.",
+    "If the client tells you that a camera snapshot or whiteboard has been analysed, treat that analysis only as evidence about visible academic working. Do not infer emotion, health, disability, identity, attractiveness, socioeconomic background or other personal traits from appearance or behaviour.",
     "Do not reveal the full solution, provide a model answer during the interview, predict admissions outcomes, or immediately declare answers right or wrong without probing the reasoning.",
-    "If the candidate changes their mind after new evidence or a counterexample, explicitly recognise the revision in the feedback sentence and explore why the revised view is justified.",
+    "If the candidate changes their mind after new evidence or a counterexample, explicitly recognise the academic revision in the feedback sentence and explore why the revised view is justified.",
     "If the candidate asks you to repeat or clarify a question, do so briefly without treating that request as a substantive answer.",
     "If the candidate asks for the answer during the interview, preserve the interview format: give at most a minimal orientation permitted by the selected mode, then return the reasoning to the candidate.",
     ...modeInstructions(mode),
     "For the opening turn, give a brief natural greeting and one challenging but accessible opening question. Do not give feedback before the candidate has answered.",
-    "When the candidate asks to finish, stop the question cycle and give a concise spoken debrief: one specific reasoning strength, one specific weakness, one example from the conversation, and one next practice action. Then clearly say that the interview is complete and ask no further question.",
-    "Keep the interaction focused on academic preparation and avoid collecting personal information.",
+    "When the candidate asks to finish, stop the question cycle and give a concise spoken debrief: one specific reasoning strength, one specific academic weakness, one example from the conversation, and one next practice action. Then clearly say that the interview is complete and ask no further question.",
+    "Keep the interaction focused on academic preparation and do not collect unnecessary personal information.",
   ].join("\n")
 }
 
 async function requestEphemeralToken(apiKey: string) {
   const now = Date.now()
   const body = { uses: 1, newSessionExpireTime: new Date(now + 60_000).toISOString(), expireTime: new Date(now + 30 * 60_000).toISOString() }
-  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
-    method: "POST",
-    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000),
-    cache: "no-store",
-  })
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", { method: "POST", headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000), cache: "no-store" })
   const text = await response.text()
-  if (!response.ok) {
-    const googleError = parseGoogleError(text)
-    return { ok: false as const, statusCode: response.status, googleStatus: googleError.status, message: googleError.message || `HTTP ${response.status}` }
-  }
+  if (!response.ok) { const googleError = parseGoogleError(text); return { ok: false as const, statusCode: response.status, googleStatus: googleError.status, message: googleError.message || `HTTP ${response.status}` } }
   let parsed: GoogleTokenResponse
   try { parsed = JSON.parse(text) as GoogleTokenResponse } catch { throw new Error("Gemini token provisioning returned malformed JSON.") }
   const token = typeof parsed.name === "string" ? parsed.name : typeof parsed.authToken?.name === "string" ? parsed.authToken.name : ""
@@ -162,17 +99,11 @@ async function createEphemeralTokenFromConfiguredKeys() {
   for (const candidate of candidates) {
     const result = await requestEphemeralToken(candidate.value)
     if (result.ok) return { token: result.token, credentialSource: candidate.source }
-    if (result.statusCode === 401 || result.statusCode === 403 || result.googleStatus === "UNAUTHENTICATED") {
-      console.warn(`Gemini rejected ${candidate.source} while provisioning a Live token: ${result.googleStatus || result.statusCode}`)
-      lastCredentialError = result.message
-      continue
-    }
+    if (result.statusCode === 401 || result.statusCode === 403 || result.googleStatus === "UNAUTHENTICATED") { console.warn(`Gemini rejected ${candidate.source} while provisioning a Live token: ${result.googleStatus || result.statusCode}`); lastCredentialError = result.message; continue }
     if (result.statusCode === 429) { const error = new Error("Gemini Live is temporarily at its usage limit. Please try again shortly."); error.name = "GeminiQuotaError"; throw error }
     throw new Error(`Gemini Live token provisioning failed: ${result.message}`)
   }
-  const error = new Error(lastCredentialError
-    ? "The deployment has a Gemini credential configured, but Google rejected it. The server must use a valid Gemini Developer API key as the raw environment value; OAuth access tokens and previously issued ephemeral tokens will not work here."
-    : "Gemini Live is not configured on this deployment. Add a valid server-side Gemini Developer API key and redeploy.")
+  const error = new Error(lastCredentialError ? "The deployment has a Gemini credential configured, but Google rejected it. The server must use a valid Gemini Developer API key as the raw environment value; OAuth access tokens and previously issued ephemeral tokens will not work here." : "Gemini Live is not configured on this deployment. Add a valid server-side Gemini Developer API key and redeploy.")
   error.name = "GeminiAuthenticationError"
   throw error
 }
@@ -185,7 +116,6 @@ export async function createLiveSession(request: Request) {
   if (!hasGeminiApiKey()) return NextResponse.json({ error: "Gemini Live is not configured on this deployment. Add a server-side Gemini API key and redeploy.", code: "GEMINI_KEY_MISSING", revision: GEMINI_LIVE_REVISION }, { status: 503, headers: { "Cache-Control": "no-store" } })
   let body: SessionRequest = {}
   try { body = await request.json() as SessionRequest } catch { return NextResponse.json({ error: "Invalid request body", code: "INVALID_REQUEST", revision: GEMINI_LIVE_REVISION }, { status: 400 }) }
-
   const course = safeText(body.course, "the selected course")
   const track = safeText(body.track, "the selected subject family", 80)
   const persona = safeText(body.persona, "Socratic academic", 80)
@@ -196,7 +126,6 @@ export async function createLiveSession(request: Request) {
   const panel = Boolean(body.panel)
   const voice: GeminiVoice = VOICES.includes(body.voice as GeminiVoice) ? body.voice as GeminiVoice : "Gacrux"
   const model = normalizeLiveModelName(process.env.GEMINI_LIVE_MODEL)
-
   try {
     const { token, credentialSource } = await createEphemeralTokenFromConfiguredKeys()
     return NextResponse.json({ token, model, voice, instructions: interviewInstructions(course, track, persona, mode, material, preparationNotes, focus, panel), expiresInSeconds: 1800, revision: GEMINI_LIVE_REVISION, credentialSource }, { headers: { "Cache-Control": "no-store" } })
