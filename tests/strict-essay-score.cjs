@@ -51,10 +51,9 @@ const strongEssay = [
   'On balance, companies should carry limited legal responsibility where they have clear notice and a reasonable opportunity to act.'
 ].join('\n\n')
 
-assert.deepEqual(
-  UNIVERSITY_CLASSIFICATION_BANDS.map(b => [b.minimum, b.label]),
-  [[85,'Exceptional First'],[70,'First'],[67,'High II.1'],[60,'Upper Second (II.1)'],[50,'Lower Second (II.2)'],[40,'Third'],[0,'Fail']]
-)
+const actualBands = UNIVERSITY_CLASSIFICATION_BANDS.map(b => [b.minimum, b.label])
+const expectedBands = [[85,'Exceptional First'],[70,'First'],[67,'High II.1'],[60,'Upper Second (II.1)'],[50,'Lower Second (II.2)'],[40,'Third'],[0,'Fail']]
+assert.equal(JSON.stringify(actualBands), JSON.stringify(expectedBands))
 
 const excellent = scoreStrictEssay(reportWithLevels([4,4,4,4,4,4]), policyPrompt, strongEssay)
 assert.equal(excellent.rawScore, 100)
