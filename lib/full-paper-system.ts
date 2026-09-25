@@ -1,7 +1,8 @@
 import type { TestQuestion } from "@/lib/oxbridge-data"
 import { lnatEssayPrompts2027, taraWritingPrompts2027 } from "@/lib/question-bank-2027"
-import { uniqueFullPaperQuestionBank } from "@/lib/full-paper-unique-bank"
+import { reliableFullPaperQuestionBank } from "@/lib/full-paper-reliable-bank"
 import { prepareQuestionSet } from "@/lib/question-quality"
+import { auditQuestionReliability, reliabilityScore } from "@/lib/question-reliability"
 
 export type FullPaperTest = TestQuestion["test"]
 export type PaperForm = 1 | 2
@@ -51,6 +52,13 @@ function seededRank(id: string, seed: number) {
   return hashString(`${id}:${seed}`)
 }
 
+function questionFamilyKey(question: TestQuestion) {
+  // Generated banks end ids with a variant number. Removing only the final
+  // numeric segment preserves meaningful passage/task families while stopping
+  // one parameterised template from dominating a paper.
+  return question.id.replace(/-\d+$/, "")
+}
+
 function pickUniqueQuestions(
   test: FullPaperTest,
   sourceSection: string,
@@ -59,25 +67,51 @@ function pickUniqueQuestions(
   salt: string,
 ) {
   const seed = hashString(`${test}:${sourceSection}:form-${form}:${salt}`)
-  const pool = uniqueFullPaperQuestionBank
+  const pool = reliableFullPaperQuestionBank
     .filter(question => question.test === test && question.section === sourceSection)
-    .sort((a, b) => seededRank(a.id, seed) - seededRank(b.id, seed))
+    .filter(question => auditQuestionReliability(question).blocking.length === 0)
+    .sort((a, b) => {
+      const reliabilityDifference = reliabilityScore(b) - reliabilityScore(a)
+      if (reliabilityDifference !== 0) return reliabilityDifference
+      return seededRank(a.id, seed) - seededRank(b.id, seed)
+    })
 
   const usedIds = new Set<string>()
   const usedSignatures = new Set<string>()
+  const familyUses = new Map<string, number>()
   const selected: TestQuestion[] = []
 
-  for (const question of pool) {
-    const signature = promptSignature(question.prompt)
-    if (usedIds.has(question.id) || usedSignatures.has(signature)) continue
-    usedIds.add(question.id)
-    usedSignatures.add(signature)
-    selected.push(question)
-    if (selected.length === count) break
+  // Select in rounds: one item per family first, then a second per family, etc.
+  // This keeps realistic passage clusters while preventing repetitive numeric
+  // families or one SJT scenario type from filling most of a paper.
+  for (let round = 0; selected.length < count && round < 12; round++) {
+    for (const question of pool) {
+      if (selected.length === count) break
+      const signature = promptSignature(question.prompt)
+      const family = questionFamilyKey(question)
+      if ((familyUses.get(family) ?? 0) !== round) continue
+      if (usedIds.has(question.id) || usedSignatures.has(signature)) continue
+      usedIds.add(question.id)
+      usedSignatures.add(signature)
+      familyUses.set(family, round + 1)
+      selected.push(question)
+    }
+  }
+
+  // Defensive fallback for any section whose ids do not expose family structure.
+  if (selected.length < count) {
+    for (const question of pool) {
+      if (selected.length === count) break
+      const signature = promptSignature(question.prompt)
+      if (usedIds.has(question.id) || usedSignatures.has(signature)) continue
+      usedIds.add(question.id)
+      usedSignatures.add(signature)
+      selected.push(question)
+    }
   }
 
   if (selected.length !== count) {
-    throw new Error(`Unique question pool too small for ${test} / ${sourceSection}: needed ${count}, found ${selected.length}.`)
+    throw new Error(`Reliable unique question pool too small for ${test} / ${sourceSection}: needed ${count}, found ${selected.length}.`)
   }
 
   return prepareQuestionSet(selected, seed)
@@ -91,6 +125,10 @@ function finalisePaper(paper: FullPaperDefinition): FullPaperDefinition {
     if (section.kind !== "mcq") continue
     for (const question of section.questions) {
       const signature = promptSignature(question.prompt)
+      const reliability = auditQuestionReliability(question)
+      if (reliability.blocking.length) {
+        throw new Error(`Unreliable question in ${paper.id}: ${question.id} (${reliability.blocking.map(issue => issue.code).join(", ")})`)
+      }
       if (seenIds.has(question.id)) {
         throw new Error(`Duplicate question id in ${paper.id}: ${question.id}`)
       }
@@ -141,7 +179,7 @@ export function buildFullPaper(
       title: `TMUA Practice Form ${form}`,
       subtitle: "Full two-paper simulation",
       totalMinutes: 150,
-      note: "Raw marks are for practice only. No calculator. There is no negative marking. Every question in the paper is drawn from a structurally diverse pool and duplicate or number-only repeated templates are blocked.",
+      note: "Raw marks are for practice only. No calculator. There is no negative marking. Questions are reliability-screened, numerically checked and balanced across distinct reasoning families before answer positions are shuffled.",
       sections: [
         {
           id: "paper-1",
@@ -177,7 +215,7 @@ export function buildFullPaper(
       title: `ESAT Practice Form ${form}`,
       subtitle: selected.join(" · "),
       totalMinutes: selected.length * 40,
-      note: "Mathematics 1 is compulsory. This mock uses two additional modules selected by the student. No calculator and no negative marking. Each module is built from varied question families and repeated templates are rejected before the paper is shown.",
+      note: "Mathematics 1 is compulsory. This mock uses two additional modules selected by the student. No calculator and no negative marking. Generated numerical answers are checked for equivalent options and explanation consistency before selection.",
       sections: selected.map(module => ({
         id: `module-${esatCode[module]}`,
         title: module,
@@ -199,7 +237,7 @@ export function buildFullPaper(
       title: `TARA Practice Form ${form}`,
       subtitle: "Critical Thinking · Problem Solving · Writing Task",
       totalMinutes: 120,
-      note: "The writing task is left unscored. The multiple-choice sections now deliberately mix causal reasoning, assumptions, strengthening, weakening, logical flaws, percentages, rates, sets, averages, journeys and ratios instead of recycling one template.",
+      note: "The writing task is left unscored. Multiple-choice questions are reliability-screened and balanced across causal reasoning, assumptions, strengthening, weakening, logical flaws and varied problem-solving structures.",
       sections: [
         {
           id: "critical-thinking",
@@ -241,7 +279,7 @@ export function buildFullPaper(
       title: `LNAT Practice Form ${form}`,
       subtitle: "Section A · Multiple Choice + Section B · Essay",
       totalMinutes: 135,
-      note: "Section A is automatically marked. Section B is saved for review but is not assigned a fabricated numerical score. Passage questions are selected with a duplicate-template check so the paper does not recycle the same passage-question combination.",
+      note: "Section A is automatically marked. Section B is saved for review but is not assigned a fabricated numerical score. Passage questions are checked for reliability and balanced across conclusion, assumption, strengthening and criticism tasks.",
       sections: [
         {
           id: "section-a",
@@ -271,7 +309,7 @@ export function buildFullPaper(
     title: `UCAT Practice Form ${form}`,
     subtitle: "Current four-subtest structure",
     totalMinutes: 111,
-    note: "This practice mode reports raw marks and accuracy only. Each subtest is drawn from a wider pool of distinct passages, decisions, quantitative contexts and situational-judgement scenarios; duplicate and number-only repeated prompts are rejected.",
+    note: "This practice mode reports raw marks and accuracy only. Each subtest is reliability-screened, numerical equivalence is checked, and question families are balanced before the paper is shown.",
     sections: [
       {
         id: "vr",
