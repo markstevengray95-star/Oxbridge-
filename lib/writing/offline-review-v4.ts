@@ -3,6 +3,7 @@ import {
   buildOfflineWritingReport as buildV3OfflineWritingReport,
   type OfflineReviewInput,
 } from "./offline-review-v3"
+import { attachStrictEssayScoring } from "./strict-score"
 import type { WritingReport } from "./review"
 
 export { analyseOfflineEssayTask, type EssayTaskAnalysis, type EssayTaskType } from "./offline-review-v3"
@@ -45,5 +46,7 @@ function prioritizeRelevanceAnnotations(report: WritingReport, input: OfflineRev
 }
 
 export function buildOfflineWritingReport(input: OfflineReviewInput): WritingReport {
-  return prioritizeRelevanceAnnotations(buildV3OfflineWritingReport(input), input)
+  const report = prioritizeRelevanceAnnotations(buildV3OfflineWritingReport(input), input)
+  if (input.mode === "essay" && input.prompt?.trim()) return attachStrictEssayScoring(report, input.prompt, input.essay).report
+  return report
 }
