@@ -6,7 +6,8 @@ import { PROGRESS_KEY } from "@/lib/personal-tutor"
 
 const APP_STATE_PREFIX = "oxbridge-"
 const LOCAL_CACHE_OWNER_KEY = "__oxbridge_local_cache_owner_v1"
-const RESTORE_MARKER = "oxbridge-cloud-restore-v4"
+const SYNC_BASELINE_KEY = "__oxbridge_cloud_sync_baseline_v1"
+const RESTORE_MARKER = "oxbridge-cloud-restore-v5"
 const RAW_STORAGE_FORMAT_KEY = "__oxbridge_storage_format"
 const RAW_STORAGE_FORMAT = "raw-v1"
 
@@ -56,6 +57,35 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
 
+function fingerprint(raw: string) {
+  let hash = 2166136261
+  for (let index = 0; index < raw.length; index += 1) {
+    hash ^= raw.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${raw.length}:${(hash >>> 0).toString(16)}`
+}
+
+function readSyncBaseline() {
+  try {
+    const parsed = asRecord(JSON.parse(localStorage.getItem(SYNC_BASELINE_KEY) || "{}"))
+    if (!parsed) return {} as Record<string, string>
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([key, value]) => isAppStateKey(key) && typeof value === "string"),
+    ) as Record<string, string>
+  } catch {
+    return {} as Record<string, string>
+  }
+}
+
+function writeSyncBaseline(value: Record<string, string>) {
+  try {
+    localStorage.setItem(SYNC_BASELINE_KEY, JSON.stringify(value))
+  } catch {
+    // The app can still sync during this session even if the browser blocks this small metadata cache.
+  }
+}
+
 function durationSeconds(events: string[]) {
   const duration = events.find(event => event.startsWith("Duration:"))?.replace("Duration:", "").trim()
   if (!duration) return 0
@@ -89,6 +119,7 @@ export function CloudProgressSync() {
     let activeUserId: string | null = null
     let syncInFlight = false
     let pullInFlight = false
+    let syncBaseline = readSyncBaseline()
     const lastSeen = new Map<string, string>()
 
     function stopTimer() {
@@ -96,12 +127,26 @@ export function CloudProgressSync() {
       timer = null
     }
 
+    function rememberSynced(key: string, raw: string) {
+      lastSeen.set(key, raw)
+      syncBaseline[key] = fingerprint(raw)
+      writeSyncBaseline(syncBaseline)
+    }
+
+    function forgetSynced(key: string) {
+      lastSeen.delete(key)
+      delete syncBaseline[key]
+      writeSyncBaseline(syncBaseline)
+    }
+
     function resetSignedOutCache() {
       activeUserId = null
       lastSeen.clear()
+      syncBaseline = {}
       stopTimer()
       clearLocalAppState()
       localStorage.removeItem(LOCAL_CACHE_OWNER_KEY)
+      localStorage.removeItem(SYNC_BASELINE_KEY)
       sessionStorage.removeItem(RESTORE_MARKER)
       window.dispatchEvent(new CustomEvent("oxbridge-cloud-not-ready"))
     }
@@ -210,7 +255,7 @@ export function CloudProgressSync() {
         return
       }
 
-      lastSeen.set(key, raw)
+      rememberSynced(key, raw)
       if (key === PROGRESS_KEY) await importInterviewLogs(userId, value)
     }
 
@@ -226,7 +271,7 @@ export function CloudProgressSync() {
         console.warn("Oxbridge cloud delete failed", key, error.message)
         return
       }
-      lastSeen.delete(key)
+      forgetSynced(key)
     }
 
     async function syncLocalChanges() {
@@ -236,16 +281,16 @@ export function CloudProgressSync() {
 
       try {
         const currentKeys = new Set(localAppStateKeys())
-        const keys = new Set([...currentKeys, ...lastSeen.keys()])
+        const keys = new Set([...currentKeys, ...lastSeen.keys(), ...Object.keys(syncBaseline)])
 
         for (const key of keys) {
           if (cancelled || userId !== activeUserId) return
           const raw = localStorage.getItem(key)
           if (raw === null) {
-            if (lastSeen.has(key)) await deleteKey(userId, key)
+            if (lastSeen.has(key) || syncBaseline[key] !== undefined) await deleteKey(userId, key)
             continue
           }
-          if (lastSeen.get(key) !== raw) await pushKey(userId, key, raw)
+          if (lastSeen.get(key) !== raw || syncBaseline[key] !== fingerprint(raw)) await pushKey(userId, key, raw)
         }
       } finally {
         syncInFlight = false
@@ -274,24 +319,29 @@ export function CloudProgressSync() {
             .filter(row => isAppStateKey(row.state_key))
             .map(row => [row.state_key, row] as const),
         )
-        const keys = new Set([...rows.keys(), ...lastSeen.keys()])
+        const keys = new Set([...rows.keys(), ...lastSeen.keys(), ...Object.keys(syncBaseline)])
         let changed = false
 
         for (const key of keys) {
           if (cancelled || userId !== activeUserId) return false
           const localRaw = localStorage.getItem(key)
           const seenRaw = lastSeen.get(key)
-          const localDirty = seenRaw === undefined ? localRaw !== null : localRaw !== seenRaw
+          const baselineFingerprint = syncBaseline[key]
+          const localDirty = seenRaw !== undefined
+            ? localRaw !== seenRaw
+            : baselineFingerprint !== undefined
+              ? localRaw === null || fingerprint(localRaw) !== baselineFingerprint
+              : false
           if (localDirty) continue
 
           const cloudRow = rows.get(key)
           if (!cloudRow) {
-            if (seenRaw !== undefined) {
+            if (seenRaw !== undefined || baselineFingerprint !== undefined) {
               if (localRaw !== null) {
                 localStorage.removeItem(key)
                 changed = true
               }
-              lastSeen.delete(key)
+              forgetSynced(key)
             }
             continue
           }
@@ -301,7 +351,7 @@ export function CloudProgressSync() {
             localStorage.setItem(key, cloudRaw)
             changed = true
           }
-          lastSeen.set(key, cloudRaw)
+          rememberSynced(key, cloudRaw)
         }
 
         if (changed) {
@@ -324,10 +374,14 @@ export function CloudProgressSync() {
       window.dispatchEvent(new CustomEvent("oxbridge-cloud-not-ready", { detail: { userId } }))
       const previousOwner = localStorage.getItem(LOCAL_CACHE_OWNER_KEY)
       const switchedAccount = Boolean(previousOwner && previousOwner !== userId)
-      if (switchedAccount) clearLocalAppState()
+      if (switchedAccount) {
+        clearLocalAppState()
+        localStorage.removeItem(SYNC_BASELINE_KEY)
+      }
 
       activeUserId = userId
       lastSeen.clear()
+      syncBaseline = switchedAccount ? {} : readSyncBaseline()
       localStorage.setItem(LOCAL_CACHE_OWNER_KEY, userId)
 
       const { data, error } = await supabase
@@ -346,28 +400,42 @@ export function CloudProgressSync() {
           .filter(row => isAppStateKey(row.state_key))
           .map(row => [row.state_key, row] as const),
       )
-      const keys = new Set([...rows.keys(), ...localAppStateKeys()])
+      const keys = new Set([...rows.keys(), ...localAppStateKeys(), ...Object.keys(syncBaseline)])
       let restored = switchedAccount
 
       for (const key of keys) {
         if (cancelled || userId !== activeUserId) return
         const localRaw = localStorage.getItem(key)
         const cloudRow = rows.get(key)
+        const baselineFingerprint = syncBaseline[key]
+        const localChangedSinceSync = localRaw !== null && baselineFingerprint !== undefined && fingerprint(localRaw) !== baselineFingerprint
+        const localDeletedSinceSync = localRaw === null && baselineFingerprint !== undefined
 
         if (cloudRow) {
+          if (localChangedSinceSync) {
+            await pushKey(userId, key, localRaw)
+            continue
+          }
+          if (localDeletedSinceSync) {
+            await deleteKey(userId, key)
+            continue
+          }
+
           const cloudRaw = fromCloudValue(cloudRow.state_value)
           if (localRaw !== cloudRaw) {
             localStorage.setItem(key, cloudRaw)
             restored = true
           }
-          lastSeen.set(key, cloudRaw)
+          rememberSynced(key, cloudRaw)
           if (key === PROGRESS_KEY) await importInterviewLogs(userId, cloudRow.state_value)
         } else if (localRaw !== null) {
           await pushKey(userId, key, localRaw)
+        } else if (baselineFingerprint !== undefined) {
+          forgetSynced(key)
         }
       }
 
-      const marker = `${userId}:all-app-state-v4`
+      const marker = `${userId}:all-app-state-v5`
       if (restored && sessionStorage.getItem(RESTORE_MARKER) !== marker) {
         sessionStorage.setItem(RESTORE_MARKER, marker)
         window.location.reload()
