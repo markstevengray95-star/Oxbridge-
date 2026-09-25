@@ -21,8 +21,10 @@ function loadTypeScriptModule(path) {
 }
 
 const upgradeModule = loadTypeScriptModule("../lib/question-bank-reliability-upgrades.ts")
+const qrUpgradeModule = loadTypeScriptModule("../lib/ucat-qr-reliability-upgrades.ts")
 const reliabilityModule = loadTypeScriptModule("../lib/question-reliability.ts")
-const rawBank = upgradeModule.reliabilityUpgradeQuestionBank
+const primaryBank = upgradeModule.reliabilityUpgradeQuestionBank.filter(question => !(question.test === "UCAT" && question.section === "Quantitative Reasoning"))
+const rawBank = [...primaryBank, ...qrUpgradeModule.ucatQrReliabilityUpgradeBank]
 const { auditQuestionReliability, repairQuestionReliability } = reliabilityModule
 
 if (!Array.isArray(rawBank) || rawBank.length === 0) throw new Error("Reliability upgrade bank failed to load.")
