@@ -1,6 +1,5 @@
 import "server-only"
 
-import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
 import { isConfiguredAdminEmail } from "@/lib/auth/admin-access"
 
 export const ADMIN_CAPABILITIES = [
@@ -19,38 +18,20 @@ export type AdminCapability = typeof ADMIN_CAPABILITIES[number]
 export type AppAdminAccess = {
   isAdmin: boolean
   unrestricted: boolean
-  source: "database" | "environment" | "none"
+  source: "environment" | "none"
   capabilities: AdminCapability[]
 }
 
-function granted(source: AppAdminAccess["source"]): AppAdminAccess {
-  return { isAdmin: true, unrestricted: true, source, capabilities: [...ADMIN_CAPABILITIES] }
+function granted(): AppAdminAccess {
+  return { isAdmin: true, unrestricted: true, source: "environment", capabilities: [...ADMIN_CAPABILITIES] }
 }
 
 function denied(): AppAdminAccess {
   return { isAdmin: false, unrestricted: false, source: "none", capabilities: [] }
 }
 
-export async function getAppAdminAccess(userId: string, email?: string | null): Promise<AppAdminAccess> {
-  const environmentAdmin = isConfiguredAdminEmail(email)
-
-  if (!hasSupabaseAdminConfig()) return environmentAdmin ? granted("environment") : denied()
-
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from("app_admins")
-    .select("role")
-    .eq("user_id", userId)
-    .maybeSingle()
-
-  if (data?.role === "admin") return granted("database")
-
-  if (environmentAdmin) {
-    await admin.from("app_admins").upsert({ user_id: userId, role: "admin" }, { onConflict: "user_id" })
-    return granted("environment")
-  }
-
-  return denied()
+export async function getAppAdminAccess(_userId: string, email?: string | null): Promise<AppAdminAccess> {
+  return isConfiguredAdminEmail(email) ? granted() : denied()
 }
 
 export async function hasAdminCapability(userId: string, email: string | null | undefined, capability: AdminCapability) {
