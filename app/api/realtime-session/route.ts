@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createLiveSession, getLiveConfig } from "@/lib/gemini/live-session-secure"
+import { selectAvailableLiveModel } from "@/lib/gemini/live-model-fallback"
 import { releaseGeminiReservation, reserveGeminiSession } from "@/lib/billing/usage"
 
 export const runtime = "nodejs"
@@ -41,9 +42,36 @@ export async function POST(request: Request) {
     if (!response.ok) {
       await releaseGeminiReservation(reservationId)
       reservationId = null
+      return response
     }
 
-    return response
+    const payload = await response.json() as {
+      token?: string
+      model?: string
+      voice?: string
+      instructions?: string
+      expiresInSeconds?: number
+      revision?: string
+      credentialSource?: string
+      [key: string]: unknown
+    }
+
+    const selection = await selectAvailableLiveModel(payload.credentialSource)
+
+    if (selection.fallbackUsed) {
+      console.warn(`Gemini Live primary model ${selection.primaryModel} was unavailable; using ${selection.model}.`)
+    }
+
+    return NextResponse.json({
+      ...payload,
+      model: selection.model,
+      modelFallback: {
+        primary: selection.primaryModel,
+        active: selection.model,
+        fallbackUsed: selection.fallbackUsed,
+        candidates: selection.configuredModels,
+      },
+    }, { headers: { "Cache-Control": "no-store" } })
   } catch (error) {
     await releaseGeminiReservation(reservationId)
     console.error("Gemini Live billing gate failed", error)
