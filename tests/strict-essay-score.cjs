@@ -28,7 +28,7 @@ function load(file) {
   return exports
 }
 
-const { scoreStrictEssay, attachStrictEssayScoring } = load('lib/writing/strict-score.ts')
+const { scoreStrictEssay, attachStrictEssayScoring, UNIVERSITY_CLASSIFICATION_BANDS } = load('lib/writing/strict-score.ts')
 
 function reportWithLevels(levels) {
   const labels = ['Answering the question','Reasoning and assumptions','Evidence and examples','Counterargument and evaluation','Structure and progression','Precision and clarity']
@@ -50,12 +50,27 @@ const strongEssay = [
   'However, automatic liability for every user post would be too broad because companies cannot review every message before publication.',
   'On balance, companies should carry limited legal responsibility where they have clear notice and a reasonable opportunity to act.'
 ].join('\n\n')
+
+assert.deepEqual(
+  UNIVERSITY_CLASSIFICATION_BANDS.map(b => [b.minimum, b.label]),
+  [[85,'Exceptional First'],[70,'First'],[67,'High II.1'],[60,'Upper Second (II.1)'],[50,'Lower Second (II.2)'],[40,'Third'],[0,'Fail']]
+)
+
 const excellent = scoreStrictEssay(reportWithLevels([4,4,4,4,4,4]), policyPrompt, strongEssay)
 assert.equal(excellent.rawScore, 100)
 assert.equal(excellent.score, 100)
-assert.equal(excellent.grade, 'A*')
+assert.equal(excellent.classification, 'Exceptional First')
+assert.equal(excellent.grade, 'Exceptional First')
 assert.equal(excellent.caps.length, 0)
 assert.equal(excellent.components.reduce((sum, part) => sum + part.weight, 0), 100)
+
+const first = scoreStrictEssay(reportWithLevels([3,3,3,3,3,3]), policyPrompt, strongEssay)
+assert.equal(first.score, 75)
+assert.equal(first.classification, 'First')
+
+const highTwoOne = scoreStrictEssay(reportWithLevels([3,3,3,2,2,3]), policyPrompt, strongEssay)
+assert.ok(highTwoOne.score >= 67 && highTwoOne.score <= 69)
+assert.equal(highTwoOne.classification, 'High II.1')
 
 const offTopicEssay = [
   'School uniforms may create a shared identity and reduce visible differences between pupils.',
@@ -64,9 +79,9 @@ const offTopicEssay = [
   'Overall, schools should review uniform costs and comfort.'
 ].join('\n\n')
 const offTopic = scoreStrictEssay(reportWithLevels([4,4,4,4,4,4]), policyPrompt, offTopicEssay)
-assert.ok(offTopic.score <= 29, `polished off-topic essay must be capped at 29, got ${offTopic.score}`)
-assert.equal(offTopic.grade, 'U')
-assert.ok(offTopic.caps.some(cap => cap.maximum === 29))
+assert.ok(offTopic.score <= 39, `polished off-topic essay must remain fail-standard, got ${offTopic.score}`)
+assert.equal(offTopic.classification, 'Fail')
+assert.ok(offTopic.caps.some(cap => cap.maximum === 39))
 
 const comparePrompt = 'Which is more important for democracy: free speech or compulsory voting?'
 const oneSidedEssay = [
@@ -75,21 +90,21 @@ const oneSidedEssay = [
   'This makes free speech important for accountable government.'
 ].join('\n\n')
 const incompleteTask = scoreStrictEssay(reportWithLevels([4,4,4,4,4,4]), comparePrompt, oneSidedEssay)
-assert.ok(incompleteTask.score <= 64, `task-incomplete essay must be capped, got ${incompleteTask.score}`)
+assert.ok(incompleteTask.score <= 59, `task-incomplete essay must stay within II.2 or below, got ${incompleteTask.score}`)
 assert.ok(incompleteTask.caps.some(cap => /does not fully complete/i.test(cap.reason)))
 
 const weakReasoning = scoreStrictEssay(reportWithLevels([4,1,4,4,4,4]), policyPrompt, strongEssay)
-assert.ok(weakReasoning.score <= 54, `weak reasoning must cap the overall result, got ${weakReasoning.score}`)
-assert.ok(weakReasoning.caps.some(cap => /Reasoning is too weak/i.test(cap.reason)))
+assert.ok(weakReasoning.score <= 59, `weak reasoning must prevent II.1/First classification, got ${weakReasoning.score}`)
+assert.ok(weakReasoning.caps.some(cap => /Reasoning and analysis are too limited/i.test(cap.reason)))
 
 const attachedReport = reportWithLevels([4,4,4,4,4,4])
 const attached = attachStrictEssayScoring(attachedReport, policyPrompt, strongEssay)
-assert.match(attached.report.summary, /^Strict practice mark: 100\/100 — Grade A\*/)
-assert.ok(attached.report.criteria.every(c => /^Strict weighted mark:/.test(c.judgement)))
-assert.match(attached.report.limitations[0], /not an official Oxford, Cambridge/i)
+assert.match(attached.report.summary, /^University-style practice mark: 100\/100 — Exceptional First/)
+assert.ok(attached.report.criteria.every(c => /^University-style weighted mark:/.test(c.judgement)))
+assert.match(attached.report.limitations[0], /not an official Oxford or Cambridge/i)
 
 const routeSource = fs.readFileSync('app/api/essay-analysis/route.ts', 'utf8')
 assert.match(routeSource, /attachStrictEssayScoring/)
 assert.match(routeSource, /rubricVersion: 4/)
 
-console.log('PASS: strict 100-point weighting, A-U grading, off-topic/task/reasoning caps, report breakdown, and API wiring')
+console.log('PASS: university classification bands, strict weighted scoring, relevance/task/reasoning ceilings, report language, and API wiring')
