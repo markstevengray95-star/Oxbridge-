@@ -1,4 +1,5 @@
 import type { TestQuestion } from "@/lib/oxbridge-data"
+import { prepareQuestionSet, questionQualitySignals } from "@/lib/question-quality"
 
 export type InterviewAnswerFeedback = {
   score: number
@@ -109,19 +110,43 @@ function sectionMatches(questionSection: string, target: string) {
   return tokens.some(token => a.includes(token)) || a.includes(b) || b.includes(a)
 }
 
+function hashString(value: string) {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
 export function selectRetestQuestions(pool: TestQuestion[], test: TestQuestion["test"], targets: InterventionTarget[], count = 12) {
   const targetSections = targets.map(target => target.section)
   const relevant = pool.filter(question => question.test === test && targetSections.some(target => sectionMatches(question.section, target)))
   const fallback = pool.filter(question => question.test === test)
   const source = relevant.length >= Math.min(6, count) ? relevant : fallback
+
+  // Select by discrimination quality first, with a small deterministic tie-break so
+  // consecutive retests do not always expose the exact same questions.
+  const ranked = [...source]
+    .map(question => ({
+      question,
+      score: questionQualitySignals(question).discriminationScore + (hashString(`${question.id}:${targets.map(target => target.section).join("|")}`) % 1000) / 5000,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map(item => item.question)
+
   const seen = new Set<string>()
   const picked: TestQuestion[] = []
-  for (let i = 0; i < source.length * 2 && picked.length < count; i++) {
-    const question = source[(i * 37 + targets.length * 11) % source.length]
+  for (const question of ranked) {
+    if (picked.length >= count) break
     if (!seen.has(question.id)) {
       seen.add(question.id)
       picked.push(question)
     }
   }
-  return picked
+
+  // Re-shuffle answer positions for this exact retest so a subset cannot inherit
+  // a visible A/B/C/D sequence from its source bank.
+  const seed = hashString(`${test}:${targetSections.join("|")}:${picked.map(question => question.id).join("|")}`)
+  return prepareQuestionSet(picked, seed)
 }
