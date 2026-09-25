@@ -13,6 +13,7 @@ export type QuestionQualitySignals = {
 const normalise = (text:string) => text.toLowerCase().replace(/\d+(?:\.\d+)?/g,"#").replace(/[^a-z#]+/g," ").replace(/\s+/g," ").trim()
 const EXTREME_WORDS = /\b(always|never|every|everyone|entirely|completely|guarantees?|must|impossible|meaningless|automatically|only|all|none)\b/i
 const REASONING_STEM = /\b(best|most|least|assumption|inference|conclusion|weakens?|strengthens?|supported|necessarily|defensible|evidence|explain|justify|follows|consistent|counterexample|limitation|reasoning)\b/i
+const MULTI_STEP_LANGUAGE = /\b(suppose|given that|assuming|however|therefore|which statement|which conclusion|which criticism|which response|from the information|compared with|changes? from|after|before|if .* then)\b/i
 
 function hashString(value:string) {
   let hash = 2166136261
@@ -48,6 +49,10 @@ function optionLength(text:string) {
   return text.replace(/\s+/g," ").trim().length
 }
 
+function numericLikeOption(text:string) {
+  return /^[\s£$€¥+−-]*\d[\d\s.,/%²³^×÷*()A-Za-zΩμ⁻]*$/.test(text.trim())
+}
+
 export function questionQualitySignals(q:TestQuestion):QuestionQualitySignals {
   const lengths = q.options.map(optionLength)
   const correctLength = lengths[q.answer] ?? 0
@@ -60,11 +65,20 @@ export function questionQualitySignals(q:TestQuestion):QuestionQualitySignals {
   const extremeDistractorCount = q.options.filter((option,index)=>index!==q.answer && EXTREME_WORDS.test(option)).length
   const reasoningStem = REASONING_STEM.test(q.prompt)
   const optionLengthSpread = longest/shortest
+  const numericOptions = q.options.length>1 && q.options.every(numericLikeOption)
+  const directOneStep = numericOptions && q.prompt.length<120 && /\b(what is|how many|calculate|find)\b/i.test(q.prompt) && !MULTI_STEP_LANGUAGE.test(q.prompt)
+  const equationCount = (q.prompt.match(/[=<>≤≥]/g)??[]).length
 
-  let discriminationScore = q.difficulty === "Challenge" ? 3 : q.difficulty === "Stretch" ? 1.8 : 0.6
-  if (reasoningStem) discriminationScore += 1.2
-  if (q.prompt.length >= 140) discriminationScore += 0.8
-  if (q.prompt.includes("\n")) discriminationScore += 0.45
+  // Stored difficulty labels are only a weak prior. The structure of the reasoning
+  // matters more, because many generated banks historically assigned labels by index.
+  let discriminationScore = q.difficulty === "Challenge" ? 1.35 : q.difficulty === "Stretch" ? 0.9 : 0.45
+  if (reasoningStem) discriminationScore += 1.5
+  if (MULTI_STEP_LANGUAGE.test(q.prompt)) discriminationScore += 0.55
+  if (q.prompt.length >= 100) discriminationScore += 0.45
+  if (q.prompt.length >= 180) discriminationScore += 0.45
+  if (q.prompt.includes("\n")) discriminationScore += 0.35
+  if (equationCount>=2) discriminationScore += 0.4
+  if (directOneStep) discriminationScore -= 0.9
   if (correctIsUniqueLongest) discriminationScore -= 2.2
   if (correctLengthRatio > 1.55) discriminationScore -= 1.1
   if (optionLengthSpread > 3.2) discriminationScore -= 0.7
@@ -171,14 +185,14 @@ export function strengthenQuestionSelection(primary:TestQuestion[], fallbackPool
     .map(candidate=>({ candidate, score:questionQualitySignals(candidate).discriminationScore + random()*0.35 }))
     .sort((a,b)=>b.score-a.score)
 
-  const selected = primary.map((original,index)=>{
+  const selected = primary.map(original=>{
     const originalScore = questionQualitySignals(original).discriminationScore
-    if (originalScore >= 1.7) { used.add(original.id); return original }
-    const replacement = rankedFallback.find(({candidate}) =>
+    if (originalScore >= 2) { used.add(original.id); return original }
+    const replacement = rankedFallback.find(({candidate,score}) =>
       !used.has(candidate.id) &&
       candidate.test===original.test &&
       sectionCompatible(candidate.section,original.section,original.test) &&
-      questionQualitySignals(candidate).discriminationScore >= Math.max(2.2,originalScore+0.8)
+      score >= Math.max(2.15,originalScore+0.35)
     )?.candidate
     const chosen = replacement ?? original
     used.add(chosen.id)
@@ -202,7 +216,7 @@ export function auditAnswerPatterns(bank:TestQuestion[]) {
     const signals = questionQualitySignals(q)
     if (signals.correctIsUniqueLongest) uniquelyLongestCorrect += 1
     if (signals.extremeDistractorCount>=2) extremeDistractorQuestions += 1
-    if (signals.discriminationScore<1.7) lowDiscrimination += 1
+    if (signals.discriminationScore<1.6) lowDiscrimination += 1
     if (q.answer===previous) run += 1
     else { previous=q.answer; run=1 }
     longestRun = Math.max(longestRun,run)
@@ -241,7 +255,7 @@ export function validateQuestionBank(bank: TestQuestion[]) {
     const signals = questionQualitySignals(q)
     if (signals.correctIsUniqueLongest) issues.push({severity:"warning",id:q.id,test:q.test,message:"Correct answer is conspicuously longer than every distractor."})
     if (signals.extremeDistractorCount>=2) issues.push({severity:"warning",id:q.id,test:q.test,message:"Multiple distractors use absolute/extreme wording and may be too easy to eliminate."})
-    if (signals.discriminationScore<1.2) issues.push({severity:"warning",id:q.id,test:q.test,message:"Low-discrimination item: consider a multi-step stem or more plausible near-miss distractors."})
+    if (signals.discriminationScore<1.15) issues.push({severity:"warning",id:q.id,test:q.test,message:"Low-discrimination item: consider a multi-step stem or more plausible near-miss distractors."})
   }
 
   for (const [id,count] of ids) if (count>1) issues.push({severity:"error",id,test:"Multiple",message:`Duplicate question id appears ${count} times.`})
