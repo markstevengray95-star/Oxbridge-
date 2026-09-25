@@ -39,5 +39,8 @@ jobs:
       - name: Question reliability checks
         run: node tests/question-reliability.mjs
 
+      - name: Upgraded question bank checks
+        run: node tests/reliability-upgrade-bank.mjs
+
       - name: Type-aware production build
         run: npm run build
