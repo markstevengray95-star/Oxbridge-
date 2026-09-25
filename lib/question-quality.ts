@@ -53,6 +53,60 @@ function numericLikeOption(text:string) {
   return /^[\s£$€¥+−-]*\d[\d\s.,/%²³^×÷*()A-Za-zΩμ⁻]*$/.test(text.trim())
 }
 
+function optionKey(text:string) {
+  return text.replace(/\s+/g," ").trim().toLowerCase()
+}
+
+function generatedNearMiss(correct:string, attempt:number) {
+  const match = correct.trim().match(/^([£$€¥]?)(-?\d+(?:\.\d+)?)(.*)$/)
+  if (match) {
+    const [,prefix,raw,suffix] = match
+    const value = Number(raw)
+    if (Number.isFinite(value)) {
+      const decimals = raw.includes(".") ? Math.min(3,raw.split(".")[1].length) : 0
+      const offsets = value === 0 ? [1,-1,2,-2] : [0.1,-0.1,0.25,-0.25]
+      const delta = offsets[attempt%offsets.length]
+      const candidate = value === 0 ? delta : value*(1+delta)
+      const rendered = decimals ? candidate.toFixed(decimals) : String(Math.round(candidate))
+      if (Number(rendered)!==value) return `${prefix}${rendered}${suffix}`
+    }
+  }
+  const textFallbacks = [
+    "The evidence points in that direction, but it does not establish the decisive step needed for this conclusion.",
+    "The conclusion is plausible under an extra assumption, but that assumption is not secured by the information given.",
+    "This identifies a relevant consideration, but it is not the option most directly supported by the question.",
+    "This would follow only if an additional condition held; that condition is not stated here.",
+  ]
+  return textFallbacks[attempt%textFallbacks.length]
+}
+
+/** Repair accidental duplicate options created by parameterised question templates. */
+export function ensureUniqueOptions(q:TestQuestion):TestQuestion {
+  if (!Array.isArray(q.options) || q.options.length<2 || q.answer<0 || q.answer>=q.options.length) return q
+  const correct = q.options[q.answer]
+  const rebuilt:string[] = []
+  const used = new Set<string>()
+  let repaired = false
+  for (let index=0;index<q.options.length;index++) {
+    let option = q.options[index]
+    let key = optionKey(option)
+    if (used.has(key)) {
+      repaired = true
+      let attempt = index + hashString(q.id)%7
+      do {
+        option = generatedNearMiss(correct,attempt++)
+        key = optionKey(option)
+      } while (used.has(key) && attempt<index+20)
+    }
+    used.add(key)
+    rebuilt.push(option)
+  }
+  if (!repaired) return q
+  // The correct option itself is never replaced: a duplicate encountered later is the
+  // distractor that gets regenerated, so the original answer index remains valid.
+  return { ...q, options:rebuilt }
+}
+
 export function questionQualitySignals(q:TestQuestion):QuestionQualitySignals {
   const lengths = q.options.map(optionLength)
   const correctLength = lengths[q.answer] ?? 0
@@ -68,9 +122,8 @@ export function questionQualitySignals(q:TestQuestion):QuestionQualitySignals {
   const numericOptions = q.options.length>1 && q.options.every(numericLikeOption)
   const directOneStep = numericOptions && q.prompt.length<120 && /\b(what is|how many|calculate|find)\b/i.test(q.prompt) && !MULTI_STEP_LANGUAGE.test(q.prompt)
   const equationCount = (q.prompt.match(/[=<>≤≥]/g)??[]).length
+  const duplicateCount = q.options.length-new Set(q.options.map(optionKey)).size
 
-  // Stored difficulty labels are only a weak prior. The structure of the reasoning
-  // matters more, because many generated banks historically assigned labels by index.
   let discriminationScore = q.difficulty === "Challenge" ? 1.35 : q.difficulty === "Stretch" ? 0.9 : 0.45
   if (reasoningStem) discriminationScore += 1.5
   if (MULTI_STEP_LANGUAGE.test(q.prompt)) discriminationScore += 0.55
@@ -84,6 +137,7 @@ export function questionQualitySignals(q:TestQuestion):QuestionQualitySignals {
   if (optionLengthSpread > 3.2) discriminationScore -= 0.7
   if (extremeDistractorCount >= 2) discriminationScore -= 1.2
   if (q.options.some((option,index)=>index!==q.answer && option.length < 8)) discriminationScore -= 0.4
+  if (duplicateCount) discriminationScore -= 4
 
   return { correctIsUniqueLongest, correctLengthRatio, extremeDistractorCount, optionLengthSpread, reasoningStem, discriminationScore }
 }
@@ -119,12 +173,13 @@ function plausibleNearMisses(q:TestQuestion) {
 }
 
 export function strengthenDistractors(q:TestQuestion):TestQuestion {
-  const signals = questionQualitySignals(q)
-  if (signals.extremeDistractorCount < 2 && !signals.correctIsUniqueLongest) return q
-  const replacements = plausibleNearMisses(q)
-  if (!replacements || q.options.length !== 4) return q
-  const correct = q.options[q.answer]
-  return { ...q, options:[correct,...replacements], answer:0 }
+  const safe = ensureUniqueOptions(q)
+  const signals = questionQualitySignals(safe)
+  if (signals.extremeDistractorCount < 2 && !signals.correctIsUniqueLongest) return safe
+  const replacements = plausibleNearMisses(safe)
+  if (!replacements || safe.options.length !== 4) return safe
+  const correct = safe.options[safe.answer]
+  return ensureUniqueOptions({ ...safe, options:[correct,...replacements], answer:0 })
 }
 
 function answerPositionPlan(questions:TestQuestion[], seed:number) {
@@ -153,7 +208,7 @@ function answerPositionPlan(questions:TestQuestion[], seed:number) {
 }
 
 export function prepareQuestionSet(bank:TestQuestion[], seed=1):TestQuestion[] {
-  const strengthened = bank.map(strengthenDistractors)
+  const strengthened = bank.map(ensureUniqueOptions).map(strengthenDistractors).map(ensureUniqueOptions)
   const plans = answerPositionPlan(strengthened,seed)
   const offsets = new Map<number,number>()
   return strengthened.map((q,index)=>{
@@ -248,7 +303,7 @@ export function validateQuestionBank(bank: TestQuestion[]) {
     if (!q.prompt.trim()) issues.push({severity:"error",id:q.id,test:q.test,message:"Question prompt is empty."})
     if (!Array.isArray(q.options) || q.options.length < 2) issues.push({severity:"error",id:q.id,test:q.test,message:"Question has fewer than two answer options."})
     if (q.answer < 0 || q.answer >= q.options.length) issues.push({severity:"error",id:q.id,test:q.test,message:"Answer index is outside the option list."})
-    if (new Set(q.options.map(x=>x.trim().toLowerCase())).size !== q.options.length) issues.push({severity:"error",id:q.id,test:q.test,message:"Question contains duplicate answer options."})
+    if (new Set(q.options.map(optionKey)).size !== q.options.length) issues.push({severity:"error",id:q.id,test:q.test,message:"Question contains duplicate answer options."})
     if (!q.explanation?.trim()) issues.push({severity:"warning",id:q.id,test:q.test,message:"Explanation is empty."})
     if (q.prompt.length < 20) issues.push({severity:"warning",id:q.id,test:q.test,message:"Prompt is unusually short; review for ambiguity."})
     if (q.options.some(opt=>opt.trim().length===0)) issues.push({severity:"error",id:q.id,test:q.test,message:"One or more options are blank."})
