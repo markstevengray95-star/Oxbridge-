@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import { isConfiguredAdminEmail } from "@/lib/auth/admin-access"
-import { PLAN_ONBOARDING_STATE_KEY, onboardingCompleted } from "@/lib/onboarding"
+import { FREE_PLAN_COOKIE, PLAN_ONBOARDING_STATE_KEY, onboardingCompleted } from "@/lib/onboarding"
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config"
 
 const PRO_ROUTES = [
@@ -58,7 +58,8 @@ export async function updateSession(request: NextRequest) {
     ])
     const paidTier=effectiveTier(subscription?.tier,subscription?.status)
     const tier=seat?.active?"school":paidTier
-    const hasChosenPlan=tier==="pro"||tier==="school"||onboardingCompleted(onboarding?.state_value)
+    const cookieFreePlan=request.cookies.get(FREE_PLAN_COOKIE)?.value===userId
+    const hasChosenPlan=tier==="pro"||tier==="school"||cookieFreePlan||onboardingCompleted(onboarding?.state_value)
     if(!hasChosenPlan){const url=request.nextUrl.clone();url.pathname="/premium";url.search="";url.searchParams.set("onboarding","required");return NextResponse.redirect(url)}
     const hasPro=tier==="pro"||tier==="school", hasSchool=tier==="school"
     if((requiresSchool&&!hasSchool)||(requiresPro&&!hasPro)){const url=request.nextUrl.clone();url.pathname="/premium";url.search="";url.searchParams.set("feature",pathname);url.searchParams.set("required",requiresSchool?"school":"pro");return NextResponse.redirect(url)}
