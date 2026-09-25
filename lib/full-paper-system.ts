@@ -158,6 +158,14 @@ function ucatVrPassageKey(question: TestQuestion) {
   return null
 }
 
+function ucatSjtScenarioKey(question: TestQuestion) {
+  const upgraded = question.id.match(/^upgrade-ucat-sjt-(\d+)-\d+$/)
+  if (upgraded) return `upgrade-ucat-sjt-${upgraded[1]}`
+  const reserve = question.id.match(/^uniq-ucat-sjt-(\d+)-\d+$/)
+  if (reserve) return `reserve-ucat-sjt-${reserve[1]}`
+  return null
+}
+
 type PassageGroup = { key: string; questions: TestQuestion[]; score: number }
 
 function passageGroups(
@@ -243,6 +251,39 @@ function pickUcatVrQuestions(form: PaperForm) {
   return prepareQuestionSet(selected, hashString(`UCAT:VR:form-${form}:grouped`))
 }
 
+function pickUcatSjtQuestions(form: PaperForm) {
+  const groups = allocatePassageGroups(
+    passageGroups("UCAT", "Situational Judgement", "sjt", ucatSjtScenarioKey).filter(group => group.questions.length >= 3),
+    16,
+    form,
+    "UCAT Situational Judgement",
+  )
+
+  // Current UCAT SJT attaches several judgements to each scenario. Keep every
+  // scenario contiguous and trim only the lowest-priority tail questions when
+  // the selected scenario capacity exceeds the required 69 questions.
+  const sizes = groups.map(group => group.questions.length)
+  let excess = sizes.reduce((sum, size) => sum + size, 0) - 69
+  if (excess < 0) throw new Error(`UCAT SJT Form ${form} has capacity for only ${69 + excess} grouped questions.`)
+
+  const trimOrder = groups
+    .map((group, index) => ({ index, score: group.score, tie: seededRank(group.key, hashString(`UCAT:SJT:form-${form}:trim`)) }))
+    .sort((a, b) => a.score - b.score || a.tie - b.tie)
+
+  for (const candidate of trimOrder) {
+    while (excess > 0 && sizes[candidate.index] > 3) {
+      sizes[candidate.index] -= 1
+      excess -= 1
+    }
+    if (excess === 0) break
+  }
+  if (excess !== 0) throw new Error(`UCAT SJT Form ${form} could not be trimmed to 69 questions without breaking scenario integrity.`)
+
+  const selected = groups.flatMap((group, index) => group.questions.slice(0, sizes[index]))
+  if (selected.length !== 69) throw new Error(`UCAT SJT Form ${form} should contain 69 grouped questions; found ${selected.length}.`)
+  return prepareQuestionSet(selected, hashString(`UCAT:SJT:form-${form}:grouped`))
+}
+
 function finalisePaper(paper: FullPaperDefinition): FullPaperDefinition {
   const seenIds = new Set<string>()
   const seenPrompts = new Set<string>()
@@ -324,7 +365,8 @@ export function buildFullPaper(
   }
 
   if (test === "ESAT") {
-    const selected: EsatModule[] = ["Mathematics 1", ...esatModules.filter(item => item !== "Mathematics 1").slice(0, 2)]
+    const requestedExtras = Array.from(new Set(esatModules.filter(item => item !== "Mathematics 1"))).slice(0, 2)
+    const selected: EsatModule[] = ["Mathematics 1", ...requestedExtras]
     while (selected.length < 3) {
       const fallback = esatOptionalModules.find(item => !selected.includes(item))
       if (!fallback) break
@@ -337,7 +379,7 @@ export function buildFullPaper(
       title: `ESAT Practice Form ${form}`,
       subtitle: selected.join(" · "),
       totalMinutes: selected.length * 40,
-      note: "Mathematics 1 is compulsory. This mock uses two additional modules selected by the student. No calculator and no negative marking. Generated numerical answers are checked for equivalent options and explanation consistency, and Forms 1 and 2 draw from separate prompt pools.",
+      note: "Mathematics 1 is compulsory. This mock uses two additional distinct modules selected by the student. No calculator and no negative marking. Generated numerical answers are checked for equivalent options and explanation consistency, and Forms 1 and 2 draw from separate prompt pools.",
       sections: selected.map(module => ({
         id: `module-${esatCode[module]}`,
         title: module,
@@ -431,7 +473,7 @@ export function buildFullPaper(
     title: `UCAT Practice Form ${form}`,
     subtitle: "Current four-subtest structure",
     totalMinutes: 111,
-    note: "This practice mode reports raw marks and accuracy only. Each subtest is reliability-screened, numerical equivalence is checked, and Forms 1 and 2 draw from separate prompt pools. Verbal Reasoning preserves 11 passage blocks of four linked questions.",
+    note: "This practice mode reports raw marks and accuracy only. Each subtest is reliability-screened, numerical equivalence is checked, and Forms 1 and 2 draw from separate prompt pools. Verbal Reasoning preserves 11 passage blocks and Situational Judgement keeps related judgements together by scenario.",
     sections: [
       {
         id: "vr",
@@ -462,8 +504,8 @@ export function buildFullPaper(
         title: "Situational Judgement",
         kind: "mcq",
         durationMinutes: 26,
-        questions: pickUniqueQuestions("UCAT", "Situational Judgement", 69, form, "sjt"),
-        instructions: "69 questions · 26 minutes. Choose the most appropriate response using the information in the scenario.",
+        questions: pickUcatSjtQuestions(form),
+        instructions: "69 questions · 26 minutes. Related judgements stay together within each scenario; choose the response that best fits the information given.",
       },
     ],
   })
