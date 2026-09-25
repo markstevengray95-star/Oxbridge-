@@ -8,10 +8,10 @@ import { AccountDataMirror } from "@/components/account-data-mirror";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Oxbridge Tutor | Interview & Admissions Test Prep",
-  description: "Adaptive Oxford and Cambridge interview practice, admissions-test preparation and reasoning feedback for students.",
+  title: "ScholarBridge | AI University Admissions Preparation",
+  description: "AI-powered Oxford and Cambridge interview practice, admissions-test preparation and reasoning feedback for students.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Oxbridge Tutor", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "ScholarBridge", statusBarStyle: "default" },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
@@ -41,8 +41,8 @@ export default function RootLayout({
         <footer className="border-t bg-white px-4 py-6 text-sm text-slate-600">
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left">
             <div>
-              <span className="font-semibold text-[#102a43]">Oxbridge Tutor</span>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">Original practice material; official university and test-provider guidance remains the source of truth for live application requirements and test formats.</p>
+              <span className="font-semibold text-[#102a43]">ScholarBridge</span>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">AI-powered university admissions preparation. Original practice material; official university and test-provider guidance remains the source of truth for live application requirements and test formats.</p>
             </div>
             <div className="flex flex-wrap justify-center gap-4 text-xs font-semibold">
               <Link href="/student-home" className="text-[#102a43] hover:underline">Student Home</Link>
