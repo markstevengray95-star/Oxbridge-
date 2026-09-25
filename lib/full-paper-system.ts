@@ -1,8 +1,7 @@
 import type { TestQuestion } from "@/lib/oxbridge-data"
-import { advancedQuestionBank } from "@/lib/question-bank-advanced"
-import { questionBank } from "@/lib/question-bank"
-import { lnatEssayPrompts2027, questionBank2027, taraWritingPrompts2027 } from "@/lib/question-bank-2027"
-import { strengthenQuestionSelection } from "@/lib/question-quality"
+import { lnatEssayPrompts2027, taraWritingPrompts2027 } from "@/lib/question-bank-2027"
+import { uniqueFullPaperQuestionBank } from "@/lib/full-paper-unique-bank"
+import { prepareQuestionSet } from "@/lib/question-quality"
 
 export type FullPaperTest = TestQuestion["test"]
 export type PaperForm = 1 | 2
@@ -30,20 +29,80 @@ export type FullPaperDefinition = {
   note: string
 }
 
-const fallbackBank = [...advancedQuestionBank, ...questionBank]
-
-function prefixSeed(prefix:string) {
+function hashString(value: string) {
   let hash = 2166136261
-  for (let i=0;i<prefix.length;i++) {
-    hash ^= prefix.charCodeAt(i)
-    hash = Math.imul(hash,16777619)
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
   }
   return hash >>> 0
 }
 
-const q = (prefix: string) => {
-  const primary = questionBank2027.filter(item => item.id.startsWith(prefix))
-  return strengthenQuestionSelection(primary, fallbackBank, prefixSeed(prefix))
+function promptSignature(prompt: string) {
+  return prompt
+    .toLowerCase()
+    .replace(/\d+(?:\.\d+)?/g, "#")
+    .replace(/[^a-z#]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function seededRank(id: string, seed: number) {
+  return hashString(`${id}:${seed}`)
+}
+
+function pickUniqueQuestions(
+  test: FullPaperTest,
+  sourceSection: string,
+  count: number,
+  form: PaperForm,
+  salt: string,
+) {
+  const seed = hashString(`${test}:${sourceSection}:form-${form}:${salt}`)
+  const pool = uniqueFullPaperQuestionBank
+    .filter(question => question.test === test && question.section === sourceSection)
+    .sort((a, b) => seededRank(a.id, seed) - seededRank(b.id, seed))
+
+  const usedIds = new Set<string>()
+  const usedSignatures = new Set<string>()
+  const selected: TestQuestion[] = []
+
+  for (const question of pool) {
+    const signature = promptSignature(question.prompt)
+    if (usedIds.has(question.id) || usedSignatures.has(signature)) continue
+    usedIds.add(question.id)
+    usedSignatures.add(signature)
+    selected.push(question)
+    if (selected.length === count) break
+  }
+
+  if (selected.length !== count) {
+    throw new Error(`Unique question pool too small for ${test} / ${sourceSection}: needed ${count}, found ${selected.length}.`)
+  }
+
+  return prepareQuestionSet(selected, seed)
+}
+
+function finalisePaper(paper: FullPaperDefinition): FullPaperDefinition {
+  const seenIds = new Set<string>()
+  const seenPrompts = new Set<string>()
+
+  for (const section of paper.sections) {
+    if (section.kind !== "mcq") continue
+    for (const question of section.questions) {
+      const signature = promptSignature(question.prompt)
+      if (seenIds.has(question.id)) {
+        throw new Error(`Duplicate question id in ${paper.id}: ${question.id}`)
+      }
+      if (seenPrompts.has(signature)) {
+        throw new Error(`Duplicate or number-only question template in ${paper.id}: ${question.id}`)
+      }
+      seenIds.add(question.id)
+      seenPrompts.add(signature)
+    }
+  }
+
+  return paper
 }
 
 const esatCode: Record<EsatModule, string> = {
@@ -75,21 +134,21 @@ export function buildFullPaper(
   esatModules: EsatModule[] = ["Mathematics 1", "Physics", "Mathematics 2"],
 ): FullPaperDefinition {
   if (test === "TMUA") {
-    return {
+    return finalisePaper({
       id: `tmua-form-${form}`,
       test,
       form,
       title: `TMUA Practice Form ${form}`,
       subtitle: "Full two-paper simulation",
       totalMinutes: 150,
-      note: "Raw marks are for practice only. No calculator. There is no negative marking. Answer positions are deliberately balanced and weak pattern-based items are replaced by stronger same-section questions.",
+      note: "Raw marks are for practice only. No calculator. There is no negative marking. Every question in the paper is drawn from a structurally diverse pool and duplicate or number-only repeated templates are blocked.",
       sections: [
         {
           id: "paper-1",
           title: "Paper 1 · Applications of Mathematical Knowledge",
           kind: "mcq",
           durationMinutes: 75,
-          questions: q(`2027-tmua-f${form}-ak-`),
+          questions: pickUniqueQuestions("TMUA", "Applications of Mathematical Knowledge", 20, form, "paper-1"),
           instructions: "Answer 20 multiple-choice questions. You may move freely within this paper until you submit it or time expires.",
         },
         {
@@ -97,11 +156,11 @@ export function buildFullPaper(
           title: "Paper 2 · Mathematical Reasoning",
           kind: "mcq",
           durationMinutes: 75,
-          questions: q(`2027-tmua-f${form}-mr-`),
+          questions: pickUniqueQuestions("TMUA", "Mathematical Reasoning", 20, form, "paper-2"),
           instructions: "Answer 20 multiple-choice questions. Once you begin Paper 2, Paper 1 stays locked.",
         },
       ],
-    }
+    })
   }
 
   if (test === "ESAT") {
@@ -111,43 +170,43 @@ export function buildFullPaper(
       if (!fallback) break
       selected.push(fallback)
     }
-    return {
+    return finalisePaper({
       id: `esat-form-${form}-${selected.join("-").replaceAll(" ", "_")}`,
       test,
       form,
       title: `ESAT Practice Form ${form}`,
       subtitle: selected.join(" · "),
       totalMinutes: selected.length * 40,
-      note: "Mathematics 1 is compulsory. This mock uses two additional modules selected by the student. No calculator and no negative marking. Distractors are screened for obvious length and wording clues.",
+      note: "Mathematics 1 is compulsory. This mock uses two additional modules selected by the student. No calculator and no negative marking. Each module is built from varied question families and repeated templates are rejected before the paper is shown.",
       sections: selected.map(module => ({
         id: `module-${esatCode[module]}`,
         title: module,
         kind: "mcq" as const,
         durationMinutes: 40,
-        questions: q(`2027-esat-f${form}-${esatCode[module]}-`),
+        questions: pickUniqueQuestions("ESAT", module, 27, form, `module-${esatCode[module]}`),
         instructions: `Answer 27 ${module} questions. The next module begins only after this module is submitted or time expires.`,
       })),
-    }
+    })
   }
 
   if (test === "TARA") {
     const essayStart = form === 1 ? 0 : 3
     const essayChoices = Array.from({ length: 3 }, (_, i) => taraWritingPrompts2027[(essayStart + i) % taraWritingPrompts2027.length])
-    return {
+    return finalisePaper({
       id: `tara-form-${form}`,
       test,
       form,
       title: `TARA Practice Form ${form}`,
       subtitle: "Critical Thinking · Problem Solving · Writing Task",
       totalMinutes: 120,
-      note: "The writing task is deliberately left unscored, matching the fact that UAT-UK sends the response to universities rather than assigning it a TARA score. Critical-thinking distractors are designed as plausible near-misses rather than obviously weak statements.",
+      note: "The writing task is left unscored. The multiple-choice sections now deliberately mix causal reasoning, assumptions, strengthening, weakening, logical flaws, percentages, rates, sets, averages, journeys and ratios instead of recycling one template.",
       sections: [
         {
           id: "critical-thinking",
           title: "Critical Thinking",
           kind: "mcq",
           durationMinutes: 40,
-          questions: q(`2027-tara-f${form}-ct-`),
+          questions: pickUniqueQuestions("TARA", "Critical Thinking", 22, form, "critical-thinking"),
           instructions: "Answer 22 multiple-choice questions. There is no negative marking.",
         },
         {
@@ -155,7 +214,7 @@ export function buildFullPaper(
           title: "Problem Solving",
           kind: "mcq",
           durationMinutes: 40,
-          questions: q(`2027-tara-f${form}-ps-`),
+          questions: pickUniqueQuestions("TARA", "Problem Solving", 22, form, "problem-solving"),
           instructions: "Answer 22 multiple-choice questions. No calculator or dictionary.",
         },
         {
@@ -169,28 +228,28 @@ export function buildFullPaper(
           instructions: "Choose one of three prompts and write one clear, economical argument. Maximum 750 words.",
         },
       ],
-    }
+    })
   }
 
   if (test === "LNAT") {
     const essayStart = form === 1 ? 0 : 3
     const essayChoices = Array.from({ length: 3 }, (_, i) => lnatEssayPrompts2027[(essayStart + i) % lnatEssayPrompts2027.length])
-    return {
+    return finalisePaper({
       id: `lnat-form-${form}`,
       test,
       form,
       title: `LNAT Practice Form ${form}`,
       subtitle: "Section A · Multiple Choice + Section B · Essay",
       totalMinutes: 135,
-      note: "Section A is automatically marked. Section B is saved for review but is not assigned a fabricated numerical score. Passage questions favour close alternatives where several options can sound defensible but only one is fully supported by the text.",
+      note: "Section A is automatically marked. Section B is saved for review but is not assigned a fabricated numerical score. Passage questions are selected with a duplicate-template check so the paper does not recycle the same passage-question combination.",
       sections: [
         {
           id: "section-a",
           title: "Section A · Argumentative Passages",
           kind: "mcq",
           durationMinutes: 95,
-          questions: q(`2027-lnat-f${form}-`),
-          instructions: "Answer 42 questions based on 12 argumentative passages. Once Section B starts, Section A stays locked.",
+          questions: pickUniqueQuestions("LNAT", "Argumentative passages", 42, form, "section-a"),
+          instructions: "Answer 42 questions based on argumentative passages. Once Section B starts, Section A stays locked.",
         },
         {
           id: "section-b",
@@ -202,24 +261,24 @@ export function buildFullPaper(
           instructions: "Choose one of three prompts and write one concise, well-structured argument.",
         },
       ],
-    }
+    })
   }
 
-  return {
+  return finalisePaper({
     id: `ucat-form-${form}`,
     test: "UCAT",
     form,
     title: `UCAT Practice Form ${form}`,
     subtitle: "Current four-subtest structure",
     totalMinutes: 111,
-    note: "This practice mode reports raw marks and accuracy only. It does not invent a UCAT scaled score or SJT band. Situational-judgement alternatives are screened so the correct response is not identifiable simply because it is the longest or most professional-sounding option.",
+    note: "This practice mode reports raw marks and accuracy only. Each subtest is drawn from a wider pool of distinct passages, decisions, quantitative contexts and situational-judgement scenarios; duplicate and number-only repeated prompts are rejected.",
     sections: [
       {
         id: "vr",
         title: "Verbal Reasoning",
         kind: "mcq",
         durationMinutes: 22,
-        questions: q(`2027-ucat-f${form}-vr-`),
+        questions: pickUniqueQuestions("UCAT", "Verbal Reasoning", 44, form, "vr"),
         instructions: "44 questions · 22 minutes. Use only the information presented in each passage.",
       },
       {
@@ -227,7 +286,7 @@ export function buildFullPaper(
         title: "Decision Making",
         kind: "mcq",
         durationMinutes: 37,
-        questions: q(`2027-ucat-f${form}-dm-`),
+        questions: pickUniqueQuestions("UCAT", "Decision Making", 35, form, "dm"),
         instructions: "35 questions · 37 minutes. Work carefully through logic, probability and decision problems.",
       },
       {
@@ -235,7 +294,7 @@ export function buildFullPaper(
         title: "Quantitative Reasoning",
         kind: "mcq",
         durationMinutes: 26,
-        questions: q(`2027-ucat-f${form}-qr-`),
+        questions: pickUniqueQuestions("UCAT", "Quantitative Reasoning", 36, form, "qr"),
         instructions: "36 questions · 26 minutes. This practice interface focuses on pacing and numerical problem solving.",
       },
       {
@@ -243,9 +302,9 @@ export function buildFullPaper(
         title: "Situational Judgement",
         kind: "mcq",
         durationMinutes: 26,
-        questions: q(`2027-ucat-f${form}-sjt-`),
+        questions: pickUniqueQuestions("UCAT", "Situational Judgement", 69, form, "sjt"),
         instructions: "69 questions · 26 minutes. Choose the most appropriate response using the information in the scenario.",
       },
     ],
-  }
+  })
 }
