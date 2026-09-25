@@ -29,10 +29,13 @@ function paragraphs(text: string) {
 function detectTaskType(prompt: string): EssayTaskType {
   if (/\b(to what extent|how far|how significant|how important)\b/i.test(prompt)) return "extent"
   if (/\b(compare|contrast|compared with|versus|vs\.?|better than|more important than|less important than|similarities|differences)\b/i.test(prompt)) return "compare"
+  // Explicit normative/legal wording takes precedence over causal phrases such as
+  // "responsible for". A question beginning "Should ... be legally responsible"
+  // is a policy judgement, not a causal-explanation task.
+  if (/\b(should|ought|must|allow|permit|ban|prohibit|forbid|compulsory|mandatory|legal|legally|illegal|liable|responsible|regulate|abolish|tax|free to use)\b/i.test(prompt)) return "policy"
   if (/\b(why|cause|causes|caused|what caused|lead to|led to|result(?:ed)? in|responsible for)\b/i.test(prompt)) return "causal"
   if (/\b(explain|how does|how do|how did|what explains)\b/i.test(prompt)) return "explain"
   if (/\b(define|what is|what does .+ mean|meaning of)\b/i.test(prompt)) return "definition"
-  if (/\b(should|ought|must|allow|permit|ban|prohibit|forbid|compulsory|mandatory|legal|legally|illegal|liable|responsible|regulate|abolish|tax|free to use)\b/i.test(prompt)) return "policy"
   return "general"
 }
 
@@ -82,7 +85,7 @@ function taskLabel(type: EssayTaskType) {
 
 function judgementPolarity(text: string) {
   const negative = countMatches(text, /\b(should not|must not|ought not|not justified|unjustified|disagree|oppose|reject|against)\b/gi)
-  const positive = countMatches(text, /\b(should|must|ought|is justified|agree|support|in favour|in favor)\b/gi)
+  const positive = countMatches(text, /\b(should(?!\s+not)|must(?!\s+not)|ought(?!\s+not)|is justified|agree|support|in favour|in favor)\b/gi)
   if (negative && !positive) return -1
   if (positive && !negative) return 1
   return 0
