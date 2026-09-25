@@ -133,11 +133,11 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-[#f2f5f5] px-4 py-8 text-[#172b3a] sm:px-6 lg:py-12">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-6 flex items-center gap-2 font-serif text-lg font-bold text-[#102a43]"><GraduationCap className="size-5 text-[#147d91]" />Oxbridge Tutor</div>
+        <div className="mb-6 flex items-center gap-2 font-serif text-lg font-bold text-[#102a43]"><GraduationCap className="size-5 text-[#147d91]" />ScholarBridge</div>
         <div className="grid overflow-hidden rounded-[2rem] border border-[#dbe5e7] bg-white shadow-[0_30px_90px_rgba(16,42,67,.09)] lg:grid-cols-[.9fr_1.1fr]">
           <section className="bg-[#102a43] p-7 text-white sm:p-10">
             <div className="grid size-12 place-items-center rounded-2xl bg-white/10 text-[#8dd7de]"><GraduationCap /></div>
-            <h1 className="mt-6 font-serif text-3xl font-bold">Create your account before entering Oxbridge Tutor.</h1>
+            <h1 className="mt-6 font-serif text-3xl font-bold">Create your account before entering ScholarBridge.</h1>
             <p className="mt-4 text-sm leading-6 text-white/70">Your interviews, test attempts, strengths, weaknesses and study plan stay linked to your own login. After account creation you will choose Free, Pro or School before the app opens.</p>
             <div className="mt-7 space-y-3 text-sm text-white/80">
               <p className="flex gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#8dd7de]" />Separate progress and memory for every user</p>
