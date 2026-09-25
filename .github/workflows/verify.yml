@@ -42,5 +42,8 @@ jobs:
       - name: Upgraded question bank checks
         run: node tests/reliability-upgrade-bank.mjs
 
+      - name: Full paper form-separation checks
+        run: node tests/full-paper-form-separation.mjs
+
       - name: Type-aware production build
         run: npm run build
