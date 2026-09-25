@@ -1,4 +1,5 @@
 export const PLAN_ONBOARDING_STATE_KEY = "oxbridge-plan-onboarding-v1"
+export const FREE_PLAN_COOKIE = "oxbridge-free-plan-user-v1"
 
 export type PlanChoice = "free" | "pro" | "school"
 
