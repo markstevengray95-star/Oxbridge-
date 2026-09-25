@@ -19,9 +19,9 @@ export async function POST(request: Request) {
   const fallback = (message: string) => {
     try {
       const local = validateReport(buildOfflineWritingReport({ essay, mode, prompt, course, test }), essay, mode)
-      return NextResponse.json({ provider: "local", report: local, strictScore: scoreFor(local), mechanics: basic, message, rubricVersion: 4 })
+      return NextResponse.json({ provider: "local", report: local, strictScore: scoreFor(local), mechanics: basic, message, rubricVersion: 5 })
     } catch {
-      return NextResponse.json({ provider: "local", report: null, strictScore: null, mechanics: basic, message: `${message} The offline substantive review could not be verified, so only mechanical checks are shown.`, rubricVersion: 4 })
+      return NextResponse.json({ provider: "local", report: null, strictScore: null, mechanics: basic, message: `${message} The offline substantive review could not be verified, so only mechanical checks are shown.`, rubricVersion: 5 })
     }
   }
   const key = getGeminiApiKeyCandidates()[0]?.value
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       report = attached.report
       strictScore = attached.strictScore
     }
-    return NextResponse.json({ provider: "gemini", report, strictScore, mechanics: basic, rubricVersion: 4 })
+    return NextResponse.json({ provider: "gemini", report, strictScore, mechanics: basic, rubricVersion: 5 })
   } catch {
     return fallback("The AI review timed out or could not be verified against the draft, so the deterministic offline review was used instead.")
   }
