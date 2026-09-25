@@ -42,6 +42,45 @@ function taraCriticalThinkingDistractors(question: TestQuestion): [string, strin
   return null
 }
 
+function ucatVerbalReasoningDistractors(question: TestQuestion): [string, string, string] | null {
+  if (question.test !== "UCAT" || question.section !== "Verbal Reasoning") return null
+  const prompt = question.prompt.toLowerCase()
+
+  if (/best supported|most strongly supported/.test(prompt)) {
+    return [
+      "The intervention described was the only important change capable of affecting the measured outcome during the period in question.",
+      "The evidence establishes that the observed change would be reproduced in other settings if the same intervention were introduced there.",
+      "The data show that every relevant outcome improved, rather than only the particular measures explicitly described in the passage.",
+    ]
+  }
+
+  if (/goes beyond|beyond what/.test(prompt)) {
+    return [
+      "At least one measured outcome differed between the groups or periods described, as reported directly in the passage.",
+      "The passage identifies at least one limitation affecting how confidently the observed association can be interpreted.",
+      "The evidence describes an observed pattern without eliminating every plausible alternative explanation for that pattern.",
+    ]
+  }
+
+  if (/limitation/.test(prompt)) {
+    return [
+      "The evidence comes from a limited practical setting, which may restrict how confidently the exact numerical result can be generalised elsewhere.",
+      "The passage does not report every contextual characteristic of the participants or setting, leaving some uncertainty about external validity.",
+      "Some results are summarised rather than showing the complete underlying dataset, which limits independent checking but does not resolve the main inference problem.",
+    ]
+  }
+
+  if (/additional information|improve the strength|improve interpretation/.test(prompt)) {
+    return [
+      "More descriptive information about participants' views after the outcome changed, without a comparison that addresses the stated limitation.",
+      "A longer follow-up reporting the same association while leaving the competing explanation or selection problem otherwise unchanged.",
+      "More precise measurement of a secondary outcome that is not connected to the uncertainty identified in the passage's main comparison.",
+    ]
+  }
+
+  return null
+}
+
 /**
  * Repairs a test-taking clue without changing the keyed proposition. Only
  * question types with purpose-written, semantically plausible alternatives are
@@ -49,7 +88,7 @@ function taraCriticalThinkingDistractors(question: TestQuestion): [string, strin
  */
 export function repairSemanticAnswerCues(question: TestQuestion): TestQuestion {
   if (!hasAnswerLengthCue(question)) return question
-  const replacements = taraCriticalThinkingDistractors(question)
+  const replacements = taraCriticalThinkingDistractors(question) ?? ucatVerbalReasoningDistractors(question)
   if (!replacements) return question
   const correct = question.options[question.answer]
   return { ...question, options: [correct, ...replacements], answer: 0 }
