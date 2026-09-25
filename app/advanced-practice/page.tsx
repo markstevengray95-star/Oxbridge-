@@ -12,6 +12,7 @@ import { advancedQuestionBank, advancedQuestionBankStats } from "@/lib/question-
 import { questionBank2027, questionBank2027Stats } from "@/lib/question-bank-2027"
 import type { TestName } from "@/lib/question-bank"
 import { legacyHardenedQuestionBank, legacyHardenedQuestionBankStats } from "@/lib/question-bank-legacy-hardened"
+import { uniqueFullPaperQuestionBank, uniqueFullPaperQuestionBankStats } from "@/lib/full-paper-unique-bank"
 import { questionsForSelectedPathway, pathwayQuestionNote } from "@/lib/question-pathway"
 import { choiceDiagnostic, prepareQuestionSet, questionQualitySignals } from "@/lib/question-quality"
 import type { TestQuestion } from "@/lib/oxbridge-data"
@@ -29,16 +30,28 @@ function hashString(value:string) {
   return hash >>> 0
 }
 
-function deterministicPick(pool: TestQuestion[], count: number, seed: number) {
+function questionSignature(prompt:string) {
+  return prompt.toLowerCase().replace(/\d+(?:\.\d+)?/g,"#").replace(/[^a-z#]+/g," ").replace(/\s+/g," ").trim()
+}
+
+function deterministicPick(pool: TestQuestion[], count: number, seed: number, usedSignatures = new Set<string>()) {
   if (!pool.length) return []
-  return [...pool]
+  const ranked = [...pool]
     .map(question => ({
       question,
       score: questionQualitySignals(question).discriminationScore + (hashString(`${question.id}:${seed}`)%1000)/5000,
     }))
     .sort((a,b)=>b.score-a.score)
-    .slice(0,count)
-    .map(item=>item.question)
+
+  const picked: TestQuestion[] = []
+  for (const { question } of ranked) {
+    const signature = questionSignature(question.prompt)
+    if (usedSignatures.has(signature)) continue
+    usedSignatures.add(signature)
+    picked.push(question)
+    if (picked.length === count) break
+  }
+  return picked
 }
 
 function saveAttempt(question: TestQuestion, selected: number, correct: boolean) {
@@ -62,7 +75,7 @@ export default function AdvancedPracticePage() {
   }, [])
 
   const allForTest = useMemo(() => {
-    const combined=[...legacyHardenedQuestionBank, ...advancedQuestionBank, ...questionBank2027]
+    const combined=[...uniqueFullPaperQuestionBank, ...legacyHardenedQuestionBank, ...advancedQuestionBank, ...questionBank2027]
     return questionsForSelectedPathway(combined,test,course)
   }, [test,course])
   const sections = useMemo(() => Array.from(new Set(allForTest.map(q => q.section))), [allForTest])
@@ -80,8 +93,9 @@ export default function AdvancedPracticePage() {
 
   const ladder = useMemo(() => {
     const sectionPool = allForTest.filter(q => q.section === activeSection)
-    const stages = difficultyOrder.flatMap((difficulty, stage) => deterministicPick(sectionPool.filter(q => q.difficulty === difficulty), 2, seed + stage * 13))
-    const chosen = stages.length ? stages : deterministicPick(sectionPool, 6, seed)
+    const usedSignatures = new Set<string>()
+    const stages = difficultyOrder.flatMap((difficulty, stage) => deterministicPick(sectionPool.filter(q => q.difficulty === difficulty), 2, seed + stage * 13, usedSignatures))
+    const chosen = stages.length >= 6 ? stages.slice(0,6) : [...stages, ...deterministicPick(sectionPool, 6 - stages.length, seed + 97, usedSignatures)]
     return prepareQuestionSet(chosen, seed * 104729 + hashString(activeSection))
   }, [allForTest, activeSection, seed])
 
@@ -111,7 +125,7 @@ export default function AdvancedPracticePage() {
   return <main className="min-h-screen bg-slate-50 text-slate-950">
     <header className="border-b bg-slate-950 text-white"><div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4"><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold"><ArrowLeft className="size-4" />Back to ScholarBridge</Link><Badge className="border-white/15 bg-white/10 text-white">Advanced Practice Lab</Badge></div></header>
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
-      <section className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]"><div><p className="mb-2 text-xs font-bold uppercase tracking-[.18em] text-blue-700">2027 Challenge Ladder</p><h1 className="font-serif text-4xl font-bold tracking-tight">Choose the reasoning, not just the answer.</h1><p className="mt-3 max-w-3xl text-base leading-relaxed text-slate-600">Calculation-heavy items now pair results with reasoning routes. Distractors represent specific plausible mistakes, so the option you choose tells the app which step needs work. {pathwayNote ?? "Practice remains linked to the selected test and section."}</p></div><Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-xl">Bank expansion</CardTitle><CardDescription>Original practice aligned to current test structures.</CardDescription></CardHeader><CardContent className="grid grid-cols-3 gap-3"><div><p className="text-3xl font-bold">{questionBank2027Stats.total.toLocaleString()}</p><p className="text-xs text-muted-foreground">new 2027 questions</p></div><div><p className="text-3xl font-bold">{advancedQuestionBankStats.total.toLocaleString()}</p><p className="text-xs text-muted-foreground">advanced questions</p></div><div><p className="text-3xl font-bold">{legacyHardenedQuestionBankStats.total.toLocaleString()}</p><p className="text-xs text-muted-foreground">hardened core questions</p></div></CardContent></Card></section>
+      <section className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]"><div><p className="mb-2 text-xs font-bold uppercase tracking-[.18em] text-blue-700">2027 Challenge Ladder</p><h1 className="font-serif text-4xl font-bold tracking-tight">Choose the reasoning, not just the answer.</h1><p className="mt-3 max-w-3xl text-base leading-relaxed text-slate-600">Calculation-heavy items now pair results with reasoning routes. Every ladder also rejects duplicate and number-only repeated prompt templates before it is shown. {pathwayNote ?? "Practice remains linked to the selected test and section."}</p></div><Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-xl">Bank expansion</CardTitle><CardDescription>Original practice aligned to current test structures.</CardDescription></CardHeader><CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4"><div><p className="text-3xl font-bold">{uniqueFullPaperQuestionBankStats.total.toLocaleString()}</p><p className="text-xs text-muted-foreground">diverse questions</p></div><div><p className="text-3xl font-bold">{questionBank2027Stats.total.toLocaleString()}</p><p className="text-xs text-muted-foreground">2027 questions</p></div><div><p className="text-3xl font-bold">{advancedQuestionBankStats.total.toLocaleString()}</p><p className="text-xs text-muted-foreground">advanced questions</p></div><div><p className="text-3xl font-bold">{legacyHardenedQuestionBankStats.total.toLocaleString()}</p><p className="text-xs text-muted-foreground">hardened core</p></div></CardContent></Card></section>
 
       <Card className="shadow-none"><CardContent className="grid gap-3 p-4 md:grid-cols-[180px_1fr_auto]"><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-muted-foreground">Test</span><NativeSelect value={test} onChange={e => { setTest(e.target.value as TestName); setSection(""); setIndex(0); setSelected(null); setChecked(false); setPersonalFeedback(null) }}>{tests.map(t => <NativeSelectOption key={t}>{t}</NativeSelectOption>)}</NativeSelect></label><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-muted-foreground">Section</span><NativeSelect value={activeSection} onChange={e => { setSection(e.target.value); setIndex(0); setSelected(null); setChecked(false); setPersonalFeedback(null) }}>{sections.map(s => <NativeSelectOption key={s}>{s}</NativeSelectOption>)}</NativeSelect></label><Button variant="outline" className="self-end" onClick={newLadder}><RefreshCw />New ladder</Button></CardContent></Card>
 
