@@ -3,6 +3,9 @@ import { lnatEssayPrompts2027, taraWritingPrompts2027 } from "@/lib/question-ban
 import { reliableFullPaperQuestionBank } from "@/lib/full-paper-reliable-bank"
 import { prepareQuestionSet } from "@/lib/question-quality"
 import { auditQuestionReliability, reliabilityScore } from "@/lib/question-reliability"
+import type { FullPaperQuestion } from "@/lib/full-paper-question"
+import { isYesNoStatementQuestion, validateFullPaperQuestion } from "@/lib/full-paper-question"
+import { ucatDecisionMakingStatementBank } from "@/lib/ucat-dm-statement-bank"
 
 export type FullPaperTest = TestQuestion["test"]
 export type PaperForm = 1 | 2
@@ -13,7 +16,7 @@ export type FullPaperSection = {
   title: string
   kind: "mcq" | "essay"
   durationMinutes: number
-  questions: TestQuestion[]
+  questions: FullPaperQuestion[]
   instructions: string
   essayChoices?: string[]
   wordLimit?: number
@@ -67,8 +70,6 @@ function reliableSectionPool(test: FullPaperTest, sourceSection: string, salt: s
       return seededRank(a.id, seed) - seededRank(b.id, seed)
     })
 
-  // Keep the strongest version when two banks happen to contain the same
-  // number-normalised prompt structure.
   const bySignature = new Map<string, TestQuestion>()
   for (const question of ranked) {
     const signature = promptSignature(question.prompt)
@@ -117,9 +118,6 @@ function partitionDistinctForm(pool: TestQuestion[], count: number, form: PaperF
     throw new Error(`Reliable bank cannot create two distinct ${label} forms: need ${count * 2} unique prompt structures, found ${pool.length}.`)
   }
 
-  // Alternate the strongest 2× required questions between forms. This gives
-  // both forms a comparable reliability profile while guaranteeing no prompt
-  // structure appears in both Form 1 and Form 2.
   const universe = pool.slice(0, count * 2)
   const selected = universe.filter((_, index) => index % 2 === form - 1).slice(0, count)
   if (selected.length !== count) {
@@ -140,6 +138,30 @@ function pickUniqueQuestions(
   const balanced = balanceFamilies(stablePool, hashString(`${test}:${sourceSection}:${salt}:families`))
   const selected = partitionDistinctForm(balanced, count, form, `${test} / ${sourceSection}`)
   return prepareQuestionSet(selected, seed)
+}
+
+function pickUcatDmQuestions(form: PaperForm): FullPaperQuestion[] {
+  // UCAT Decision Making mixes ordinary four-option questions with five
+  // Yes/No statements. Eight statement sets per form provide realistic format
+  // switching while keeping Forms 1 and 2 completely disjoint.
+  const singleAnswer = pickUniqueQuestions("UCAT", "Decision Making", 27, form, "dm-single")
+  const statementPool = [...ucatDecisionMakingStatementBank].sort((a, b) => a.id.localeCompare(b.id))
+  if (statementPool.length < 16) throw new Error(`UCAT Decision Making requires at least 16 reliable multiple-statement sets; found ${statementPool.length}.`)
+  const statementQuestions = statementPool.filter((_, index) => index % 2 === form - 1).slice(0, 8)
+  if (statementQuestions.length !== 8) throw new Error(`Could not allocate eight UCAT Decision Making multiple-statement questions to Form ${form}.`)
+
+  const insertionPositions = new Set([2, 6, 10, 14, 18, 22, 27, 32])
+  const mixed: FullPaperQuestion[] = []
+  let singleIndex = 0
+  let statementIndex = 0
+  for (let position = 0; position < 35; position++) {
+    if (insertionPositions.has(position)) mixed.push(statementQuestions[statementIndex++])
+    else mixed.push(singleAnswer[singleIndex++])
+  }
+  if (singleIndex !== 27 || statementIndex !== 8 || mixed.length !== 35) {
+    throw new Error(`UCAT Decision Making Form ${form} could not be assembled with the intended mixed response formats.`)
+  }
+  return mixed
 }
 
 function lnatPassageKey(question: TestQuestion) {
@@ -223,9 +245,6 @@ function pickLnatQuestions(form: PaperForm) {
     "LNAT",
   )
 
-  // LNAT Section A has 42 questions across 12 passages, with three or four
-  // questions attached to each passage. Six passages get four questions and
-  // six get three, preserving each passage block in the displayed order.
   const fourQuestionGroups = groups
     .filter(group => group.questions.length >= 4)
     .sort((a, b) => b.score - a.score)
@@ -259,9 +278,6 @@ function pickUcatSjtQuestions(form: PaperForm) {
     "UCAT Situational Judgement",
   )
 
-  // Current UCAT SJT attaches several judgements to each scenario. Keep every
-  // scenario contiguous and trim only the lowest-priority tail questions when
-  // the selected scenario capacity exceeds the required 69 questions.
   const sizes = groups.map(group => group.questions.length)
   let excess = sizes.reduce((sum, size) => sum + size, 0) - 69
   if (excess < 0) throw new Error(`UCAT SJT Form ${form} has capacity for only ${69 + excess} grouped questions.`)
@@ -292,9 +308,14 @@ function finalisePaper(paper: FullPaperDefinition): FullPaperDefinition {
     if (section.kind !== "mcq") continue
     for (const question of section.questions) {
       const signature = promptSignature(question.prompt)
-      const reliability = auditQuestionReliability(question)
-      if (reliability.blocking.length) {
-        throw new Error(`Unreliable question in ${paper.id}: ${question.id} (${reliability.blocking.map(issue => issue.code).join(", ")})`)
+      if (isYesNoStatementQuestion(question)) {
+        const issues = validateFullPaperQuestion(question)
+        if (issues.length) throw new Error(`Invalid mixed-format question in ${paper.id}: ${question.id} (${issues.join(", ")})`)
+      } else {
+        const reliability = auditQuestionReliability(question)
+        if (reliability.blocking.length) {
+          throw new Error(`Unreliable question in ${paper.id}: ${question.id} (${reliability.blocking.map(issue => issue.code).join(", ")})`)
+        }
       }
       if (seenIds.has(question.id)) throw new Error(`Duplicate question id in ${paper.id}: ${question.id}`)
       if (seenPrompts.has(signature)) throw new Error(`Duplicate or number-only question template in ${paper.id}: ${question.id}`)
@@ -473,7 +494,7 @@ export function buildFullPaper(
     title: `UCAT Practice Form ${form}`,
     subtitle: "Current four-subtest structure",
     totalMinutes: 111,
-    note: "This practice mode reports raw marks and accuracy only. Each subtest is reliability-screened, numerical equivalence is checked, and Forms 1 and 2 draw from separate prompt pools. Verbal Reasoning preserves 11 passage blocks and Situational Judgement keeps related judgements together by scenario.",
+    note: "This practice mode reports raw marks and accuracy only. Verbal Reasoning preserves 11 passage blocks. Decision Making mixes single-answer items with five-statement Yes/No items worth up to two raw marks with partial credit. Situational Judgement keeps related judgements together by scenario. Forms 1 and 2 draw from separate prompt pools.",
     sections: [
       {
         id: "vr",
@@ -488,8 +509,8 @@ export function buildFullPaper(
         title: "Decision Making",
         kind: "mcq",
         durationMinutes: 37,
-        questions: pickUniqueQuestions("UCAT", "Decision Making", 35, form, "dm"),
-        instructions: "35 questions · 37 minutes. Work carefully through logic, probability and decision problems.",
+        questions: pickUcatDmQuestions(form),
+        instructions: "35 questions · 37 minutes. The section mixes four-option single-answer items with five-statement Yes/No items. Complete all five judgements on a multiple-statement item before moving on.",
       },
       {
         id: "qr",
