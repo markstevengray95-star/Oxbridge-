@@ -24,7 +24,7 @@
     ],
     "paths": {
       "@/lib/writing/offline-review": [
-        "./lib/writing/offline-review-v2"
+        "./lib/writing/offline-review-v3"
       ],
       "@/*": [
         "./*"
