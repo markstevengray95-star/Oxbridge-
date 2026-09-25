@@ -28,7 +28,7 @@ function paragraphs(text: string) {
 
 function detectTaskType(prompt: string): EssayTaskType {
   if (/\b(to what extent|how far|how significant|how important)\b/i.test(prompt)) return "extent"
-  if (/\b(compare|contrast|compared with|versus|vs\.?|better than|more important than|less important than|similarities|differences)\b/i.test(prompt)) return "compare"
+  if (/\b(compare|contrast|compared with|versus|vs\.?|better than|more important than|less important than|more important for|which (?:is|are) more important|which (?:is|are) better|which matters more|similarities|differences)\b/i.test(prompt)) return "compare"
   // Explicit normative/legal wording takes precedence over causal phrases such as
   // "responsible for". A question beginning "Should ... be legally responsible"
   // is a policy judgement, not a causal-explanation task.
