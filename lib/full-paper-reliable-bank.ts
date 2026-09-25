@@ -2,16 +2,20 @@ import { uniqueFullPaperQuestionBank } from "@/lib/full-paper-unique-bank"
 import { reliabilityUpgradeQuestionBank } from "@/lib/question-bank-reliability-upgrades"
 import { ucatQrReliabilityUpgradeBank } from "@/lib/ucat-qr-reliability-upgrades"
 import { auditQuestionReliability, repairQuestionReliability, reliabilityScore } from "@/lib/question-reliability"
+import { repairSemanticAnswerCues } from "@/lib/question-integrity-repair"
 
 // Keep the original diverse bank as reliable reserve material rather than
 // removing whole sections when an upgraded bank is present. The paper builder
 // can then construct two genuinely different forms while still ranking the
 // stronger upgraded items first.
-const originalRepaired = uniqueFullPaperQuestionBank.map(repairQuestionReliability)
+const repair = (question: Parameters<typeof repairQuestionReliability>[0]) =>
+  repairSemanticAnswerCues(repairQuestionReliability(question))
+
+const originalRepaired = uniqueFullPaperQuestionBank.map(repair)
 const primaryUpgrades = reliabilityUpgradeQuestionBank
   .filter(question => !(question.test === "UCAT" && question.section === "Quantitative Reasoning"))
 const rawUpgrades = [...primaryUpgrades, ...ucatQrReliabilityUpgradeBank]
-const upgradedRepaired = rawUpgrades.map(repairQuestionReliability)
+const upgradedRepaired = rawUpgrades.map(repair)
 const repaired = [...upgradedRepaired, ...originalRepaired]
 
 export const reliableFullPaperQuestionBank = repaired.filter(question =>
