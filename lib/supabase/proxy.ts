@@ -11,7 +11,6 @@ const PRO_ROUTES = [
   "/full-papers","/advanced-practice","/adaptive-paper","/admissions-test-courses","/preparation-report","/weekly-programme","/research-project","/knowledge-graph",
 ]
 const SCHOOL_ROUTES = ["/school-dashboard","/school-overview","/school-reports","/human-review","/teacher-coach","/teacher-live-console","/human-interviewer"]
-const ACCOUNT_ADDON_ROUTES = ["/live-credits","/expert-review"]
 const PUBLIC_PAGE_ROUTES = ["/login", "/reset-password", "/auth/confirm", "/admin/login"]
 const PUBLIC_ASSET_ROUTES = ["/manifest.webmanifest", "/sw.js", "/robots.txt", "/sitemap.xml"]
 const PLAN_GATE_ROUTES = ["/premium", "/post-login"]
@@ -46,11 +45,8 @@ export async function updateSession(request: NextRequest) {
 
   const requiresPro=matchesAny(pathname,PRO_ROUTES)
   const requiresSchool=matchesAny(pathname,SCHOOL_ROUTES)
-  let isAdmin=isConfiguredAdminEmail(userEmail)
-  if(!isAdmin&&(requiresAdmin||adminLogin)){
-    const {data:adminRole}=await supabase.from("app_admins").select("role").eq("user_id",userId).maybeSingle()
-    isAdmin=adminRole?.role==="admin"
-  }
+  const isAdmin=isConfiguredAdminEmail(userEmail)
+
   if(adminLogin&&isAdmin) return redirectTo(request,"/admin")
   if(requiresAdmin&&!isAdmin){const url=request.nextUrl.clone();url.pathname="/admin/login";url.search="";url.searchParams.set("error","not-authorized");return NextResponse.redirect(url)}
 
