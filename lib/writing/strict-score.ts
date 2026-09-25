@@ -26,6 +26,7 @@ export type StrictEssayScore = {
 }
 
 const WEIGHTS = [25, 20, 15, 15, 10, 15] as const
+const SCORE_PREFIX = "Strict practice mark:"
 
 function gradeFor(score: number): { grade: StrictEssayGrade; descriptor: string } {
   if (score >= 85) return { grade: "A*", descriptor: "Exceptional practice standard" }
@@ -107,4 +108,30 @@ export function scoreStrictEssay(report: WritingReport, prompt: string, essay: s
     confidence,
     note: "This is a strict ScholarBridge practice score, not an official Oxford, Cambridge, school, exam-board or admissions mark. It is designed to make weaknesses reduce the score rather than be averaged away.",
   }
+}
+
+export function attachStrictEssayScoring(report: WritingReport, prompt: string, essay: string) {
+  const mark = scoreStrictEssay(report, prompt, essay)
+  if (!mark || report.summary.startsWith(SCORE_PREFIX)) return { report, strictScore: mark }
+
+  const caps = mark.caps.length
+    ? ` Strict ceiling${mark.caps.length === 1 ? "" : "s"}: ${mark.caps.map(cap => `${cap.maximum}/100 (${cap.reason})`).join("; ")}.`
+    : " No hard ceiling was triggered."
+  report.summary = `${SCORE_PREFIX} ${mark.score}/100 — Grade ${mark.grade} (${mark.descriptor}). Raw weighted mark: ${mark.rawScore}/100.${caps} ${report.summary}`
+
+  report.criteria = report.criteria.map((criterion, index) => {
+    const component = mark.components[index]
+    if (!component || criterion.judgement.startsWith("Strict weighted mark:")) return criterion
+    return {
+      ...criterion,
+      judgement: `Strict weighted mark: ${component.earned}/${component.weight}. ${criterion.judgement}`,
+    }
+  })
+
+  report.limitations = [
+    mark.note,
+    ...report.limitations.filter(item => !item.startsWith("This is a strict ScholarBridge practice score")),
+  ].slice(0, 5)
+
+  return { report, strictScore: mark }
 }
