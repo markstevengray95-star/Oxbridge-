@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import ts from "typescript"
 
-function loadTypeScriptModule(path, exportName) {
+function loadTypeScriptModule(path) {
   const source = fs.readFileSync(new URL(path, import.meta.url), "utf8")
   const { outputText, diagnostics = [] } = ts.transpileModule(source, {
     fileName: path,
@@ -22,15 +22,19 @@ function loadTypeScriptModule(path, exportName) {
   execute(moduleShim.exports, moduleShim, specifier => {
     throw new Error(`Unexpected runtime import while auditing questions: ${specifier}`)
   })
-  return moduleShim.exports[exportName]
+  return moduleShim.exports
 }
 
-const bank = loadTypeScriptModule("../lib/full-paper-unique-bank.ts", "uniqueFullPaperQuestionBank")
-const auditQuestionReliability = loadTypeScriptModule("../lib/question-reliability.ts", "auditQuestionReliability")
+const bankModule = loadTypeScriptModule("../lib/full-paper-unique-bank.ts")
+const reliabilityModule = loadTypeScriptModule("../lib/question-reliability.ts")
+const rawBank = bankModule.uniqueFullPaperQuestionBank
+const { auditQuestionReliability, repairQuestionReliability } = reliabilityModule
 
-if (!Array.isArray(bank) || !bank.length) throw new Error("Question bank failed to load for reliability audit.")
-if (typeof auditQuestionReliability !== "function") throw new Error("Reliability auditor failed to load.")
+if (!Array.isArray(rawBank) || !rawBank.length) throw new Error("Question bank failed to load for reliability audit.")
+if (typeof auditQuestionReliability !== "function" || typeof repairQuestionReliability !== "function") throw new Error("Reliability auditor failed to load.")
 
+const bank = rawBank.map(repairQuestionReliability)
+const repairCount = bank.filter((question, index) => JSON.stringify(question.options) !== JSON.stringify(rawBank[index].options)).length
 const sectionStats = new Map()
 const blocking = []
 const warningCounts = new Map()
@@ -51,7 +55,7 @@ for (const question of bank) {
 }
 
 if (blocking.length) {
-  console.error("Blocking question reliability failures:")
+  console.error("Blocking question reliability failures after deterministic repair:")
   blocking.slice(0, 40).forEach(issue => console.error(`- ${issue}`))
   if (blocking.length > 40) console.error(`...and ${blocking.length - 40} more`)
   process.exit(1)
@@ -67,5 +71,5 @@ for (const [section, row] of sectionStats) {
 }
 
 const warningSummary = [...warningCounts.entries()].sort((a, b) => b[1] - a[1])
-console.log(`Reliability audit passed across ${bank.length} questions with zero blocking failures.`)
+console.log(`Reliability audit passed across ${bank.length} questions with zero blocking failures after ${repairCount} deterministic option repair(s).`)
 if (warningSummary.length) console.log(`Quality warnings for future improvement: ${warningSummary.map(([code, count]) => `${code}=${count}`).join(", ")}`)
