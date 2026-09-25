@@ -29,7 +29,7 @@ const QUESTION_FRAME = new Set([
 ])
 
 const HINGE_WORDS = new Set([
-  "allow","allowed","permit","permitted","choose","choice","ban","banned","prohibit","prohibited","forbid","forbidden","restrict","restricted","censor","censored","regulate","regulated","abolish","abolished","require","required","compulsory","mandatory","responsible","responsibility","liable","liability","legal","legally","illegal","criminal","criminalise","criminalize","free","cost","pay","paid","charge","tax","taxed","taxation","privatise","privatize","nationalise","nationalize","vote","voting","compensate","punish","punishment",
+  "allow","allowed","permit","permitted","choose","choice","ban","banned","prohibit","prohibited","forbid","forbidden","restrict","restricted","censor","censored","regulate","regulated","abolish","abolished","require","required","compulsory","mandatory","responsible","responsibility","liable","liability","legal","legally","illegal","criminal","criminalise","criminalize","free","cost","pay","paid","charge","tax","taxed","taxation","privatise","privatize","nationalise","nationalize","compensate","punish","punishment",
 ])
 
 const IRREGULAR: Record<string, string> = {
@@ -123,8 +123,6 @@ function promptConcepts(prompt: string) {
   const concepts = unique(meaningfulTokens(prompt, true))
   const hinges = unique(tokens.filter(token => HINGE_WORDS.has(token)).map(token => canonical(token)))
 
-  // Preserve a few high-value multiword ideas as paired concepts. This prevents a
-  // single generic word (for example "social") from being treated as a topic match.
   const pairs: Array<[string, string]> = []
   const filtered = tokens
     .map(token => canonical(token))
@@ -171,9 +169,9 @@ export function analyseOfflineTopicAlignment(prompt: string, essay: string): Top
   let level: 0 | 1 | 2 | 3 | 4
   if (!prompt.trim() || !concepts.length) {
     level = 0
-  } else if (overallCoverage < .25 || (concepts.length >= 3 && matched.length < 2) || hingeCoverage === 0 && hinges.length > 0) {
+  } else if (overallCoverage < .25 || (concepts.length >= 3 && matched.length < 2) || (hinges.length > 0 && hingeCoverage === 0)) {
     level = 0
-  } else if (overallCoverage < .48 || sustainedCoverage < .2 || (hinges.length > 0 && hingeCoverage < .5)) {
+  } else if (overallCoverage < .48 || sustainedCoverage < .2 || (hinges.length > 0 && hingeCoverage < .75)) {
     level = 1
   } else if (overallCoverage < .7 || sustainedCoverage < .4 || (requiresJudgement && !hasJudgement)) {
     level = 2
