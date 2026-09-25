@@ -18,7 +18,7 @@ export type AdminCapability = typeof ADMIN_CAPABILITIES[number]
 export type AppAdminAccess = {
   isAdmin: boolean
   unrestricted: boolean
-  source: "environment" | "none"
+  source: "database" | "environment" | "none"
   capabilities: AdminCapability[]
 }
 
