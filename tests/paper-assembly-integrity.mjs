@@ -36,7 +36,17 @@ function loadTs(file) {
 
 const { buildFullPaper } = loadTs(path.join(root, "lib/full-paper-system.ts"))
 const { auditQuestionReliability } = loadTs(path.join(root, "lib/question-reliability.ts"))
-if (typeof buildFullPaper !== "function" || typeof auditQuestionReliability !== "function") throw new Error("Could not load paper integrity dependencies.")
+const {
+  isYesNoStatementQuestion,
+  validateFullPaperQuestion,
+  questionMaxMarks,
+  questionRawMark,
+  setStatementResponse,
+  statementAnswerLabel,
+} = loadTs(path.join(root, "lib/full-paper-question.ts"))
+if (typeof buildFullPaper !== "function" || typeof auditQuestionReliability !== "function" || typeof isYesNoStatementQuestion !== "function") {
+  throw new Error("Could not load paper integrity dependencies.")
+}
 
 function mcqSection(paper, id) {
   const section = paper.sections.find(item => item.id === id)
@@ -55,22 +65,35 @@ function assertSectionQuality(paper, section) {
   if (!questions.length) throw new Error(`${paper.id}/${section.id} has no questions.`)
   const scores = []
   const positions = [0, 0, 0, 0]
+  let positionedQuestions = 0
   let longestRun = 0
   let run = 0
   let previous = -1
   let lengthClues = 0
   let weakDistractors = 0
   let extremeCues = 0
+  let auditedSingles = 0
 
   for (const question of questions) {
+    if (isYesNoStatementQuestion(question)) {
+      const issues = validateFullPaperQuestion(question)
+      if (issues.length) throw new Error(`${paper.id}/${section.id}/${question.id} has mixed-format integrity issues: ${issues.join(", ")}`)
+      scores.push(100)
+      previous = -1
+      run = 0
+      continue
+    }
+
     const audit = auditQuestionReliability(question)
     if (audit.blocking.length) throw new Error(`${paper.id}/${section.id}/${question.id} has blocking reliability issues: ${audit.blocking.map(issue => issue.code).join(", ")}`)
     scores.push(audit.score)
+    auditedSingles += 1
     lengthClues += audit.warnings.some(issue => issue.code === "correct-length-clue") ? 1 : 0
     weakDistractors += audit.warnings.some(issue => issue.code === "implausible-distractors") ? 1 : 0
     extremeCues += audit.warnings.some(issue => issue.code === "extreme-distractor-cue") ? 1 : 0
 
     if (question.options.length === 4 && question.answer >= 0 && question.answer < 4) {
+      positionedQuestions += 1
       positions[question.answer] += 1
       if (question.answer === previous) run += 1
       else { previous = question.answer; run = 1 }
@@ -84,13 +107,11 @@ function assertSectionQuality(paper, section) {
   const minPosition = Math.min(...positions)
   if (average < 80) throw new Error(`${paper.id}/${section.id} reliability average is too low: ${average.toFixed(1)}.`)
   if (minimum < 60) throw new Error(`${paper.id}/${section.id} contains a question below reliability 60: ${minimum}.`)
-  if (positions.reduce((a, b) => a + b, 0) === questions.length && maxPosition - minPosition > 2) {
-    throw new Error(`${paper.id}/${section.id} answer positions are imbalanced: ${positions.join("/")}.`)
-  }
-  if (longestRun > 2) throw new Error(`${paper.id}/${section.id} has ${longestRun} consecutive answers in the same option position.`)
-  if (lengthClues / questions.length > 0.2) throw new Error(`${paper.id}/${section.id} has too many correct-answer length clues: ${lengthClues}/${questions.length}.`)
-  if (weakDistractors / questions.length > 0.12) throw new Error(`${paper.id}/${section.id} has too many weak-distractor warnings: ${weakDistractors}/${questions.length}.`)
-  if (extremeCues / questions.length > 0.12) throw new Error(`${paper.id}/${section.id} has too many extreme-wording cues: ${extremeCues}/${questions.length}.`)
+  if (positionedQuestions > 0 && maxPosition - minPosition > 2) throw new Error(`${paper.id}/${section.id} answer positions are imbalanced: ${positions.join("/")}.`)
+  if (longestRun > 2) throw new Error(`${paper.id}/${section.id} has ${longestRun} consecutive single-answer keys in the same option position.`)
+  if (auditedSingles > 0 && lengthClues / auditedSingles > 0.2) throw new Error(`${paper.id}/${section.id} has too many correct-answer length clues: ${lengthClues}/${auditedSingles}.`)
+  if (auditedSingles > 0 && weakDistractors / auditedSingles > 0.12) throw new Error(`${paper.id}/${section.id} has too many weak-distractor warnings: ${weakDistractors}/${auditedSingles}.`)
+  if (auditedSingles > 0 && extremeCues / auditedSingles > 0.12) throw new Error(`${paper.id}/${section.id} has too many extreme-wording cues: ${extremeCues}/${auditedSingles}.`)
 }
 
 function passagePrefix(prompt) {
@@ -121,6 +142,29 @@ function sjtScenarioKey(question) {
   const reserve = question.id.match(/^uniq-ucat-sjt-(\d+)-\d+$/)
   if (reserve) return `reserve-${reserve[1]}`
   return null
+}
+
+function assertDecisionMakingMixedFormat(paper) {
+  const dm = mcqSection(paper, "dm")
+  const statements = dm.questions.filter(isYesNoStatementQuestion)
+  const singles = dm.questions.filter(question => !isYesNoStatementQuestion(question))
+  if (statements.length !== 8 || singles.length !== 27) throw new Error(`${paper.id} DM must contain 27 single-answer and 8 five-statement practice items; found ${singles.length}/${statements.length}.`)
+  if (statements.some(question => question.statements.length !== 5 || questionMaxMarks(question) !== 2)) throw new Error(`${paper.id} contains a malformed two-mark Decision Making statement set.`)
+  const maxMarks = dm.questions.reduce((sum, question) => sum + questionMaxMarks(question), 0)
+  if (maxMarks !== 43) throw new Error(`${paper.id} DM should expose 43 practice raw marks from its mixed item formats; found ${maxMarks}.`)
+
+  // Exercise the packed-answer state and partial-credit scorer on every item.
+  for (const question of statements) {
+    let fullyCorrect = undefined
+    for (let index = 0; index < 5; index++) fullyCorrect = setStatementResponse(fullyCorrect, index, statementAnswerLabel(question, index) === "Yes")
+    if (questionRawMark(question, fullyCorrect) !== 2) throw new Error(`${question.id} does not award 2 marks for five correct statement judgements.`)
+    const firstCorrect = statementAnswerLabel(question, 0) === "Yes"
+    const oneWrong = setStatementResponse(fullyCorrect, 0, !firstCorrect)
+    if (questionRawMark(question, oneWrong) !== 1) throw new Error(`${question.id} does not award 1 practice mark for four of five correct judgements.`)
+    const secondCorrect = statementAnswerLabel(question, 1) === "Yes"
+    const twoWrong = setStatementResponse(oneWrong, 1, !secondCorrect)
+    if (questionRawMark(question, twoWrong) !== 0) throw new Error(`${question.id} incorrectly awards partial credit for only three of five correct judgements.`)
+  }
 }
 
 function assertOfficialStructure(paper) {
@@ -160,6 +204,7 @@ function assertOfficialStructure(paper) {
     }
     const vrBlocks = assertContiguousGroups(mcqSection(paper, "vr").questions, question => passagePrefix(question.prompt), `${paper.id} UCAT VR`, 4, 4)
     if (vrBlocks.length !== 11) throw new Error(`${paper.id} UCAT VR must contain 11 contiguous four-question passages; found ${vrBlocks.length}.`)
+    assertDecisionMakingMixedFormat(paper)
     const sjtBlocks = assertContiguousGroups(mcqSection(paper, "sjt").questions, sjtScenarioKey, `${paper.id} UCAT SJT`, 2, 6)
     if (sjtBlocks.length < 12) throw new Error(`${paper.id} UCAT SJT uses too few distinct scenarios: ${sjtBlocks.length}.`)
   }
@@ -180,4 +225,4 @@ for (const form of [1, 2]) {
   assertOfficialStructure(buildFullPaper("ESAT", form, ["Mathematics 1", "Physics", "Physics"]))
 }
 
-console.log("PASS: assembled full papers satisfy official counts/timings, grouping, answer-pattern and reliability integrity checks.")
+console.log("PASS: assembled full papers satisfy counts/timings, grouping, mixed response formats, scoring and reliability integrity checks.")
