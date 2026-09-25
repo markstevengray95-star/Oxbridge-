@@ -61,19 +61,95 @@ function sameNumericValue(a: string, b: string) {
   return Math.abs(av - bv) <= Math.max(1e-9, Math.abs(av) * 1e-9, Math.abs(bv) * 1e-9)
 }
 
+function explanationNumericValues(text: string) {
+  const values: number[] = []
+  const fractionPattern = /(-?\d+(?:\.\d+)?)\s*\/\s*(-?\d+(?:\.\d+)?)/g
+  for (const match of text.matchAll(fractionPattern)) {
+    const denominator = Number(match[2])
+    if (denominator !== 0) values.push(Number(match[1]) / denominator)
+  }
+  for (const match of text.matchAll(/-?\d+(?:\.\d+)?%?/g)) {
+    const raw = match[0]
+    const value = Number(raw.replace("%", ""))
+    if (Number.isFinite(value)) values.push(raw.includes("%") ? value / 100 : value)
+  }
+  return values
+}
+
 function numericAnswerSupported(question: TestQuestion) {
   const answer = question.options[question.answer]
   const value = parseSimpleNumber(answer)
   if (value === null) return true
 
-  const candidateNumbers = question.explanation.match(/-?\d+(?:\.\d+)?/g)?.map(Number).filter(Number.isFinite) ?? []
+  const candidateNumbers = explanationNumericValues(question.explanation)
   if (!candidateNumbers.length) return false
 
-  const answerIsPercent = /%/.test(answer)
-  return candidateNumbers.some(candidate => {
-    const interpreted = answerIsPercent ? candidate / 100 : candidate
-    return Math.abs(interpreted - value) <= Math.max(0.0005, Math.abs(value) * 0.002)
-  })
+  return candidateNumbers.some(candidate =>
+    Math.abs(candidate - value) <= Math.max(0.0005, Math.abs(value) * 0.002),
+  )
+}
+
+function splitNumericRendering(text: string) {
+  const match = text.match(/^(.*?)(-?\d+(?:\.\d+)?)([^\d]*)$/)
+  if (!match) return null
+  return { prefix: match[1], raw: match[2], suffix: match[3] }
+}
+
+function repairNumericRendering(text: string, used: string[], attemptSeed: number) {
+  const fraction = text.match(/^(.*?)(-?\d+)\s*\/\s*(-?\d+)([^\d]*)$/)
+  if (fraction) {
+    const numerator = Number(fraction[2])
+    const denominator = Number(fraction[3])
+    for (let step = 1; step <= 8; step++) {
+      const candidate = `${fraction[1]}${numerator + step + (attemptSeed % 2)}/${denominator}${fraction[4]}`
+      if (!used.some(existing => optionReliabilityKey(existing) === optionReliabilityKey(candidate) || sameNumericValue(existing, candidate))) return candidate
+    }
+  }
+
+  const parts = splitNumericRendering(text)
+  if (!parts) return null
+  const value = Number(parts.raw)
+  if (!Number.isFinite(value)) return null
+  const decimals = parts.raw.includes(".") ? parts.raw.split(".")[1].length : 0
+  const baseStep = decimals ? Math.max(10 ** -decimals, Math.abs(value) * 0.05) : Math.max(1, Math.round(Math.abs(value) * 0.08))
+  const directions = [1, -1, 2, -2, 3, -3, 4, -4]
+  for (let offset = 0; offset < directions.length; offset++) {
+    const direction = directions[(offset + attemptSeed) % directions.length]
+    const candidateValue = value + direction * baseStep
+    const rendered = decimals ? candidateValue.toFixed(decimals) : String(Math.round(candidateValue))
+    const candidate = `${parts.prefix}${rendered}${parts.suffix}`
+    if (!used.some(existing => optionReliabilityKey(existing) === optionReliabilityKey(candidate) || sameNumericValue(existing, candidate))) return candidate
+  }
+  return null
+}
+
+export function repairQuestionReliability(question: TestQuestion): TestQuestion {
+  if (!Array.isArray(question.options) || question.answer < 0 || question.answer >= question.options.length) return question
+  const options = [...question.options]
+  const correct = options[question.answer]
+  const used = [correct]
+  let changed = false
+
+  for (let index = 0; index < options.length; index++) {
+    if (index === question.answer) continue
+    const option = options[index]
+    const duplicate = used.some(existing => optionReliabilityKey(existing) === optionReliabilityKey(option) || sameNumericValue(existing, option))
+    if (!duplicate) {
+      used.push(option)
+      continue
+    }
+
+    const repaired = repairNumericRendering(option, used, index + question.id.length)
+    if (repaired) {
+      options[index] = repaired
+      used.push(repaired)
+      changed = true
+    } else {
+      used.push(option)
+    }
+  }
+
+  return changed ? { ...question, options } : question
 }
 
 function addIssue(issues: ReliabilityIssue[], severity: ReliabilityIssue["severity"], code: string, message: string) {
