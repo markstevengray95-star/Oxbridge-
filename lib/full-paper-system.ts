@@ -1,5 +1,8 @@
 import type { TestQuestion } from "@/lib/oxbridge-data"
+import { advancedQuestionBank } from "@/lib/question-bank-advanced"
+import { questionBank } from "@/lib/question-bank"
 import { lnatEssayPrompts2027, questionBank2027, taraWritingPrompts2027 } from "@/lib/question-bank-2027"
+import { strengthenQuestionSelection } from "@/lib/question-quality"
 
 export type FullPaperTest = TestQuestion["test"]
 export type PaperForm = 1 | 2
@@ -27,7 +30,21 @@ export type FullPaperDefinition = {
   note: string
 }
 
-const q = (prefix: string) => questionBank2027.filter(item => item.id.startsWith(prefix))
+const fallbackBank = [...advancedQuestionBank, ...questionBank]
+
+function prefixSeed(prefix:string) {
+  let hash = 2166136261
+  for (let i=0;i<prefix.length;i++) {
+    hash ^= prefix.charCodeAt(i)
+    hash = Math.imul(hash,16777619)
+  }
+  return hash >>> 0
+}
+
+const q = (prefix: string) => {
+  const primary = questionBank2027.filter(item => item.id.startsWith(prefix))
+  return strengthenQuestionSelection(primary, fallbackBank, prefixSeed(prefix))
+}
 
 const esatCode: Record<EsatModule, string> = {
   "Mathematics 1": "m1",
@@ -65,7 +82,7 @@ export function buildFullPaper(
       title: `TMUA Practice Form ${form}`,
       subtitle: "Full two-paper simulation",
       totalMinutes: 150,
-      note: "Raw marks are for practice only. No calculator. There is no negative marking.",
+      note: "Raw marks are for practice only. No calculator. There is no negative marking. Answer positions are deliberately balanced and weak pattern-based items are replaced by stronger same-section questions.",
       sections: [
         {
           id: "paper-1",
@@ -101,7 +118,7 @@ export function buildFullPaper(
       title: `ESAT Practice Form ${form}`,
       subtitle: selected.join(" · "),
       totalMinutes: selected.length * 40,
-      note: "Mathematics 1 is compulsory. This mock uses two additional modules selected by the student. No calculator and no negative marking.",
+      note: "Mathematics 1 is compulsory. This mock uses two additional modules selected by the student. No calculator and no negative marking. Distractors are screened for obvious length and wording clues.",
       sections: selected.map(module => ({
         id: `module-${esatCode[module]}`,
         title: module,
@@ -123,7 +140,7 @@ export function buildFullPaper(
       title: `TARA Practice Form ${form}`,
       subtitle: "Critical Thinking · Problem Solving · Writing Task",
       totalMinutes: 120,
-      note: "The writing task is deliberately left unscored, matching the fact that UAT-UK sends the response to universities rather than assigning it a TARA score.",
+      note: "The writing task is deliberately left unscored, matching the fact that UAT-UK sends the response to universities rather than assigning it a TARA score. Critical-thinking distractors are designed as plausible near-misses rather than obviously weak statements.",
       sections: [
         {
           id: "critical-thinking",
@@ -165,7 +182,7 @@ export function buildFullPaper(
       title: `LNAT Practice Form ${form}`,
       subtitle: "Section A · Multiple Choice + Section B · Essay",
       totalMinutes: 135,
-      note: "Section A is automatically marked. Section B is saved for review but is not assigned a fabricated numerical score.",
+      note: "Section A is automatically marked. Section B is saved for review but is not assigned a fabricated numerical score. Passage questions favour close alternatives where several options can sound defensible but only one is fully supported by the text.",
       sections: [
         {
           id: "section-a",
@@ -195,7 +212,7 @@ export function buildFullPaper(
     title: `UCAT Practice Form ${form}`,
     subtitle: "Current four-subtest structure",
     totalMinutes: 111,
-    note: "This practice mode reports raw marks and accuracy only. It does not invent a UCAT scaled score or SJT band.",
+    note: "This practice mode reports raw marks and accuracy only. It does not invent a UCAT scaled score or SJT band. Situational-judgement alternatives are screened so the correct response is not identifiable simply because it is the longest or most professional-sounding option.",
     sections: [
       {
         id: "vr",
