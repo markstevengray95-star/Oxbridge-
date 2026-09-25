@@ -33,6 +33,9 @@ jobs:
       - name: Offline task-aware essay regression checks
         run: node tests/offline-analysis-v3.cjs
 
+      - name: Strict essay grading regression checks
+        run: node tests/strict-essay-score.cjs
+
       - name: Full paper uniqueness checks
         run: node tests/full-paper-uniqueness.mjs
 

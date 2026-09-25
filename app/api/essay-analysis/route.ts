@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { buildOfflineWritingReport } from "@/lib/writing/offline-review"
+import { attachStrictEssayScoring, scoreStrictEssay } from "@/lib/writing/strict-score"
 import { inputSchema, mechanics, reviewInstructions, responseJsonSchema, splitParagraphs, validateReport } from "@/lib/writing/review"
 
 export const runtime = "nodejs"
@@ -14,12 +15,13 @@ export async function POST(request: Request) {
   const paragraphs = splitParagraphs(essay)
   if (paragraphs.length > 40) return NextResponse.json({ error: "Please review up to 40 paragraphs at a time." }, { status: 400 })
   const basic = mechanics(essay)
+  const scoreFor = (report: ReturnType<typeof validateReport>) => mode === "essay" ? scoreStrictEssay(report, prompt, essay) : null
   const fallback = (message: string) => {
     try {
       const local = validateReport(buildOfflineWritingReport({ essay, mode, prompt, course, test }), essay, mode)
-      return NextResponse.json({ provider: "local", report: local, mechanics: basic, message, rubricVersion: 3 })
+      return NextResponse.json({ provider: "local", report: local, strictScore: scoreFor(local), mechanics: basic, message, rubricVersion: 4 })
     } catch {
-      return NextResponse.json({ provider: "local", report: null, mechanics: basic, message: `${message} The offline substantive review could not be verified, so only mechanical checks are shown.`, rubricVersion: 3 })
+      return NextResponse.json({ provider: "local", report: null, strictScore: null, mechanics: basic, message: `${message} The offline substantive review could not be verified, so only mechanical checks are shown.`, rubricVersion: 4 })
     }
   }
   const key = getGeminiApiKeyCandidates()[0]?.value
@@ -35,10 +37,16 @@ export async function POST(request: Request) {
     const candidate = data.candidates?.[0]
     if (candidate?.finishReason !== "STOP") return fallback("The AI response was incomplete, so no partial AI judgement was shown. The deterministic offline review was used instead.")
     const output = candidate.content?.parts?.filter(p => !p.thought).map(p => p.text ?? "").join("") || ""
-    const report = validateReport(JSON.parse(output), essay, mode)
+    let report = validateReport(JSON.parse(output), essay, mode)
     if (!prompt && mode === "essay") report.criteria[0].level = null
     if (!course && mode === "statement") report.criteria[4].level = null
-    return NextResponse.json({ provider: "gemini", report, mechanics: basic, rubricVersion: 3 })
+    let strictScore = mode === "essay" ? scoreStrictEssay(report, prompt, essay) : null
+    if (mode === "essay" && prompt) {
+      const attached = attachStrictEssayScoring(report, prompt, essay)
+      report = attached.report
+      strictScore = attached.strictScore
+    }
+    return NextResponse.json({ provider: "gemini", report, strictScore, mechanics: basic, rubricVersion: 4 })
   } catch {
     return fallback("The AI review timed out or could not be verified against the draft, so the deterministic offline review was used instead.")
   }
