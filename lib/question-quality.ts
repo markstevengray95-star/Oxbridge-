@@ -84,10 +84,14 @@ function generatedNearMiss(correct:string, attempt:number) {
 export function ensureUniqueOptions(q:TestQuestion):TestQuestion {
   if (!Array.isArray(q.options) || q.options.length<2 || q.answer<0 || q.answer>=q.options.length) return q
   const correct = q.options[q.answer]
-  const rebuilt:string[] = []
-  const used = new Set<string>()
+  const rebuilt = [...q.options]
+  const used = new Set<string>([optionKey(correct)])
   let repaired = false
+
+  // Protect the keyed correct answer first. Only distractors are ever regenerated,
+  // regardless of where the correct option currently sits after an earlier shuffle.
   for (let index=0;index<q.options.length;index++) {
+    if (index===q.answer) continue
     let option = q.options[index]
     let key = optionKey(option)
     if (used.has(key)) {
@@ -96,15 +100,12 @@ export function ensureUniqueOptions(q:TestQuestion):TestQuestion {
       do {
         option = generatedNearMiss(correct,attempt++)
         key = optionKey(option)
-      } while (used.has(key) && attempt<index+20)
+      } while (used.has(key) && attempt<index+24)
     }
     used.add(key)
-    rebuilt.push(option)
+    rebuilt[index] = option
   }
-  if (!repaired) return q
-  // The correct option itself is never replaced: a duplicate encountered later is the
-  // distractor that gets regenerated, so the original answer index remains valid.
-  return { ...q, options:rebuilt }
+  return repaired ? { ...q, options:rebuilt } : q
 }
 
 export function questionQualitySignals(q:TestQuestion):QuestionQualitySignals {
