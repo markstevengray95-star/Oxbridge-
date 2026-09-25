@@ -81,6 +81,32 @@ function ucatVerbalReasoningDistractors(question: TestQuestion): [string, string
   return null
 }
 
+function esatBiologyDistractors(question: TestQuestion): [string, string, string] | null {
+  if (question.test !== "ESAT" || question.section !== "Biology") return null
+  const prompt = question.prompt.toLowerCase()
+
+  if (/most defensible/.test(prompt)) {
+    return [
+      "The treatment probably explains the entire observed difference because its mean is lower than the control mean, even though variation and sample size are unknown.",
+      "The treatment should be regarded as having no effect because, without variation data, any numerical difference between the two means must be ignored.",
+      "The difference can be treated as statistically significant because the group means are numerically different, even though no measure of spread or sample size is supplied.",
+    ]
+  }
+
+  if (/surface-area-to-volume/.test(prompt)) {
+    const factor = Number(prompt.match(/factor of\s+(\d+)/)?.[1] ?? "")
+    if (Number.isFinite(factor) && factor > 0) {
+      return [
+        `It becomes ${factor} times the original ratio because the surface area increases as the radius increases.`,
+        `It becomes 1/${factor * factor} of the original ratio because the ratio is assumed to scale with surface area alone.`,
+        "It remains equal to the original ratio because both surface area and volume increase when the radius increases.",
+      ]
+    }
+  }
+
+  return null
+}
+
 /**
  * Repairs a test-taking clue without changing the keyed proposition. Only
  * question types with purpose-written, semantically plausible alternatives are
@@ -88,7 +114,9 @@ function ucatVerbalReasoningDistractors(question: TestQuestion): [string, string
  */
 export function repairSemanticAnswerCues(question: TestQuestion): TestQuestion {
   if (!hasAnswerLengthCue(question)) return question
-  const replacements = taraCriticalThinkingDistractors(question) ?? ucatVerbalReasoningDistractors(question)
+  const replacements = taraCriticalThinkingDistractors(question)
+    ?? ucatVerbalReasoningDistractors(question)
+    ?? esatBiologyDistractors(question)
   if (!replacements) return question
   const correct = question.options[question.answer]
   return { ...question, options: [correct, ...replacements], answer: 0 }
