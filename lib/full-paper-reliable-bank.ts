@@ -3,21 +3,13 @@ import { reliabilityUpgradeQuestionBank } from "@/lib/question-bank-reliability-
 import { ucatQrReliabilityUpgradeBank } from "@/lib/ucat-qr-reliability-upgrades"
 import { auditQuestionReliability, repairQuestionReliability, reliabilityScore } from "@/lib/question-reliability"
 
-const replacementSections = new Set([
-  "LNAT:Argumentative passages",
-  "TARA:Critical Thinking",
-  "UCAT:Verbal Reasoning",
-  "UCAT:Quantitative Reasoning",
-  "UCAT:Situational Judgement",
-])
-
-const originalRepaired = uniqueFullPaperQuestionBank
-  .map(repairQuestionReliability)
-  .filter(question => !replacementSections.has(`${question.test}:${question.section}`))
-
+// Keep the original diverse bank as reliable reserve material rather than
+// removing whole sections when an upgraded bank is present. The paper builder
+// can then construct two genuinely different forms while still ranking the
+// stronger upgraded items first.
+const originalRepaired = uniqueFullPaperQuestionBank.map(repairQuestionReliability)
 const primaryUpgrades = reliabilityUpgradeQuestionBank
   .filter(question => !(question.test === "UCAT" && question.section === "Quantitative Reasoning"))
-
 const rawUpgrades = [...primaryUpgrades, ...ucatQrReliabilityUpgradeBank]
 const upgradedRepaired = rawUpgrades.map(repairQuestionReliability)
 const repaired = [...upgradedRepaired, ...originalRepaired]
@@ -29,8 +21,8 @@ export const reliableFullPaperQuestionBank = repaired.filter(question =>
 export const reliableFullPaperQuestionBankStats = {
   total: reliableFullPaperQuestionBank.length,
   upgraded: upgradedRepaired.length,
-  replacedSections: replacementSections.size,
-  repairedOptions: rawUpgrades.filter((question, index) =>
+  reserve: originalRepaired.length,
+  repairedUpgradeOptions: rawUpgrades.filter((question, index) =>
     JSON.stringify(question.options) !== JSON.stringify(upgradedRepaired[index]?.options),
   ).length,
   filteredBlocking: repaired.length - reliableFullPaperQuestionBank.length,
