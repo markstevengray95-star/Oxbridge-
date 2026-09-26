@@ -163,7 +163,7 @@ export function buildTutorEvidenceQuality(progressValue: unknown, intelligence: 
     freshness,
     coverage,
     latestEvidenceAt: latest === null ? null : new Date(latest).toISOString(),
-    latestEvidenceAgeDays,
+    latestEvidenceAgeDays: latestAgeDays,
     totalEvidenceCount,
     coveredDomains,
     freshDomains,
