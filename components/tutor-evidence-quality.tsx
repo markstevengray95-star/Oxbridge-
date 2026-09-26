@@ -41,7 +41,7 @@ export function TutorEvidenceQuality() {
             <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
               <span className="inline-flex items-center gap-1"><Clock3 className="size-3.5" />{ageLabel(evidenceQuality.latestEvidenceAgeDays)}</span>
               <span className="inline-flex items-center gap-1"><Activity className="size-3.5" />{evidenceQuality.totalEvidenceCount} evidence item{evidenceQuality.totalEvidenceCount === 1 ? "" : "s"}</span>
-              <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3.5" />{evidenceQuality.coveredDomains}/3 core domains covered</span>
+              <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3.5" />{evidenceQuality.freshDomains}/3 domains current · refresh {evidenceQuality.leastCurrentDomain.toLowerCase()}</span>
             </div>
           </div>
 
