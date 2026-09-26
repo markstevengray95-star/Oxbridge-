@@ -3,6 +3,7 @@ import { BarChart3, BookOpenCheck, Brain, CalendarCheck2, Compass, Lightbulb, Mi
 import { PersonalTutorDashboard } from "@/components/personal-tutor-dashboard"
 import { TutorDeepInsightLoader } from "@/components/tutor-deep-insight-loader"
 import { TutorExecutionLoopLoader } from "@/components/tutor-execution-loop-loader"
+import { TutorIntelligenceProvider } from "@/components/tutor-intelligence-context"
 import { TutorStrategicBrief } from "@/components/tutor-strategic-brief"
 import { NextgenTutorPanel } from "@/components/nextgen-tutor-panel"
 
@@ -16,7 +17,7 @@ const tutorSections = [
 
 export function PersonalTutorShell() {
   return (
-    <>
+    <TutorIntelligenceProvider>
       <div id="tutor-today" className="scroll-mt-24"><PersonalTutorDashboard /></div>
 
       <nav className="sticky top-14 z-[70] border-y border-[#dbe5e7] bg-white/95 shadow-sm backdrop-blur" aria-label="Tutor command centre sections">
@@ -39,6 +40,6 @@ export function PersonalTutorShell() {
         <Link href="/test-player" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-semibold text-[#172b3a]"><TimerReset className="size-4 text-[#147d91]" />Test</Link>
         <Link href="/reading-room" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-semibold text-[#172b3a]"><BookOpenCheck className="size-4 text-[#147d91]" />Read</Link>
       </nav>
-    </>
+    </TutorIntelligenceProvider>
   )
 }
