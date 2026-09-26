@@ -20,8 +20,9 @@ function renderNumber(value: number) {
   return rounded.length > 16 ? Number(value.toPrecision(9)).toString() : rounded
 }
 
-export function UcatBasicCalculator() {
+export function UcatBasicCalculator({ autoDetect = false }: { autoDetect?: boolean }) {
   const [open, setOpen] = useState(false)
+  const [available, setAvailable] = useState(!autoDetect)
   const [display, setDisplay] = useState("0")
   const [stored, setStored] = useState<number | null>(null)
   const [operator, setOperator] = useState<Operator | null>(null)
@@ -103,7 +104,27 @@ export function UcatBasicCalculator() {
   }
 
   useEffect(() => {
-    if (!open) return
+    if (!autoDetect) {
+      setAvailable(true)
+      return
+    }
+
+    const detectAvailability = () => {
+      const activeExamHeader = document.querySelector("header.sticky")
+      const headerText = activeExamHeader?.textContent ?? ""
+      const nextAvailable = /\bUCAT\b/.test(headerText) && /(Decision Making|Quantitative Reasoning)/.test(headerText)
+      setAvailable(nextAvailable)
+      if (!nextAvailable) setOpen(false)
+    }
+
+    detectAvailability()
+    const observer = new MutationObserver(detectAvailability)
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    return () => observer.disconnect()
+  }, [autoDetect])
+
+  useEffect(() => {
+    if (!open || !available) return
     const handleKey = (event: KeyboardEvent) => {
       if (/^\d$/.test(event.key)) { event.preventDefault(); inputDigit(event.key); return }
       if (event.key === ".") { event.preventDefault(); inputDecimal(); return }
@@ -141,11 +162,13 @@ export function UcatBasicCalculator() {
     { label: "=", action: equals },
   ]
 
+  if (!available) return null
+
   return <>
-    <Button type="button" size="sm" variant="outline" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label="Open UCAT basic calculator">
+    <Button type="button" size="sm" variant="outline" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label="Open UCAT basic calculator" className="fixed right-4 top-[5.25rem] z-[130] shadow-md">
       <Calculator className="size-4" />Calculator
     </Button>
-    {open && <div className="fixed right-4 top-24 z-[140] w-[min(20rem,calc(100vw-2rem))] rounded-2xl border bg-white p-3 shadow-2xl" role="dialog" aria-label="UCAT basic calculator">
+    {open && <div className="fixed right-4 top-32 z-[140] w-[min(20rem,calc(100vw-2rem))] rounded-2xl border bg-white p-3 shadow-2xl" role="dialog" aria-label="UCAT basic calculator">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div><p className="text-sm font-bold">Basic calculator</p><p className="text-xs text-slate-500">DM / QR practice tool</p></div>
         <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Close calculator"><X className="size-4" /></button>
