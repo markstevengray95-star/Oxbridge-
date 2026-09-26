@@ -57,5 +57,8 @@ jobs:
       - name: ESAT specification breadth checks
         run: node tests/esat-topic-coverage.mjs
 
+      - name: TARA five-option and reasoning coverage checks
+        run: node tests/tara-format-coverage.mjs
+
       - name: Type-aware production build
         run: npm run build
