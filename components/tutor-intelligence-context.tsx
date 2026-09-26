@@ -5,26 +5,35 @@ import {
   PROFILE_KEY,
   PROGRESS_KEY,
   buildStudentIntelligence,
-  type StudentIntelligence,
 } from "@/lib/personal-tutor"
+import {
+  buildTutorEvidenceQuality,
+  refineStudentIntelligence,
+  type RefinedStudentIntelligence,
+  type TutorEvidenceQuality,
+} from "@/lib/tutor-evidence-quality"
 
 type JsonRecord = Record<string, unknown>
 
 type TutorIntelligenceContextValue = {
   profile: JsonRecord
   progress: JsonRecord
-  intelligence: StudentIntelligence
+  intelligence: RefinedStudentIntelligence
+  evidenceQuality: TutorEvidenceQuality
   ready: boolean
   refresh: () => void
 }
 
 const DEFAULT_PROFILE: JsonRecord = { university: "Both", course: "Physics", year: "2027" }
-const EMPTY_INTELLIGENCE = buildStudentIntelligence(DEFAULT_PROFILE, {})
+const EMPTY_BASE = buildStudentIntelligence(DEFAULT_PROFILE, {})
+const EMPTY_INTELLIGENCE = refineStudentIntelligence(EMPTY_BASE, {})
+const EMPTY_QUALITY = buildTutorEvidenceQuality({}, EMPTY_BASE)
 
 const TutorIntelligenceContext = createContext<TutorIntelligenceContextValue>({
   profile: DEFAULT_PROFILE,
   progress: {},
   intelligence: EMPTY_INTELLIGENCE,
+  evidenceQuality: EMPTY_QUALITY,
   ready: false,
   refresh: () => undefined,
 })
@@ -64,8 +73,10 @@ export function TutorIntelligenceProvider({ children }: { children: React.ReactN
     }
   }, [refresh])
 
-  const intelligence = useMemo(() => buildStudentIntelligence(profile, progress), [profile, progress])
-  const value = useMemo(() => ({ profile, progress, intelligence, ready, refresh }), [profile, progress, intelligence, ready, refresh])
+  const baseIntelligence = useMemo(() => buildStudentIntelligence(profile, progress), [profile, progress])
+  const intelligence = useMemo(() => refineStudentIntelligence(baseIntelligence, progress), [baseIntelligence, progress])
+  const evidenceQuality = intelligence.evidenceQuality
+  const value = useMemo(() => ({ profile, progress, intelligence, evidenceQuality, ready, refresh }), [profile, progress, intelligence, evidenceQuality, ready, refresh])
 
   return <TutorIntelligenceContext.Provider value={value}>{children}</TutorIntelligenceContext.Provider>
 }

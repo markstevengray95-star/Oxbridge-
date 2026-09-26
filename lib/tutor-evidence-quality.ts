@@ -12,6 +12,8 @@ export type TutorEvidenceQuality = {
   latestEvidenceAgeDays: number | null
   totalEvidenceCount: number
   coveredDomains: number
+  freshDomains: number
+  leastCurrentDomain: TutorDomain
   summary: string
   refreshAction: TutorAction
 }
@@ -45,6 +47,10 @@ function dateValue(item: JsonRecord) {
 function latestDate(items: unknown[]) {
   const dates = items.map(item => dateValue(record(item))).filter((value): value is number => value !== null)
   return dates.length ? Math.max(...dates) : null
+}
+
+function ageDays(timestamp: number | null) {
+  return timestamp === null ? null : Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000))
 }
 
 function stableKey(value: string) {
@@ -98,32 +104,58 @@ export function buildTutorEvidenceQuality(progressValue: unknown, intelligence: 
     "Admissions test": papers.length + interventions.length,
     Writing: Math.max(essays.length, intelligence.essayCount),
   }
+  const domainLatest: Record<TutorDomain, number | null> = {
+    Interview: latestDate(interviews),
+    "Admissions test": Math.max(latestDate(papers) ?? 0, latestDate(interventions) ?? 0) || null,
+    Writing: latestDate(essays),
+  }
+  const domainAges: Record<TutorDomain, number | null> = {
+    Interview: ageDays(domainLatest.Interview),
+    "Admissions test": ageDays(domainLatest["Admissions test"]),
+    Writing: ageDays(domainLatest.Writing),
+  }
 
-  const dates = [latestDate(interviews), latestDate(papers), latestDate(essays), latestDate(interventions)].filter((value): value is number => value !== null)
+  const dates = Object.values(domainLatest).filter((value): value is number => value !== null)
   const latest = dates.length ? Math.max(...dates) : null
-  const ageDays = latest === null ? null : Math.max(0, Math.floor((Date.now() - latest) / 86_400_000))
-  const freshness: TutorEvidenceQuality["freshness"] = ageDays === null ? "none" : ageDays <= 14 ? "fresh" : ageDays <= 45 ? "ageing" : "stale"
-
+  const latestAgeDays = ageDays(latest)
   const totalEvidenceCount = counts.Interview + counts["Admissions test"] + counts.Writing
   const coveredDomains = Object.values(counts).filter(count => count > 0).length
+  const freshDomains = (Object.entries(counts) as Array<[TutorDomain, number]>).filter(([domain, count]) => count > 0 && (domainAges[domain] ?? 999) <= 45).length
+  const evidencedAges = (Object.entries(counts) as Array<[TutorDomain, number]>).filter(([, count]) => count > 0).map(([domain]) => domainAges[domain] ?? 999)
+  const stalestEvidenceAge = evidencedAges.length ? Math.max(...evidencedAges) : null
+  const freshness: TutorEvidenceQuality["freshness"] = totalEvidenceCount === 0
+    ? "none"
+    : stalestEvidenceAge !== null && stalestEvidenceAge <= 14
+      ? "fresh"
+      : stalestEvidenceAge !== null && stalestEvidenceAge <= 45
+        ? "ageing"
+        : "stale"
   const coverage: TutorEvidenceQuality["coverage"] = totalEvidenceCount >= 8 && coveredDomains === 3 ? "broad" : totalEvidenceCount >= 3 && coveredDomains >= 2 ? "developing" : "thin"
 
   const volumeScore = Math.min(100, totalEvidenceCount * 12)
   const breadthScore = coveredDomains * 33
+  const currentDomainScore = coveredDomains ? Math.round((freshDomains / coveredDomains) * 100) : 0
   const recencyScore = freshness === "fresh" ? 100 : freshness === "ageing" ? 68 : freshness === "stale" ? 30 : totalEvidenceCount ? 48 : 0
-  const confidence = clamp(volumeScore * 0.4 + breadthScore * 0.3 + recencyScore * 0.3)
+  const confidence = clamp(volumeScore * 0.35 + breadthScore * 0.25 + recencyScore * 0.2 + currentDomainScore * 0.2)
 
-  const refreshDomain = (Object.entries(counts) as Array<[TutorDomain, number]>).sort((a, b) => a[1] - b[1])[0]?.[0] ?? "Interview"
-  const refreshAction = domainRefreshAction(refreshDomain)
+  const leastCurrentDomain = (Object.keys(counts) as TutorDomain[]).sort((a, b) => {
+    if (counts[a] === 0 && counts[b] > 0) return -1
+    if (counts[b] === 0 && counts[a] > 0) return 1
+    const ageA = domainAges[a] ?? 999
+    const ageB = domainAges[b] ?? 999
+    if (ageA !== ageB) return ageB - ageA
+    return counts[a] - counts[b]
+  })[0] ?? "Interview"
+  const refreshAction = domainRefreshAction(leastCurrentDomain)
 
   const summary = totalEvidenceCount === 0
     ? "The Tutor has almost no scored evidence yet, so its first job is to build a useful baseline."
     : freshness === "stale"
-      ? "Your saved evidence is old enough that the Tutor should re-check it before treating previous weaknesses as current."
+      ? `At least one evidenced preparation area is now stale. Refresh ${leastCurrentDomain.toLowerCase()} evidence before treating the old diagnosis as current.`
       : coverage === "thin"
-        ? "The Tutor has some evidence, but it is concentrated in too few preparation areas for a high-confidence diagnosis."
+        ? `The Tutor has some evidence, but it is concentrated in too few preparation areas. ${leastCurrentDomain} is the best next area to strengthen the diagnosis.`
         : freshness === "ageing"
-          ? "The evidence base is useful, but a fresh task will make the next diagnosis more reliable."
+          ? `The evidence base is useful, but ${leastCurrentDomain.toLowerCase()} is the least current area and should be refreshed soon.`
           : "The Tutor has recent evidence across enough preparation activity to make a well-supported next-step recommendation."
 
   return {
@@ -131,9 +163,11 @@ export function buildTutorEvidenceQuality(progressValue: unknown, intelligence: 
     freshness,
     coverage,
     latestEvidenceAt: latest === null ? null : new Date(latest).toISOString(),
-    latestEvidenceAgeDays: ageDays,
+    latestEvidenceAgeDays: latestAgeDays,
     totalEvidenceCount,
     coveredDomains,
+    freshDomains,
+    leastCurrentDomain,
     summary,
     refreshAction,
   }
