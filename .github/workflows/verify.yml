@@ -30,6 +30,9 @@ jobs:
       - name: Tutor command centre integration checks
         run: node tests/tutor-command-centre.cjs
 
+      - name: Tutor evidence-confidence behaviour checks
+        run: node tests/tutor-evidence-quality.mjs
+
       - name: Offline topic-alignment regression checks
         run: node tests/offline-topic-alignment.cjs
 
