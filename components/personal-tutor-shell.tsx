@@ -2,6 +2,7 @@ import Link from "next/link"
 import { BarChart3, BookOpenCheck, Brain, CalendarCheck2, Compass, Lightbulb, Mic2, TimerReset, Wrench } from "lucide-react"
 import { PersonalTutorDashboard } from "@/components/personal-tutor-dashboard"
 import { TutorDeepInsightLoader } from "@/components/tutor-deep-insight-loader"
+import { TutorExecutionLoopLoader } from "@/components/tutor-execution-loop-loader"
 import { TutorStrategicBrief } from "@/components/tutor-strategic-brief"
 import { NextgenTutorPanel } from "@/components/nextgen-tutor-panel"
 
@@ -28,6 +29,7 @@ export function PersonalTutorShell() {
       </nav>
 
       <div id="tutor-insight" className="scroll-mt-28"><TutorDeepInsightLoader /></div>
+      <div id="tutor-week" className="scroll-mt-28"><TutorExecutionLoopLoader /></div>
       <div id="tutor-strategy" className="scroll-mt-28"><TutorStrategicBrief /></div>
       <div id="tutor-tools" className="scroll-mt-28"><NextgenTutorPanel /></div>
 
