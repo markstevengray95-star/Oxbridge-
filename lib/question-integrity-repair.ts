@@ -17,6 +17,45 @@ function hasAnswerLengthCue(question: TestQuestion) {
   return correctMuchLonger || correctMuchShorter
 }
 
+function lnatArgumentDistractors(question: TestQuestion): string[] | null {
+  if (question.test !== "LNAT" || question.section !== "Argumentative passages") return null
+  const prompt = question.prompt.toLowerCase()
+
+  if (/main conclusion/.test(prompt)) {
+    return [
+      "The passage's main concern is that the evidence currently available is too uncertain to justify a substantive judgement, so improving measurement should take priority over changing the underlying approach.",
+      "The passage supports preserving the existing approach while refining the way its most important outcome is measured, because the practical example shows that implementation matters more than the wider principle.",
+      "The passage argues that the supporting consideration it describes should normally determine the decision, even though the wider distinction developed elsewhere in the passage may still matter in unusual cases.",
+    ]
+  }
+
+  if (/assumption/.test(prompt)) {
+    return [
+      "That the practical example described is representative enough to show that the issue can arise, even though this does not establish the broader evaluative premise needed for the conclusion.",
+      "That decision-makers are capable of measuring the main outcome consistently enough to compare cases, while leaving open how competing considerations should be weighed.",
+      "That improving the available evidence would reduce uncertainty about the issue, although better evidence alone would not establish the value judgement on which the conclusion depends.",
+    ]
+  }
+
+  if (/strengthen/.test(prompt)) {
+    return [
+      "A larger study reproduces the descriptive pattern identified in the passage, but it does not distinguish the mechanism on which the author's conclusion depends from a plausible rival explanation.",
+      "People affected by the policy report greater satisfaction after the change, although the survey does not test the particular distinction the author uses to justify the conclusion.",
+      "A comparable case shows improvement in a related outcome, but the comparison groups differ on another factor capable of producing the same result independently of the author's explanation.",
+    ]
+  }
+
+  if (/most strongly supported|best supported/.test(prompt)) {
+    return [
+      "The author's reasoning would support the same recommendation in a materially different setting provided that one of the supporting considerations in the passage was also present there.",
+      "The passage suggests that improving the accuracy of the available evidence would be sufficient to settle the issue even if the evaluative distinction at the centre of the argument remained contested.",
+      "The argument implies that the supporting example gives a strong presumption in favour of the conclusion, so competing considerations would need unusually strong evidence to justify a different outcome.",
+    ]
+  }
+
+  return null
+}
+
 function taraCriticalThinkingDistractors(question: TestQuestion): string[] | null {
   if (question.test !== "TARA" || question.section !== "Critical Thinking") return null
   const prompt = question.prompt.toLowerCase()
@@ -169,7 +208,8 @@ function esatBiologyDistractors(question: TestQuestion): string[] | null {
  */
 export function repairSemanticAnswerCues(question: TestQuestion): TestQuestion {
   if (!hasAnswerLengthCue(question)) return question
-  const replacements = taraCriticalThinkingDistractors(question)
+  const replacements = lnatArgumentDistractors(question)
+    ?? taraCriticalThinkingDistractors(question)
     ?? ucatVerbalReasoningDistractors(question)
     ?? esatBiologyDistractors(question)
   if (!replacements) return question
