@@ -38,6 +38,7 @@ const repairCount = bank.filter((question, index) => JSON.stringify(question.opt
 const sectionStats = new Map()
 const blocking = []
 const warningCounts = new Map()
+const sectionWarningCounts = new Map()
 
 for (const question of bank) {
   const audit = auditQuestionReliability(question)
@@ -50,8 +51,13 @@ for (const question of bank) {
   if (Number.isInteger(question.answer) && question.answer >= 0 && question.answer < 4) row.answerPositions[question.answer] += 1
   sectionStats.set(sectionKey, row)
 
+  const sectionWarnings = sectionWarningCounts.get(sectionKey) ?? new Map()
   for (const issue of audit.blocking) blocking.push(`${question.id} [${issue.code}] ${issue.message}`)
-  for (const issue of audit.warnings) warningCounts.set(issue.code, (warningCounts.get(issue.code) ?? 0) + 1)
+  for (const issue of audit.warnings) {
+    warningCounts.set(issue.code, (warningCounts.get(issue.code) ?? 0) + 1)
+    sectionWarnings.set(issue.code, (sectionWarnings.get(issue.code) ?? 0) + 1)
+  }
+  sectionWarningCounts.set(sectionKey, sectionWarnings)
 }
 
 if (blocking.length) {
@@ -61,11 +67,16 @@ if (blocking.length) {
   process.exit(1)
 }
 
+function warningSummaryFor(section) {
+  const counts = sectionWarningCounts.get(section) ?? new Map()
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([code, count]) => `${code}=${count}`).join(", ") || "none"
+}
+
 for (const [section, row] of sectionStats) {
   const average = row.totalScore / row.count
   const maxPositionShare = Math.max(...row.answerPositions) / row.count
-  if (average < 72) throw new Error(`${section} reliability average is too low: ${average.toFixed(1)}/100.`)
-  if (row.low / row.count > 0.15) throw new Error(`${section} has too many low-reliability questions: ${row.low}/${row.count}.`)
+  if (average < 72) throw new Error(`${section} reliability average is too low: ${average.toFixed(1)}/100. Warnings: ${warningSummaryFor(section)}.`)
+  if (row.low / row.count > 0.15) throw new Error(`${section} has too many low-reliability questions: ${row.low}/${row.count}. Warnings: ${warningSummaryFor(section)}.`)
   if (maxPositionShare > 0.38) throw new Error(`${section} has an answer-position imbalance: ${row.answerPositions.join("/")}.`)
   console.log(`${section}: average ${average.toFixed(1)}, minimum ${row.minimum}, positions ${row.answerPositions.join("/")}.`)
 }
