@@ -3,6 +3,7 @@ import { BarChart3, BookOpenCheck, Brain, CalendarCheck2, Compass, Lightbulb, Mi
 import { PersonalTutorDashboard } from "@/components/personal-tutor-dashboard"
 import { TutorDeepInsightLoader } from "@/components/tutor-deep-insight-loader"
 import { TutorExecutionLoopLoader } from "@/components/tutor-execution-loop-loader"
+import { TutorEvidenceQuality } from "@/components/tutor-evidence-quality"
 import { TutorIntelligenceProvider } from "@/components/tutor-intelligence-context"
 import { TutorStrategicBrief } from "@/components/tutor-strategic-brief"
 import { NextgenTutorPanel } from "@/components/nextgen-tutor-panel"
@@ -29,6 +30,7 @@ export function PersonalTutorShell() {
         </div>
       </nav>
 
+      <TutorEvidenceQuality />
       <div id="tutor-insight" className="scroll-mt-28"><TutorDeepInsightLoader /></div>
       <div id="tutor-week" className="scroll-mt-28"><TutorExecutionLoopLoader /></div>
       <div id="tutor-strategy" className="scroll-mt-28"><TutorStrategicBrief /></div>
