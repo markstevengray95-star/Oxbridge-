@@ -87,7 +87,12 @@ function auditSection(paper, section) {
   for (const [optionCount, counts] of byOptionCount.entries()) {
     const max = Math.max(...counts)
     const min = Math.min(...counts)
-    if (max - min > 1) throw new Error(`${paper.id}/${section.id} ${optionCount}-option keys are visibly imbalanced: ${counts.join("/")}.`)
+    const ideal = singles.filter(question => question.options.length === optionCount).length / optionCount
+    // A small amount of natural variation is desirable. Reject distributions that
+    // become visibly skewed, rather than forcing an artificial exact rotation.
+    if (max - min > 2 || max > Math.ceil(ideal) + 1 || min < Math.floor(ideal) - 1) {
+      throw new Error(`${paper.id}/${section.id} ${optionCount}-option keys are visibly imbalanced: ${counts.join("/")}.`)
+    }
   }
   if (longestRun > 2) throw new Error(`${paper.id}/${section.id} contains ${longestRun} consecutive answers in the same option position.`)
 
@@ -123,4 +128,4 @@ for (const form of [1, 2]) {
   for (const pair of esatPairs) auditPaper("ESAT", form, ["Mathematics 1", ...pair])
 }
 
-console.log("PASS: full papers have balanced answer positions, no obvious answer-key cycles, controlled length/wording cues and admissions-level reasoning depth.")
+console.log("PASS: full papers have naturally balanced answer positions, no obvious answer-key cycles, controlled length/wording cues and admissions-level reasoning depth.")
