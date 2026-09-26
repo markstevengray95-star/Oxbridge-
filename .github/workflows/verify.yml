@@ -54,5 +54,8 @@ jobs:
       - name: TMUA specification breadth checks
         run: node tests/tmua-topic-coverage.mjs
 
+      - name: ESAT specification breadth checks
+        run: node tests/esat-topic-coverage.mjs
+
       - name: Type-aware production build
         run: npm run build
