@@ -17,10 +17,10 @@ import { auditQuestionReliability, repairQuestionReliability, reliabilityScore }
 import { repairSemanticAnswerCues } from "@/lib/question-integrity-repair"
 
 // Keep the original diverse bank as reliable reserve material rather than
-// removing whole sections when an upgraded bank is present. UCAT Verbal
-// Reasoning is the exception for timed full papers: the dedicated mixed-format
-// bank supplies enough disjoint passage groups and preserves the official
-// four-option + True/False/Can't Tell response mix.
+// removing whole sections when an upgraded bank is present. Timed UCAT VR and
+// DM are exceptions: dedicated banks preserve their official mixed response
+// formats and reasoning-family breadth. Legacy UCAT questions remain available
+// elsewhere in the app; they are simply not part of full-paper assembly.
 const repair = (question: Parameters<typeof repairQuestionReliability>[0]) => {
   const repaired = repairSemanticAnswerCues(repairQuestionReliability(question))
   return repaired.test === "TARA" ? ensureTaraFiveOptions(repaired) : repaired
@@ -28,6 +28,10 @@ const repair = (question: Parameters<typeof repairQuestionReliability>[0]) => {
 
 function isUcatVr(question: TestQuestion) {
   return question.test === "UCAT" && question.section === "Verbal Reasoning"
+}
+
+function isUcatDm(question: TestQuestion) {
+  return question.test === "UCAT" && question.section === "Decision Making"
 }
 
 // Generic distractor strengthening treats absolute words as suspicious cues.
@@ -57,9 +61,15 @@ function protectUcatSjtStructuredOptions(question: TestQuestion): TestQuestion {
   return { ...question, options: question.options.map(soften) }
 }
 
-const originalRepaired = uniqueFullPaperQuestionBank.map(repair).filter(question => !isUcatVr(question))
+const originalRepaired = uniqueFullPaperQuestionBank
+  .map(repair)
+  .filter(question => !isUcatVr(question) && !isUcatDm(question))
 const primaryUpgrades = reliabilityUpgradeQuestionBank
-  .filter(question => !(question.test === "UCAT" && (question.section === "Quantitative Reasoning" || question.section === "Verbal Reasoning")))
+  .filter(question => !(question.test === "UCAT" && (
+    question.section === "Quantitative Reasoning" ||
+    question.section === "Verbal Reasoning" ||
+    question.section === "Decision Making"
+  )))
 const rawUpgrades = [...primaryUpgrades, ...ucatQrReliabilityUpgradeBank]
 const upgradedRepaired = rawUpgrades.map(repair)
 const ucatVrMixedFormatRepaired = ucatVrMixedFormatBank.map(repair)
