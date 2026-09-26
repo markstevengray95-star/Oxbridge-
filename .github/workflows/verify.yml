@@ -69,5 +69,11 @@ jobs:
       - name: UCAT SJT response-format checks
         run: node tests/ucat-sjt-format.mjs
 
+      - name: UCAT calculator integration checks
+        run: node tests/ucat-calculator.cjs
+
+      - name: UCAT verbal reasoning format checks
+        run: node tests/ucat-vr-format.mjs
+
       - name: Type-aware production build
         run: npm run build
