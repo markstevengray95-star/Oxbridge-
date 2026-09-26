@@ -23,11 +23,14 @@ function loadTypeScriptModule(path) {
 const upgradeModule = loadTypeScriptModule("../lib/question-bank-reliability-upgrades.ts")
 const qrUpgradeModule = loadTypeScriptModule("../lib/ucat-qr-reliability-upgrades.ts")
 const reliabilityModule = loadTypeScriptModule("../lib/question-reliability.ts")
+const taraFormatModule = loadTypeScriptModule("../lib/tara-question-format.ts")
 const primaryBank = upgradeModule.reliabilityUpgradeQuestionBank.filter(question => !(question.test === "UCAT" && question.section === "Quantitative Reasoning"))
 const rawBank = [...primaryBank, ...qrUpgradeModule.ucatQrReliabilityUpgradeBank]
 const { auditQuestionReliability, repairQuestionReliability } = reliabilityModule
+const { ensureTaraFiveOptions } = taraFormatModule
 
 if (!Array.isArray(rawBank) || rawBank.length === 0) throw new Error("Reliability upgrade bank failed to load.")
+if (typeof ensureTaraFiveOptions !== "function") throw new Error("TARA five-option converter failed to load for upgraded-bank audit.")
 
 const expectedCounts = new Map([
   ["LNAT:Argumentative passages", 42],
@@ -48,7 +51,8 @@ function promptSignature(prompt) {
 }
 
 for (const raw of rawBank) {
-  const question = repairQuestionReliability(raw)
+  const repaired = repairQuestionReliability(raw)
+  const question = repaired.test === "TARA" ? ensureTaraFiveOptions(repaired) : repaired
   if (JSON.stringify(question.options) !== JSON.stringify(raw.options)) repairCount += 1
   const key = `${question.test}:${question.section}`
   counts.set(key, (counts.get(key) ?? 0) + 1)
@@ -78,9 +82,9 @@ for (const [section, expected] of expectedCounts) {
 }
 
 if (blocking.length) {
-  console.error("Blocking failures in upgraded question bank:")
+  console.error("Blocking failures in upgraded question bank after production-format conversion:")
   blocking.forEach(issue => console.error(`- ${issue}`))
   process.exit(1)
 }
 
-console.log(`PASS: ${rawBank.length} upgraded questions are structurally unique and reliable after ${repairCount} deterministic repair(s).`)
+console.log(`PASS: ${rawBank.length} upgraded questions are structurally unique and reliable after ${repairCount} deterministic/format repair(s).`)
