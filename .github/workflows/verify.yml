@@ -48,6 +48,7 @@ jobs:
       - name: Question reliability checks
         run: node tests/question-reliability.mjs
 
+      # Student-facing papers must not be gameable from answer-position or wording cues.
       - name: Answer-pattern authenticity checks
         run: node tests/answer-pattern-authenticity.mjs
 
