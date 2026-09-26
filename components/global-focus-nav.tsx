@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
 import { BookOpen, Brain, ChevronDown, ClipboardCheck, GraduationCap, LayoutDashboard, MessageSquareText, Target, Users } from "lucide-react"
 
 type NavItem = { href: string; label: string; description?: string }
@@ -96,38 +97,73 @@ function pathMatches(pathname: string, href: string) {
 
 export function GlobalFocusNav() {
   const pathname = usePathname()
+  const navRef = useRef<HTMLElement>(null)
+  const [openGroup, setOpenGroup] = useState<string | null>(null)
 
-  return <nav aria-label="Primary navigation" className="sticky top-0 z-[80] border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur">
+  useEffect(() => {
+    setOpenGroup(null)
+  }, [pathname])
+
+  useEffect(() => {
+    const closeOnOutsideInteraction = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (navRef.current?.contains(target)) return
+      setOpenGroup(null)
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenGroup(null)
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideInteraction, true)
+    document.addEventListener("keydown", closeOnEscape)
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideInteraction, true)
+      document.removeEventListener("keydown", closeOnEscape)
+    }
+  }, [])
+
+  const closeMenus = () => setOpenGroup(null)
+
+  return <nav ref={navRef} aria-label="Primary navigation" className="sticky top-0 z-[80] border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur">
     <div className="mx-auto max-w-7xl px-3 sm:px-5 lg:px-8">
       <div className="flex min-h-14 flex-wrap items-center gap-2 py-1">
-        <Link href="/tutor" className="mr-1 flex shrink-0 items-center gap-2 rounded-xl px-2 py-2 font-serif text-base font-bold text-[#102a43] hover:bg-[#edf7f8] sm:text-lg">
+        <Link href="/tutor" onClick={closeMenus} className="mr-1 flex shrink-0 items-center gap-2 rounded-xl px-2 py-2 font-serif text-base font-bold text-[#102a43] hover:bg-[#edf7f8] sm:text-lg">
           <GraduationCap className="size-5 text-[#147d91]" />
           <span className="hidden sm:inline">ScholarBridge</span>
         </Link>
 
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 py-1">
-          <Link href="/tutor" aria-current={pathMatches(pathname, "/tutor") || pathMatches(pathname, "/student-home") ? "page" : undefined} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${pathMatches(pathname, "/tutor") || pathMatches(pathname, "/student-home") ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><Brain className="size-4" />Tutor</Link>
-          <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${pathname === "/" ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><LayoutDashboard className="size-4" />Studio</Link>
+          <Link href="/tutor" onClick={closeMenus} aria-current={pathMatches(pathname, "/tutor") || pathMatches(pathname, "/student-home") ? "page" : undefined} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${pathMatches(pathname, "/tutor") || pathMatches(pathname, "/student-home") ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><Brain className="size-4" />Tutor</Link>
+          <Link href="/" onClick={closeMenus} aria-current={pathname === "/" ? "page" : undefined} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${pathname === "/" ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><LayoutDashboard className="size-4" />Studio</Link>
 
           {groups.map(group => {
             const Icon = group.icon
             const active = group.items.some(item => pathMatches(pathname, item.href))
-            return <details key={group.label} className="group relative shrink-0">
-              <summary className={`flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition [&::-webkit-details-marker]:hidden ${active ? "bg-[#e5f3f4] text-[#102a43]" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}>
-                <Icon className="size-4" />{group.label}<ChevronDown className="size-3.5 transition group-open:rotate-180" />
-              </summary>
-              <div className={`absolute top-[calc(100%+.55rem)] z-[100] w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl ${group.align === "right" ? "right-0" : "left-0"}`}>
+            const isOpen = openGroup === group.label
+            return <div key={group.label} className="relative shrink-0">
+              <button
+                type="button"
+                aria-expanded={isOpen}
+                aria-haspopup="menu"
+                onClick={() => setOpenGroup(current => current === group.label ? null : group.label)}
+                className={`flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${active ? "bg-[#e5f3f4] text-[#102a43]" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}
+              >
+                <Icon className="size-4" />{group.label}<ChevronDown className={`size-3.5 transition ${isOpen ? "rotate-180" : ""}`} />
+              </button>
+              {isOpen && <div role="menu" className={`absolute top-[calc(100%+.55rem)] z-[100] w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl ${group.align === "right" ? "right-0" : "left-0"}`}>
                 <div className="max-h-[70vh] overflow-y-auto">
                   {group.items.map(item => {
                     const itemActive = pathMatches(pathname, item.href)
-                    return <Link key={item.href} href={item.href} className={`block rounded-xl px-3 py-2.5 transition ${itemActive ? "bg-[#edf7f8] text-[#102a43]" : "text-slate-700 hover:bg-slate-50"}`}>
+                    return <Link key={item.href} href={item.href} role="menuitem" onClick={closeMenus} className={`block rounded-xl px-3 py-2.5 transition ${itemActive ? "bg-[#edf7f8] text-[#102a43]" : "text-slate-700 hover:bg-slate-50"}`}>
                       <span className="block text-sm font-semibold">{item.label}</span>
                       {item.description && <span className="mt-0.5 block text-xs leading-4 text-slate-500">{item.description}</span>}
                     </Link>
                   })}
                 </div>
-              </div>
-            </details>
+              </div>}
+            </div>
           })}
         </div>
       </div>
