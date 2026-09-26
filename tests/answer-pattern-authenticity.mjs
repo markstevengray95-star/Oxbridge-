@@ -50,6 +50,10 @@ function periodicity(keys) {
   return strongest
 }
 
+function optionLengths(question) {
+  return question.options.map((option, index) => `${index === question.answer ? "*" : ""}${option.replace(/\s+/g, " ").trim().length}`).join("/")
+}
+
 function auditSection(paper, section) {
   if (section.kind !== "mcq") return
   const singles = section.questions.filter(question => !isYesNoStatementQuestion(question))
@@ -63,13 +67,25 @@ function auditSection(paper, section) {
   let previous = null
   let currentRun = 0
   const keySequence = []
+  const lengthCueDetails = []
+  const weakCueDetails = []
+  const reasoningDepthDetails = []
 
   for (const question of singles) {
     const audit = auditQuestionReliability(question)
     const warningCodes = new Set(audit.warnings.map(issue => issue.code))
-    if (warningCodes.has("correct-length-clue") || warningCodes.has("correct-short-clue")) lengthCues += 1
-    if (warningCodes.has("implausible-distractors") || warningCodes.has("extreme-distractor-cue") || warningCodes.has("stem-echo-cue")) weakDistractors += 1
-    if (warningCodes.has("low-reasoning-depth") || warningCodes.has("low-discrimination-stem")) reasoningDepthWarnings += 1
+    if (warningCodes.has("correct-length-clue") || warningCodes.has("correct-short-clue")) {
+      lengthCues += 1
+      lengthCueDetails.push(`${question.id}[${optionLengths(question)}]`)
+    }
+    if (warningCodes.has("implausible-distractors") || warningCodes.has("extreme-distractor-cue") || warningCodes.has("stem-echo-cue")) {
+      weakDistractors += 1
+      weakCueDetails.push(`${question.id}[${[...warningCodes].filter(code => ["implausible-distractors","extreme-distractor-cue","stem-echo-cue"].includes(code)).join("+")}]`)
+    }
+    if (warningCodes.has("low-reasoning-depth") || warningCodes.has("low-discrimination-stem")) {
+      reasoningDepthWarnings += 1
+      reasoningDepthDetails.push(question.id)
+    }
 
     const optionCount = question.options.length
     const counts = byOptionCount.get(optionCount) ?? Array(optionCount).fill(0)
@@ -88,8 +104,6 @@ function auditSection(paper, section) {
     const max = Math.max(...counts)
     const min = Math.min(...counts)
     const ideal = singles.filter(question => question.options.length === optionCount).length / optionCount
-    // A small amount of natural variation is desirable. Reject distributions that
-    // become visibly skewed, rather than forcing an artificial exact rotation.
     if (max - min > 2 || max > Math.ceil(ideal) + 1 || min < Math.floor(ideal) - 1) {
       throw new Error(`${paper.id}/${section.id} ${optionCount}-option keys are visibly imbalanced: ${counts.join("/")}.`)
     }
@@ -102,9 +116,9 @@ function auditSection(paper, section) {
   }
 
   const n = singles.length
-  if (lengthCues / n > 0.10) throw new Error(`${paper.id}/${section.id} has too many answer-length cues: ${lengthCues}/${n}.`)
-  if (weakDistractors / n > 0.10) throw new Error(`${paper.id}/${section.id} has too many wording/distractor cues: ${weakDistractors}/${n}.`)
-  if (reasoningDepthWarnings / n > 0.35) throw new Error(`${paper.id}/${section.id} contains too many low-discrimination one-step questions: ${reasoningDepthWarnings}/${n}.`)
+  if (lengthCues / n > 0.10) throw new Error(`${paper.id}/${section.id} has too many answer-length cues: ${lengthCues}/${n}. Questions: ${lengthCueDetails.join(", ")}.`)
+  if (weakDistractors / n > 0.10) throw new Error(`${paper.id}/${section.id} has too many wording/distractor cues: ${weakDistractors}/${n}. Questions: ${weakCueDetails.join(", ")}.`)
+  if (reasoningDepthWarnings / n > 0.35) throw new Error(`${paper.id}/${section.id} contains too many low-discrimination one-step questions: ${reasoningDepthWarnings}/${n}. Questions: ${reasoningDepthDetails.join(", ")}.`)
 }
 
 function auditPaper(test, form, modules) {
