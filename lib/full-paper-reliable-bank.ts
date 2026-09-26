@@ -16,12 +16,17 @@ import { auditQuestionReliability, repairQuestionReliability, reliabilityScore }
 import { repairSemanticAnswerCues } from "@/lib/question-integrity-repair"
 
 // Keep the original diverse bank as reliable reserve material rather than
-// removing whole sections when an upgraded bank is present. The paper builder
-// can then construct two genuinely different forms while still ranking the
-// stronger upgraded items first.
+// removing whole sections when an upgraded bank is present. UCAT Verbal
+// Reasoning is the exception for timed full papers: the dedicated mixed-format
+// bank supplies enough disjoint passage groups and preserves the official
+// four-option + True/False/Can't Tell response mix.
 const repair = (question: Parameters<typeof repairQuestionReliability>[0]) => {
   const repaired = repairSemanticAnswerCues(repairQuestionReliability(question))
   return repaired.test === "TARA" ? ensureTaraFiveOptions(repaired) : repaired
+}
+
+function isUcatVr(question: TestQuestion) {
+  return question.test === "UCAT" && question.section === "Verbal Reasoning"
 }
 
 // Generic distractor strengthening treats absolute words as suspicious cues.
@@ -51,9 +56,9 @@ function protectUcatSjtStructuredOptions(question: TestQuestion): TestQuestion {
   return { ...question, options: question.options.map(soften) }
 }
 
-const originalRepaired = uniqueFullPaperQuestionBank.map(repair)
+const originalRepaired = uniqueFullPaperQuestionBank.map(repair).filter(question => !isUcatVr(question))
 const primaryUpgrades = reliabilityUpgradeQuestionBank
-  .filter(question => !(question.test === "UCAT" && question.section === "Quantitative Reasoning"))
+  .filter(question => !(question.test === "UCAT" && (question.section === "Quantitative Reasoning" || question.section === "Verbal Reasoning")))
 const rawUpgrades = [...primaryUpgrades, ...ucatQrReliabilityUpgradeBank]
 const upgradedRepaired = rawUpgrades.map(repair)
 const ucatVrMixedFormatRepaired = ucatVrMixedFormatBank.map(repair)
