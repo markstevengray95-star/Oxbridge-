@@ -22,6 +22,19 @@ function hasLengthCue(question: TestQuestion) {
 const giveawayWord = /\b(?:always|never|everyone|nobody|completely|entirely|automatically|impossible|guarantees?|definitely|solely|every relevant outcome|no factual statement)\b/i
 
 function candidatePool(prompt: string) {
+  if (/attitude.*best described|author'?s attitude/i.test(prompt)) {
+    return [
+      "Confident in the proposed explanation, treating the stated limitations as secondary to the observed result.",
+      "Sceptical of the interpretation, treating the limitations as serious enough to undermine most of the reported evidence.",
+      "Detached and mainly descriptive, reporting the findings without judging how much the limitations weaken the inference.",
+      "Broadly supportive of the conclusion, while treating the acknowledged limitations as unlikely to alter the main interpretation.",
+      "Doubtful about the findings themselves, rather than distinguishing between the observations and the conclusion drawn from them.",
+      "Persuaded by the reported pattern and willing to infer more from it than the methodological qualifications strictly justify.",
+      "Reserved about the usefulness of the evidence, suggesting that the limitations leave little basis for interpreting the observed pattern.",
+      "Neutral about the strength of the inference, presenting the observation and the limitation without favouring either interpretation.",
+    ]
+  }
+
   if (/best supported|most strongly supported/i.test(prompt)) {
     return [
       "The measured outcome changed during the period described, but the passage does not isolate which of the accompanying changes produced it.",
