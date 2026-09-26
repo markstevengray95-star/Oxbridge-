@@ -63,5 +63,8 @@ jobs:
       - name: TARA five-option and reasoning coverage checks
         run: node tests/tara-format-coverage.mjs
 
+      - name: UCAT SJT response-format checks
+        run: node tests/ucat-sjt-format.mjs
+
       - name: Type-aware production build
         run: npm run build
