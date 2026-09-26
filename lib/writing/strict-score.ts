@@ -54,6 +54,7 @@ const SCORE_PREFIX = "University-style practice mark:"
 const REASONING_LINK = /\b(?:because|since|therefore|thereby|thus|hence|consequently|which means|as a result|so that|this implies|this suggests|the reason|depends on)\b/gi
 const EVALUATION_LINK = /\b(?:however|although|while|whereas|yet|nevertheless|on the other hand|counterargument|objection|limitation|unless|even if|on balance|despite|but this|a stronger objection)\b/gi
 const CONCLUSION_LANGUAGE = /\b(?:in conclusion|overall|on balance|therefore|ultimately|for these reasons|the better view|the stronger position|I conclude|it follows that)\b/i
+const DECISIVE_CONCLUSION_LANGUAGE = /\b(?:in conclusion|overall|on balance|ultimately|for these reasons|the better view|the stronger position|I conclude|I would conclude|my conclusion|the answer is|should therefore|should not therefore)\b/i
 const RESPONSE_LANGUAGE = /\b(?:however|but|yet|nevertheless|even so|this objection|this criticism|on balance|despite this|does not follow|is outweighed|still)\b/i
 const ABSOLUTE_ASSERTION = /\b(?:always|never|obviously|clearly|everyone|nobody|all people|no one|certainly|undeniably|proves that)\b/i
 
@@ -118,6 +119,7 @@ function essayDiagnostics(prompt: string, essay: string) {
   const promptWords = promptContentWords(prompt)
   const conclusionCoverage = paragraphPromptCoverage(conclusion, promptWords)
   const hasDefensibleConclusion = conclusion.length >= 55 && (CONCLUSION_LANGUAGE.test(conclusion) || conclusionCoverage >= 0.35)
+  const hasDecisiveConclusion = conclusion.length >= 55 && DECISIVE_CONCLUSION_LANGUAGE.test(conclusion)
   const hasObjectionResponse = evaluationBodyParagraphs > 0 && body.some(paragraph => countMatches(paragraph, EVALUATION_LINK) > 0 && RESPONSE_LANGUAGE.test(paragraph))
 
   const intro = paragraphs[0] ?? ""
@@ -137,6 +139,7 @@ function essayDiagnostics(prompt: string, essay: string) {
     evaluationLinks,
     evaluationBodyParagraphs,
     hasDefensibleConclusion,
+    hasDecisiveConclusion,
     hasObjectionResponse,
     repeatedPromptRisk,
     absoluteClaims,
@@ -167,6 +170,7 @@ export function scoreStrictEssay(report: WritingReport, prompt: string, essay: s
   const task = analyseOfflineEssayTask(prompt, essay)
   const essayStyle = inferEssayStyle(prompt)
   const diagnostics = essayDiagnostics(prompt, essay)
+  const hasRequiredConclusion = essayStyle === "LNAT" ? diagnostics.hasDecisiveConclusion : diagnostics.hasDefensibleConclusion
   const caps: StrictEssayScore["caps"] = []
 
   if (topic.level === 0) addCap(caps, 39, "The response is substantially irrelevant to the question or fails to address its core concepts; fluent prose cannot rescue an answer to a different question.")
@@ -193,7 +197,7 @@ export function scoreStrictEssay(report: WritingReport, prompt: string, essay: s
   if (diagnostics.reasonedBodyParagraphs < 2 && diagnostics.wordCount >= 250) addCap(caps, 66, "Fewer than two body paragraphs develop a clear reasoning chain, so the response is not yet consistently analytical enough for a First.")
   if (diagnostics.evaluationLinks === 0 && /comparison|extent|policy|judgement|causal/i.test(task.label)) addCap(caps, 66, "The question requires judgement or weighing, but the response does not seriously qualify, test or challenge its own reasoning.")
   if (!diagnostics.hasObjectionResponse && diagnostics.wordCount >= 300 && /comparison|extent|policy|judgement/i.test(task.label)) addCap(caps, 69, "The response does not develop and answer a meaningful counter-position; this limits the independence and evaluative depth of the argument.")
-  if (!diagnostics.hasDefensibleConclusion) addCap(caps, essayStyle === "LNAT" ? 59 : 66, essayStyle === "LNAT" ? "LNAT Section B expects an economical argument that comes to a conclusion; no sufficiently defensible conclusion is identifiable." : "The final paragraph does not clearly resolve the question from the reasoning developed in the essay.")
+  if (!hasRequiredConclusion) addCap(caps, essayStyle === "LNAT" ? 59 : 66, essayStyle === "LNAT" ? "LNAT Section B expects an economical argument that comes to a conclusion; the closing paragraph does not make a sufficiently decisive judgement on the question." : "The final paragraph does not clearly resolve the question from the reasoning developed in the essay.")
 
   if (diagnostics.wordCount < 150) addCap(caps, 49, "The response is too short to sustain the level of analysis expected from a 40-minute admissions-style writing task.")
   else if (diagnostics.wordCount < 250) addCap(caps, 59, "The response is too brief to demonstrate sustained analysis, evaluation and development across the whole question.")
@@ -242,7 +246,7 @@ export function scoreStrictEssay(report: WritingReport, prompt: string, essay: s
       reasonedBodyParagraphs: diagnostics.reasonedBodyParagraphs,
       reasoningLinks: diagnostics.reasoningLinks,
       evaluationLinks: diagnostics.evaluationLinks,
-      hasDefensibleConclusion: diagnostics.hasDefensibleConclusion,
+      hasDefensibleConclusion: hasRequiredConclusion,
       hasObjectionResponse: diagnostics.hasObjectionResponse,
       repeatedPromptRisk: diagnostics.repeatedPromptRisk,
     },
