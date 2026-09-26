@@ -8,7 +8,7 @@ import { NextgenTutorPanel } from "@/components/nextgen-tutor-panel"
 const tutorSections = [
   { href: "#tutor-today", label: "Today", icon: Compass },
   { href: "#tutor-insight", label: "Deep insight", icon: BarChart3 },
-  { href: "#execution-title", label: "Weekly loop", icon: CalendarCheck2 },
+  { href: "#tutor-week", label: "Weekly loop", icon: CalendarCheck2 },
   { href: "#tutor-strategy", label: "Strategy", icon: Lightbulb },
   { href: "#tutor-tools", label: "Tools", icon: Wrench },
 ]
