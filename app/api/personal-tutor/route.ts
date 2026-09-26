@@ -9,11 +9,12 @@ type TutorMode = "coach" | "challenge" | "explain" | "plan" | "review"
 type ChatMessage = { role: "student" | "tutor"; text: string }
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 type TutorRequest = { question?: string; mode?: TutorMode; profile?: Record<string, unknown>; intelligence?: Record<string, unknown>; plan?: Record<string, unknown>; reflection?: string; conversation?: Array<{ role?: string; text?: string }> }
-type CloudContext = { intelligence: unknown; plans: unknown[]; memories: unknown[]; mistakes: unknown[]; evidence: unknown[]; application: unknown[]; supercurricular: unknown[]; chat: ChatMessage[]; reflection: string }
+type CloudContext = { intelligence: unknown; plans: unknown[]; memories: unknown[]; mistakes: unknown[]; evidence: unknown[]; application: unknown[]; supercurricular: unknown[]; execution: unknown; chat: ChatMessage[]; reflection: string }
 type StateUpsert = { user_id: string; state_key: string; state_value: Record<string, unknown>; updated_at: string }
 
 const CHAT_STATE_KEY = "oxbridge-personal-tutor-chat-v2"
 const REFLECTION_STATE_KEY = "oxbridge-personal-tutor-reflection-v2"
+const EXECUTION_STATE_KEY = "oxbridge-tutor-execution-v1"
 const TUTOR_MODES: TutorMode[] = ["coach", "challenge", "explain", "plan", "review"]
 
 function extractText(data: unknown) {
@@ -65,12 +66,13 @@ async function loadCloudContext(supabase: SupabaseServerClient, userId: string):
     supabase.from("progress_evidence").select("domain,skill,state_from,state_to,score,evidence,created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(10),
     supabase.from("application_evidence").select("evidence_type,title,detail,metadata,updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(8),
     supabase.from("supercurricular_items").select("item_type,title,reflection,tutor_questions,updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(8),
-    supabase.from("user_state").select("state_key,state_value").eq("user_id", userId).in("state_key", [CHAT_STATE_KEY, REFLECTION_STATE_KEY]),
+    supabase.from("user_state").select("state_key,state_value").eq("user_id", userId).in("state_key", [CHAT_STATE_KEY, REFLECTION_STATE_KEY, EXECUTION_STATE_KEY]),
   ])
   const state = new Map((stateRows.data ?? []).map(row => [row.state_key, row.state_value]))
   const chatState = state.get(CHAT_STATE_KEY) as { messages?: unknown } | undefined
   const reflectionState = state.get(REFLECTION_STATE_KEY) as { reflection?: unknown } | undefined
-  return { intelligence: intelligence.data?.snapshot ?? {}, plans: plans.data ?? [], memories: memories.data ?? [], mistakes: mistakes.data ?? [], evidence: evidence.data ?? [], application: application.data ?? [], supercurricular: supercurricular.data ?? [], chat: cleanConversation(chatState?.messages), reflection: typeof reflectionState?.reflection === "string" ? reflectionState.reflection.slice(0, 2500) : "" }
+  const executionState = state.get(EXECUTION_STATE_KEY) ?? {}
+  return { intelligence: intelligence.data?.snapshot ?? {}, plans: plans.data ?? [], memories: memories.data ?? [], mistakes: mistakes.data ?? [], evidence: evidence.data ?? [], application: application.data ?? [], supercurricular: supercurricular.data ?? [], execution: executionState, chat: cleanConversation(chatState?.messages), reflection: typeof reflectionState?.reflection === "string" ? reflectionState.reflection.slice(0, 2500) : "" }
 }
 
 async function persistTutorState(supabase: SupabaseServerClient, userId: string, messages: ChatMessage[], reflection: string) {
@@ -115,6 +117,10 @@ Rules:
 - Treat stored memories as uncertain learning evidence, not as a licence to infer sensitive traits or private circumstances.
 - Do not derive personality, mental state, health, disability or other sensitive characteristics from errors, writing style, study habits or conversation.
 - Distinguish weak evidence from strong repeated academic patterns.
+- Treat a completed practice task as evidence only when there is a fresh score, reflection, retest or transfer result; do not assume completion means mastery.
+- Use the weekly execution state to avoid repeatedly assigning tasks already marked complete unless a delayed retest or transfer check is justified.
+- When the same academic reasoning weakness appears in more than one domain, describe the connection only when the supplied evidence supports it; otherwise say the link is uncertain.
+- When evidence is old, sparse or concentrated in one activity type, explicitly lower confidence and request a fresh baseline or transfer task.
 - When planning, give at most three actions in priority order and explain why each matters.
 - When coaching a subject question, make the student's reasoning visible before giving a polished solution.
 - Notice recurring mistake patterns, spaced retests, neglected subject areas and previous academic reflections.
@@ -122,7 +128,7 @@ Rules:
 - If there is little evidence, explicitly identify the baseline activity that would give the tutor useful academic information.
 - End most coaching/challenge responses with one focused next question or action.`
 
-  const compactCloud = JSON.stringify({ cloudIntelligence: cloud.intelligence, recentPlans: cloud.plans, activeMemories: cloud.memories, recentMistakes: cloud.mistakes, progressEvidence: cloud.evidence, applicationEvidence: cloud.application, supercurricular: cloud.supercurricular, latestReflection: reflection, clientFallbackContext: { profile: body.profile ?? {}, intelligence: body.intelligence ?? {}, todayPlan: body.plan ?? {} } }).slice(0, 20000)
+  const compactCloud = JSON.stringify({ cloudIntelligence: cloud.intelligence, recentPlans: cloud.plans, weeklyExecution: cloud.execution, activeMemories: cloud.memories, recentMistakes: cloud.mistakes, progressEvidence: cloud.evidence, applicationEvidence: cloud.application, supercurricular: cloud.supercurricular, latestReflection: reflection, clientFallbackContext: { profile: body.profile ?? {}, intelligence: body.intelligence ?? {}, todayPlan: body.plan ?? {} } }).slice(0, 22000)
   const conversation = recentConversation.slice(-10).map(item => `${item.role === "tutor" ? "Tutor" : "Student"}: ${item.text}`).join("\n")
   const user = `Authenticated student evidence:\n${compactCloud}\n\nRecent tutor conversation:\n${conversation || "None"}\n\nStudent asks:\n${question}`
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
