@@ -118,7 +118,7 @@ function essayDiagnostics(prompt: string, essay: string) {
   const promptWords = promptContentWords(prompt)
   const conclusionCoverage = paragraphPromptCoverage(conclusion, promptWords)
   const hasDefensibleConclusion = conclusion.length >= 55 && (CONCLUSION_LANGUAGE.test(conclusion) || conclusionCoverage >= 0.35)
-  const hasObjectionResponse = evaluationBodyParagraphs > 0 && body.some(paragraph => EVALUATION_LINK.test(paragraph) && RESPONSE_LANGUAGE.test(paragraph))
+  const hasObjectionResponse = evaluationBodyParagraphs > 0 && body.some(paragraph => countMatches(paragraph, EVALUATION_LINK) > 0 && RESPONSE_LANGUAGE.test(paragraph))
 
   const intro = paragraphs[0] ?? ""
   const promptKey = normalise(prompt)
