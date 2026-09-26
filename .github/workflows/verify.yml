@@ -75,5 +75,8 @@ jobs:
       - name: UCAT verbal reasoning format checks
         run: node tests/ucat-vr-format.mjs
 
+      - name: UCAT decision-making family checks
+        run: node tests/ucat-dm-format.mjs
+
       - name: Type-aware production build
         run: npm run build
