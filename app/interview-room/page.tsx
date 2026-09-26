@@ -14,10 +14,12 @@ import { generatedInterviewQuestion, pathwayDetails } from "@/lib/oxbridge-expan
 import { publishedForTrack } from "@/lib/published-interviews"
 import { confidenceCalibration, interviewerPersonas, mutationPrompts, warmUps, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { interviewProfileFor } from "@/lib/prep-suite"
+import { localInterviewFollowUp, type InterviewAnswerClassification } from "@/lib/interview-answer-quality"
 
-type Turn = { role: "interviewer" | "candidate"; text: string }
+type Turn = { role: "interviewer" | "candidate"; text: string; quality?: InterviewAnswerClassification }
 type Result = { total: number; reasoning: number; subject: number; flexibility: number; clarity: number; error: string; strengths: string[]; next: string[] }
 type Phase = "lobby" | "live" | "review"
+type AiReply = { reply?: string; classification?: InterviewAnswerClassification; provider?: "gemini" | "local"; degraded?: boolean }
 
 type SavedProgress = {
   sessions?: number
@@ -33,6 +35,14 @@ const progressKey = "oxbridge-tutor-progress-v2"
 
 function formatTime(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+}
+
+function qualityLabel(quality?: InterviewAnswerClassification) {
+  if (quality === "incorrect") return "Incorrect claim challenged"
+  if (quality === "irrelevant") return "Redirected to the question"
+  if (quality === "vague") return "Specificity requested"
+  if (quality === "partial") return "Missing step probed"
+  return quality === "responsive" ? "Responsive" : ""
 }
 
 function scoreResponse(text: string, concepts: string[]): Result {
@@ -77,6 +87,7 @@ export default function InterviewRoomPage() {
   const [seconds, setSeconds] = useState(12 * 60)
   const [running, setRunning] = useState(false)
   const [listening, setListening] = useState(false)
+  const [thinking, setThinking] = useState(false)
   const [hint, setHint] = useState("")
   const [showScratch, setShowScratch] = useState(false)
   const [scratch, setScratch] = useState("")
@@ -119,6 +130,7 @@ export default function InterviewRoomPage() {
     setSeconds(12 * 60)
     setRunning(false)
     setListening(false)
+    setThinking(false)
     setSessionStartedAt(null)
   }
 
@@ -185,16 +197,58 @@ export default function InterviewRoomPage() {
     return challenge
   }
 
-  const submitTurn = () => {
-    if (!answer.trim()) return
+  const submitTurn = async () => {
+    if (!answer.trim() || thinking) return
     const candidate = answer.trim()
     const candidateTurnCount = turns.filter(t => t.role === "candidate").length + 1
-    const challenge = chooseChallenge(candidate, candidateTurnCount)
-    setTurns(t => [...t, { role: "candidate", text: candidate }, { role: "interviewer", text: challenge }])
-    setQuestion(challenge)
+    const candidateTurn: Turn = { role: "candidate", text: candidate }
+    const history = [...turns, candidateTurn]
+    const referenceAnswer = source === "Original" ? base?.strongAnswer : undefined
+    const stimulus = source === "Original" ? base?.stimulus : undefined
+    stopVoice()
+    setTurns(history)
     setAnswer("")
     setHint("")
-    if (mode !== "Tutor") speak(challenge)
+    setThinking(true)
+
+    try {
+      const response = await fetch("/api/interview-turn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          course,
+          track,
+          difficulty,
+          persona: personaKey,
+          mode,
+          question,
+          answer: candidate,
+          concepts,
+          turns: history,
+          referenceAnswer,
+          stimulus,
+          delivery: "natural",
+        }),
+      })
+      if (!response.ok) throw new Error("interview-turn")
+      const data = await response.json() as AiReply
+      const classification = data.classification ?? "partial"
+      const challenge = data.reply?.trim() || chooseChallenge(candidate, candidateTurnCount)
+      const classifiedHistory = history.map((turn, index) => index === history.length - 1 ? { ...turn, quality: classification } : turn)
+      setTurns([...classifiedHistory, { role: "interviewer", text: challenge }])
+      setQuestion(challenge)
+      if (data.degraded && mode === "Tutor") setHint("Cloud evaluation was unavailable for that turn, so the built-in interviewer used its local answer-quality checks.")
+      if (mode !== "Tutor") speak(challenge)
+    } catch {
+      const fallback = localInterviewFollowUp({ question, answer: candidate, concepts, referenceAnswer }, personaKey)
+      const challenge = fallback.classification === "responsive" ? chooseChallenge(candidate, candidateTurnCount) : fallback.reply
+      const classifiedHistory = history.map((turn, index) => index === history.length - 1 ? { ...turn, quality: fallback.classification } : turn)
+      setTurns([...classifiedHistory, { role: "interviewer", text: challenge }])
+      setQuestion(challenge)
+      if (mode !== "Tutor") speak(challenge)
+    } finally {
+      setThinking(false)
+    }
   }
 
   const finishInterview = () => {
@@ -213,13 +267,16 @@ export default function InterviewRoomPage() {
       const interviewScores = Array.isArray(saved.interviewScores) ? saved.interviewScores : []
       const confidenceLogs = Array.isArray(saved.confidenceLogs) ? saved.confidenceLogs : []
       const misconceptions = saved.misconceptions && typeof saved.misconceptions === "object" ? saved.misconceptions : {}
-      const events = [...allTurns.map(t => `${t.role === "interviewer" ? "Interviewer" : "Candidate"}: ${t.text}`), `Confidence: ${confidence}/5`, `Calibration: ${calibration}`]
+      const qualityEvents = allTurns.filter(t => t.role === "candidate" && t.quality && t.quality !== "responsive").map(t => `Answer check: ${t.quality} — ${t.text}`)
+      const events = [...allTurns.map(t => `${t.role === "interviewer" ? "Interviewer" : "Candidate"}: ${t.text}`), ...qualityEvents, `Confidence: ${confidence}/5`, `Calibration: ${calibration}`]
+      const dominantTurnIssue = allTurns.some(t => t.quality === "incorrect") ? "Incorrect interview answer" : allTurns.some(t => t.quality === "irrelevant") ? "Off-topic interview answer" : allTurns.some(t => t.quality === "vague") ? "Vague interview answer" : allTurns.some(t => t.quality === "partial") ? "Incomplete interview answer" : null
+      const misconceptionKey = dominantTurnIssue ?? (scored.error === "No dominant error" ? null : scored.error)
       const nextProgress: SavedProgress = {
         ...saved,
         sessions: Number(saved.sessions ?? 0) + 1,
         interviewScores: [...interviewScores, scored.total],
         confidenceLogs: [...confidenceLogs, { score: scored.total, confidence, note: calibration, date: new Date().toISOString() }].slice(-100),
-        misconceptions: scored.error === "No dominant error" ? misconceptions : { ...misconceptions, [scored.error]: Number(misconceptions[scored.error] ?? 0) + 1 },
+        misconceptions: misconceptionKey ? { ...misconceptions, [misconceptionKey]: Number(misconceptions[misconceptionKey] ?? 0) + 1 } : misconceptions,
         logs: [{ id: `focus-${Date.now()}`, title: `Interview Room · ${course}`, score: scored.total, date: new Date().toLocaleDateString("en-GB"), events, dimensions: { reasoning: scored.reasoning, subject: scored.subject, flexibility: scored.flexibility, clarity: scored.clarity } }, ...logs].slice(0, 40),
       }
       localStorage.setItem(progressKey, JSON.stringify(nextProgress))
@@ -268,7 +325,7 @@ export default function InterviewRoomPage() {
       <div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]">
         <Card className="border-0 bg-[#102a43] text-white shadow-none"><CardHeader><p className="text-xs font-bold uppercase tracking-[.18em] text-[#8dd7de]">Practice skills profile</p><div className="flex items-end gap-2"><CardTitle className="font-serif text-6xl">{result.total}</CardTitle><span className="pb-2 text-white/45">/100</span></div><CardDescription className="text-white/55">A practice signal, not an admissions prediction.</CardDescription></CardHeader><CardContent className="space-y-4">{dimensions.map(([label, value]) => <div key={label}><div className="mb-1 flex justify-between text-xs"><span>{label}</span><span>{value}/25</span></div><Progress value={value * 4} className="bg-white/15 [&_[data-slot=progress-indicator]]:bg-[#8dd7de]" /></div>)}<div className="rounded-2xl bg-white/8 p-4 text-sm leading-6 text-white/75"><strong className="text-white">Confidence calibration</strong><p className="mt-1">{calibration}</p></div><Button className="w-full bg-white text-[#102a43] hover:bg-[#edf7f8]" onClick={() => resetSession(seed + 1)}>Start another interview <RotateCcw /></Button></CardContent></Card>
         <div className="space-y-5"><Card><CardHeader><CardTitle className="font-serif text-2xl">Academic feedback</CardTitle><CardDescription>Focus on the reasoning behaviour you can repeat, not memorising a model answer.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><div className="rounded-2xl bg-emerald-50 p-4"><p className="text-sm font-bold text-emerald-900">What worked</p><div className="mt-3 space-y-2">{result.strengths.length ? result.strengths.map(x => <p key={x} className="flex gap-2 text-sm leading-6 text-emerald-900"><Check className="mt-1 size-4 shrink-0" />{x}</p>) : <p className="text-sm text-emerald-900">You completed the full reasoning cycle and stayed with the problem.</p>}</div></div><div className="rounded-2xl bg-amber-50 p-4"><p className="text-sm font-bold text-amber-950">Next interview target</p><div className="mt-3 space-y-2">{result.next.slice(0, 3).map(x => <p key={x} className="flex gap-2 text-sm leading-6 text-amber-950"><Target className="mt-1 size-4 shrink-0" />{x}</p>)}</div></div></CardContent></Card>
-          <Card><CardHeader><div className="flex items-center justify-between"><div><CardTitle className="font-serif text-2xl">Transcript</CardTitle><CardDescription>{candidateTurns} candidate turns · {Math.round(elapsed / 60)} minutes</CardDescription></div><Badge variant="outline">{persona.label}</Badge></div></CardHeader><CardContent className="space-y-4">{turns.map((turn, i) => <div key={i} className={`rounded-2xl p-4 ${turn.role === "interviewer" ? "bg-[#edf7f8]" : "ml-0 border bg-white sm:ml-10"}`}><p className="mb-1 text-[11px] font-bold uppercase tracking-[.14em] text-[#657582]">{turn.role}</p><p className="text-sm leading-6">{turn.text}</p></div>)}</CardContent></Card>
+          <Card><CardHeader><div className="flex items-center justify-between"><div><CardTitle className="font-serif text-2xl">Transcript</CardTitle><CardDescription>{candidateTurns} candidate turns · {Math.round(elapsed / 60)} minutes</CardDescription></div><Badge variant="outline">{persona.label}</Badge></div></CardHeader><CardContent className="space-y-4">{turns.map((turn, i) => <div key={i} className={`rounded-2xl p-4 ${turn.role === "interviewer" ? "bg-[#edf7f8]" : "ml-0 border bg-white sm:ml-10"}`}><div className="mb-1 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#657582]">{turn.role}</p>{turn.role === "candidate" && turn.quality && turn.quality !== "responsive" && <Badge variant="outline" className="text-[10px]">{qualityLabel(turn.quality)}</Badge>}</div><p className="text-sm leading-6">{turn.text}</p></div>)}</CardContent></Card>
         </div>
       </div>
     </div></main>
@@ -284,7 +341,7 @@ export default function InterviewRoomPage() {
             <div className="flex flex-1 flex-col justify-center py-4 sm:py-8"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#657582]">Interviewer</p><h1 className="mt-4 font-serif text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-[2.7rem]">{question}</h1>{turns.length > 2 && <details className="mt-6 rounded-2xl border bg-[#f8fafb] p-4"><summary className="cursor-pointer text-sm font-semibold text-[#46616d]">Review conversation so far</summary><div className="mt-4 space-y-3">{turns.slice(1, -1).map((t, i) => <div key={i}><p className="text-[11px] font-bold uppercase tracking-wider text-[#657582]">{t.role}</p><p className="mt-1 text-sm leading-6">{t.text}</p></div>)}</div></details>}
               {hint && <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-amber-800">Tutor scaffold</p><p className="mt-1 text-sm leading-6 text-amber-950">{hint}</p></div>}
             </div>
-            <div className="border-t pt-5"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><label className="text-sm font-semibold">Your response</label><span className="text-xs text-[#657582]">{answer.trim() ? answer.trim().split(/\s+/).length : 0} words</span></div><Textarea value={answer} onChange={e => setAnswer(e.target.value)} rows={7} className="min-h-44 resize-y rounded-2xl border-[#cddadd] bg-[#fbfcfc] text-base leading-7 focus:bg-white" placeholder="Think aloud. State what you notice, what you are assuming, and why each step follows…" /><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-2"><Button variant={listening ? "default" : "outline"} onClick={listening ? stopVoice : startVoice}>{listening ? <MicOff /> : <Mic />}{listening ? "Stop" : "Voice"}</Button><Button variant="outline" onClick={() => speak(question)}>Hear question</Button>{mode === "Tutor" && <Button variant="outline" onClick={() => setHint(`Start by identifying what the question is asking, then name the simplest useful case or assumption you could test.`)}><Lightbulb />Scaffold</Button>}<Button variant="outline" onClick={() => { const m = mutationPrompts[track][(seed + candidateTurns) % mutationPrompts[track].length]; setQuestion(m); setTurns(t => [...t, { role: "interviewer", text: m }]); setHint("") }}><WandSparkles />Change condition</Button></div><div className="flex gap-2"><Button variant="outline" onClick={submitTurn} disabled={!answer.trim()}>Continue discussion <ArrowRight /></Button><Button onClick={finishInterview} disabled={!answer.trim() && candidateTurns === 0} className="bg-[#102a43] hover:bg-[#173b59]">Conclude</Button></div></div></div>
+            <div className="border-t pt-5"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><label className="text-sm font-semibold">Your response</label><span className="text-xs text-[#657582]">{answer.trim() ? answer.trim().split(/\s+/).length : 0} words</span></div><Textarea value={answer} onChange={e => setAnswer(e.target.value)} rows={7} disabled={thinking} className="min-h-44 resize-y rounded-2xl border-[#cddadd] bg-[#fbfcfc] text-base leading-7 focus:bg-white" placeholder="Think aloud. State what you notice, what you are assuming, and why each step follows…" /><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-2"><Button variant={listening ? "default" : "outline"} onClick={listening ? stopVoice : startVoice} disabled={thinking}>{listening ? <MicOff /> : <Mic />}{listening ? "Stop" : "Voice"}</Button><Button variant="outline" onClick={() => speak(question)} disabled={thinking}>Hear question</Button>{mode === "Tutor" && <Button variant="outline" onClick={() => setHint(`Start by identifying what the question is asking, then name the simplest useful case or assumption you could test.`)} disabled={thinking}><Lightbulb />Scaffold</Button>}<Button variant="outline" disabled={thinking} onClick={() => { const m = mutationPrompts[track][(seed + candidateTurns) % mutationPrompts[track].length]; setQuestion(m); setTurns(t => [...t, { role: "interviewer", text: m }]); setHint("") }}><WandSparkles />Change condition</Button></div><div className="flex gap-2"><Button variant="outline" onClick={() => void submitTurn()} disabled={!answer.trim() || thinking}>{thinking ? "Checking response…" : "Continue discussion"}{!thinking && <ArrowRight />}</Button><Button onClick={finishInterview} disabled={thinking || (!answer.trim() && candidateTurns === 0)} className="bg-[#102a43] hover:bg-[#173b59]">Conclude</Button></div></div></div>
           </div>
         </section>
         <aside className="border-t border-[#d9e3e5] bg-[#f7f9f9] p-4 sm:p-6 xl:border-l xl:border-t-0">
