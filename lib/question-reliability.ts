@@ -161,10 +161,11 @@ export function auditQuestionReliability(question: TestQuestion): QuestionReliab
   const prompt = compact(question.prompt ?? "")
   const explanation = compact(question.explanation ?? "")
   const options = Array.isArray(question.options) ? question.options.map(compact) : []
+  const expectedOptionCount = question.test === "TARA" ? 5 : 4
 
   if (!prompt) addIssue(issues, "blocking", "blank-prompt", "Question prompt is blank.")
   if (!explanation) addIssue(issues, "blocking", "blank-explanation", "Question explanation is blank.")
-  if (options.length !== 4) addIssue(issues, "blocking", "option-count", `Expected 4 options but found ${options.length}.`)
+  if (options.length !== expectedOptionCount) addIssue(issues, "blocking", "option-count", `Expected ${expectedOptionCount} options but found ${options.length}.`)
   if (!Number.isInteger(question.answer) || question.answer < 0 || question.answer >= options.length) addIssue(issues, "blocking", "answer-index", "Correct answer index is invalid.")
 
   const allText = [prompt, explanation, ...options].join(" ")
@@ -214,7 +215,7 @@ export function auditQuestionReliability(question: TestQuestion): QuestionReliab
 
   if (explanation.length < 28) addIssue(issues, "warning", "thin-explanation", "Explanation is too short to justify the answer robustly.")
 
-  const allNumeric = options.length === 4 && options.every(option => parseSimpleNumber(option) !== null)
+  const allNumeric = options.length === expectedOptionCount && options.every(option => parseSimpleNumber(option) !== null)
   if (allNumeric && prompt.length < 125 && DIRECT_NUMERIC_STEM.test(prompt) && !/\b(?:therefore|after|then|remaining|combined|changes?|compare|simultaneously|constraint|condition)\b/i.test(prompt)) {
     addIssue(issues, "warning", "low-reasoning-depth", "Question is a short direct calculation with limited reasoning depth.")
   }
