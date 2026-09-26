@@ -37,9 +37,30 @@ function loadTs(file) {
 const { buildFullPaper } = loadTs(path.join(root, "lib/full-paper-system.ts"))
 const { isYesNoStatementQuestion, questionMaxMarks } = loadTs(path.join(root, "lib/full-paper-question.ts"))
 const { ucatDmFamily } = loadTs(path.join(root, "lib/ucat-dm-coverage.ts"))
+const { reliableFullPaperQuestionBank } = loadTs(path.join(root, "lib/full-paper-reliable-bank.ts"))
+const { ucatDecisionMakingProductionMcqBank } = loadTs(path.join(root, "lib/ucat-dm-official-production-bank.ts"))
+const { auditQuestionReliability } = loadTs(path.join(root, "lib/question-reliability.ts"))
 
 const requiredMcqFamilies = ["Logical Puzzles", "Statistical Reasoning", "Assumption Recognition", "Venn Diagrams"]
 const promptSets = []
+
+const availablePrefixes = new Map()
+for (const question of reliableFullPaperQuestionBank.filter(question => question.test === "UCAT" && question.section === "Decision Making")) {
+  const prefix = question.id.replace(/-\d+$/, "")
+  availablePrefixes.set(prefix, (availablePrefixes.get(prefix) ?? 0) + 1)
+}
+console.log(`UCAT DM reliable pool sources: ${[...availablePrefixes.entries()].map(([prefix, count]) => `${prefix}=${count}`).join("; ")}.`)
+
+const blockedByPrefix = new Map()
+for (const question of ucatDecisionMakingProductionMcqBank) {
+  const audit = auditQuestionReliability(question)
+  if (!audit.blocking.length) continue
+  const prefix = question.id.replace(/-\d+$/, "")
+  const codes = audit.blocking.map(issue => issue.code).join(",")
+  const key = `${prefix}:${codes}`
+  blockedByPrefix.set(key, (blockedByPrefix.get(key) ?? 0) + 1)
+}
+if (blockedByPrefix.size) console.log(`UCAT DM source blocking diagnostics: ${[...blockedByPrefix.entries()].map(([key, count]) => `${key}=${count}`).join("; ")}.`)
 
 for (const form of [1, 2]) {
   const paper = buildFullPaper("UCAT", form)
