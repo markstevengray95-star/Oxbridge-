@@ -2,7 +2,6 @@ import Link from "next/link"
 import { BookOpenCheck, Brain, Mic2, TimerReset } from "lucide-react"
 import { PersonalTutorDashboard } from "@/components/personal-tutor-dashboard"
 import { TutorDeepInsightLoader } from "@/components/tutor-deep-insight-loader"
-import { TutorEvidenceStrip } from "@/components/tutor-evidence-strip"
 import { NextgenTutorPanel } from "@/components/nextgen-tutor-panel"
 
 export function PersonalTutorShell() {
@@ -10,7 +9,6 @@ export function PersonalTutorShell() {
     <>
       <PersonalTutorDashboard />
       <TutorDeepInsightLoader />
-      <TutorEvidenceStrip />
       <NextgenTutorPanel />
 
       <nav className="fixed bottom-3 left-1/2 z-[120] flex w-[min(94vw,28rem)] -translate-x-1/2 items-center justify-around rounded-2xl border border-[#dbe5e7] bg-white/95 p-2 shadow-[0_16px_50px_rgba(16,42,67,.18)] backdrop-blur md:hidden" aria-label="Tutor quick actions">
