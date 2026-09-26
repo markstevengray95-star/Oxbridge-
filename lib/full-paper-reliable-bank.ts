@@ -14,14 +14,17 @@ import { taraSimilarityReserveBank } from "@/lib/tara-similarity-reserve"
 import { ensureTaraFiveOptions } from "@/lib/tara-question-format"
 import { auditQuestionReliability, repairQuestionReliability, reliabilityScore } from "@/lib/question-reliability"
 import { repairSemanticAnswerCues } from "@/lib/question-integrity-repair"
+import { repairLnatAnswerLengthCue } from "@/lib/lnat-answer-cue-repair"
 
 // Keep the original diverse bank as reliable reserve material rather than
 // removing whole sections when an upgraded bank is present. The paper builder
 // can then construct two genuinely different forms while still ranking the
 // stronger upgraded items first.
 const repair = (question: Parameters<typeof repairQuestionReliability>[0]) => {
-  const repaired = repairSemanticAnswerCues(repairQuestionReliability(question))
-  return repaired.test === "TARA" ? ensureTaraFiveOptions(repaired) : repaired
+  const structurallyRepaired = repairQuestionReliability(question)
+  const semanticallyRepaired = repairSemanticAnswerCues(structurallyRepaired)
+  const lnatRepaired = repairLnatAnswerLengthCue(semanticallyRepaired)
+  return lnatRepaired.test === "TARA" ? ensureTaraFiveOptions(lnatRepaired) : lnatRepaired
 }
 
 // Generic distractor strengthening treats absolute words as suspicious cues.
