@@ -27,13 +27,19 @@ function loadTypeScriptModule(path) {
 
 const bankModule = loadTypeScriptModule("../lib/full-paper-unique-bank.ts")
 const reliabilityModule = loadTypeScriptModule("../lib/question-reliability.ts")
+const taraFormatModule = loadTypeScriptModule("../lib/tara-question-format.ts")
 const rawBank = bankModule.uniqueFullPaperQuestionBank
 const { auditQuestionReliability, repairQuestionReliability } = reliabilityModule
+const { ensureTaraFiveOptions } = taraFormatModule
 
 if (!Array.isArray(rawBank) || !rawBank.length) throw new Error("Question bank failed to load for reliability audit.")
 if (typeof auditQuestionReliability !== "function" || typeof repairQuestionReliability !== "function") throw new Error("Reliability auditor failed to load.")
+if (typeof ensureTaraFiveOptions !== "function") throw new Error("TARA five-option converter failed to load.")
 
-const bank = rawBank.map(repairQuestionReliability)
+const bank = rawBank.map(question => {
+  const repaired = repairQuestionReliability(question)
+  return repaired.test === "TARA" ? ensureTaraFiveOptions(repaired) : repaired
+})
 const repairCount = bank.filter((question, index) => JSON.stringify(question.options) !== JSON.stringify(rawBank[index].options)).length
 const sectionStats = new Map()
 const blocking = []
@@ -42,12 +48,13 @@ const warningCounts = new Map()
 for (const question of bank) {
   const audit = auditQuestionReliability(question)
   const sectionKey = `${question.test}:${question.section}`
-  const row = sectionStats.get(sectionKey) ?? { count: 0, totalScore: 0, minimum: 100, low: 0, answerPositions: [0, 0, 0, 0] }
+  const row = sectionStats.get(sectionKey) ?? { count: 0, totalScore: 0, minimum: 100, low: 0, answerPositions: Array(question.options.length).fill(0) }
+  if (row.answerPositions.length !== question.options.length) throw new Error(`${sectionKey} mixes ${row.answerPositions.length}- and ${question.options.length}-option questions.`)
   row.count += 1
   row.totalScore += audit.score
   row.minimum = Math.min(row.minimum, audit.score)
   if (audit.score < 60) row.low += 1
-  if (Number.isInteger(question.answer) && question.answer >= 0 && question.answer < 4) row.answerPositions[question.answer] += 1
+  if (Number.isInteger(question.answer) && question.answer >= 0 && question.answer < row.answerPositions.length) row.answerPositions[question.answer] += 1
   sectionStats.set(sectionKey, row)
 
   for (const issue of audit.blocking) blocking.push(`${question.id} [${issue.code}] ${issue.message}`)
@@ -55,7 +62,7 @@ for (const question of bank) {
 }
 
 if (blocking.length) {
-  console.error("Blocking question reliability failures after deterministic repair:")
+  console.error("Blocking question reliability failures after deterministic repair and TARA format conversion:")
   blocking.slice(0, 40).forEach(issue => console.error(`- ${issue}`))
   if (blocking.length > 40) console.error(`...and ${blocking.length - 40} more`)
   process.exit(1)
@@ -71,5 +78,5 @@ for (const [section, row] of sectionStats) {
 }
 
 const warningSummary = [...warningCounts.entries()].sort((a, b) => b[1] - a[1])
-console.log(`Reliability audit passed across ${bank.length} questions with zero blocking failures after ${repairCount} deterministic option repair(s).`)
+console.log(`Reliability audit passed across ${bank.length} questions with zero blocking failures after ${repairCount} deterministic/format option repair(s).`)
 if (warningSummary.length) console.log(`Quality warnings for future improvement: ${warningSummary.map(([code, count]) => `${code}=${count}`).join(", ")}`)
