@@ -70,6 +70,10 @@ for (const form of [1, 2]) {
   const syllogisms = statementCounts.get("Syllogisms") ?? 0
   const information = statementCounts.get("Information Interpretation") ?? 0
   const statementOther = statement.length - syllogisms - information
+  const mcqOther = mcqCounts.get("Other") ?? 0
+
+  console.log(`UCAT DM Form ${form}: statements Syllogisms=${syllogisms}, Information Interpretation=${information}, Other=${statementOther}; MCQ ${requiredMcqFamilies.map(family => `${family}=${mcqCounts.get(family) ?? 0}`).join("; ")}; Other=${mcqOther}.`)
+
   if (syllogisms < 4 || information < 4 || statementOther !== 0) {
     throw new Error(`UCAT Form ${form} statement mix should be 4+ syllogisms and 4+ information-interpretation items with no off-format statement families; found syllogisms=${syllogisms}, information=${information}, other=${statementOther}.`)
   }
@@ -78,14 +82,12 @@ for (const form of [1, 2]) {
     const count = mcqCounts.get(family) ?? 0
     if (count < 4) throw new Error(`UCAT Form ${form} contains only ${count} ${family} single-answer items; expected at least 4.`)
   }
-  const mcqOther = mcqCounts.get("Other") ?? 0
   if (mcqOther > 3) throw new Error(`UCAT Form ${form} contains ${mcqOther} unclassified single-answer DM items; expected at most 3.`)
 
   const maxMarks = section.questions.reduce((sum, question) => sum + questionMaxMarks(question), 0)
   if (maxMarks !== 43) throw new Error(`UCAT Form ${form} Decision Making should expose 43 raw marks (27×1 + 8×2); found ${maxMarks}.`)
 
   promptSets.push(new Set(section.questions.map(question => question.prompt.trim().toLowerCase())))
-  console.log(`UCAT DM Form ${form}: statements Syllogisms=${syllogisms}, Information Interpretation=${information}; MCQ ${requiredMcqFamilies.map(family => `${family}=${mcqCounts.get(family) ?? 0}`).join("; ")}; Other=${mcqOther}.`)
 }
 
 const overlap = [...promptSets[0]].filter(prompt => promptSets[1].has(prompt))
