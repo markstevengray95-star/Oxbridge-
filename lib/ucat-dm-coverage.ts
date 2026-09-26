@@ -27,13 +27,16 @@ export function ucatDmFamily(question: FullPaperQuestion): UcatDmFamily {
   const content = text(question)
 
   if (isYesNoStatementQuestion(question)) {
+    // Explicit datasets/studies take precedence. Their wording can naturally
+    // contain "all", "no" or "conclusion follows", which must not turn them
+    // into syllogisms merely because the response format is also Yes/No.
+    if (/\b(study|survey|service|clinic|library|comparison|observational|randomi[sz]ed|recorded|records|mean|rate|data|evidence|measured|appointments?|journeys?|residents?|participants?|students?)\b/.test(content)) {
+      return "Information Interpretation"
+    }
+
     const categorical = /\b(all|every|some|no)\b/.test(content) && /\b(follows?|conclusion|premises?|subset|cannot|implies?)\b/.test(content)
     const conditionalLogic = /\bif\b/.test(content) && /\b(conclusion|follows?|contrapositive|implies?)\b/.test(content)
     if (categorical || conditionalLogic) return "Syllogisms"
-
-    if (/\b(study|survey|service|clinic|library|comparison|observational|randomi[sz]ed|recorded|mean|rate|data|evidence|measured|appointments?)\b/.test(content)) {
-      return "Information Interpretation"
-    }
     return "Other"
   }
 
