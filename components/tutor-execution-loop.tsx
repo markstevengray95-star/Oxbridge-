@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowRight,
   CalendarDays,
@@ -25,10 +25,13 @@ import type { SkillState, StudentIntelligence, TutorAction } from "@/lib/persona
 const EXECUTION_KEY = "oxbridge-tutor-execution-v1"
 const SNAPSHOT_KEY = "oxbridge-tutor-visit-snapshot-v1"
 const CLOUD_STATE_KEY = "oxbridge-tutor-execution-v1"
+const PLAN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 type ExecutionState = {
   completed?: string[]
   generatedAt?: string
+  updatedAt?: string
+  planKey?: string
 }
 
 type VisitSnapshot = {
@@ -183,6 +186,32 @@ function buildSevenDayPlan(intelligence: StudentIntelligence): PlanStep[] {
   ]
 }
 
+function priorityKey(intelligence: StudentIntelligence) {
+  return intelligence.priority?.id ?? "baseline"
+}
+
+function makePlanKey(intelligence: StudentIntelligence, generatedAt: string) {
+  return `${priorityKey(intelligence)}:${generatedAt.slice(0, 10)}`
+}
+
+function isCurrentPlan(state: ExecutionState, intelligence: StudentIntelligence) {
+  if (!state.planKey || !state.generatedAt) return false
+  const generated = new Date(state.generatedAt).getTime()
+  if (!Number.isFinite(generated) || Date.now() - generated > PLAN_MAX_AGE_MS) return false
+  return state.planKey.startsWith(`${priorityKey(intelligence)}:`)
+}
+
+function stateTimestamp(state: ExecutionState) {
+  const raw = state.updatedAt ?? state.generatedAt ?? ""
+  const value = new Date(raw).getTime()
+  return Number.isFinite(value) ? value : 0
+}
+
+function freshExecutionState(intelligence: StudentIntelligence): ExecutionState {
+  const now = new Date().toISOString()
+  return { completed: [], generatedAt: now, updatedAt: now, planKey: makePlanKey(intelligence, now) }
+}
+
 function snapshotFor(intelligence: StudentIntelligence): VisitSnapshot {
   return {
     at: new Date().toISOString(),
@@ -202,19 +231,69 @@ function deltaText(current: number, previous: number, noun: string) {
   return `${delta > 0 ? "+" : ""}${delta} ${noun}`
 }
 
+function shortDate(value?: string) {
+  if (!value) return "Today"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "Today"
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(date)
+}
+
+function stepDate(value: string | undefined, day: number) {
+  const date = value ? new Date(value) : new Date()
+  if (Number.isNaN(date.getTime())) return `Day ${day}`
+  date.setDate(date.getDate() + day - 1)
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(date)
+}
+
 export function TutorExecutionLoop({ intelligence }: { intelligence: StudentIntelligence }) {
   const [state, setState] = useState<ExecutionState>({ completed: [] })
   const [previous, setPrevious] = useState<VisitSnapshot | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [cloudStatus, setCloudStatus] = useState<"local" | "saved" | "idle">("idle")
+  const [cloudStatus, setCloudStatus] = useState<"local" | "saved" | "syncing" | "idle">("idle")
+  const snapshotInitialised = useRef(false)
 
   useEffect(() => {
-    const saved = readJson<ExecutionState>(EXECUTION_KEY, { completed: [] })
-    setState(saved)
-    const prior = readJson<VisitSnapshot | null>(SNAPSHOT_KEY, null)
-    setPrevious(prior)
-    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshotFor(intelligence)))
+    let cancelled = false
+    const localRaw = readJson<ExecutionState>(EXECUTION_KEY, { completed: [] })
+    const local = isCurrentPlan(localRaw, intelligence) ? localRaw : freshExecutionState(intelligence)
+    setState(local)
+    localStorage.setItem(EXECUTION_KEY, JSON.stringify(local))
     setLoaded(true)
+
+    if (!snapshotInitialised.current) {
+      setPrevious(readJson<VisitSnapshot | null>(SNAPSHOT_KEY, null))
+      snapshotInitialised.current = true
+    }
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshotFor(intelligence)))
+
+    const restoreCloud = async () => {
+      setCloudStatus("syncing")
+      try {
+        const supabase = createClient()
+        const { data } = await supabase.auth.getUser()
+        if (!data.user || cancelled) { if (!cancelled) setCloudStatus("local"); return }
+        const { data: row } = await supabase
+          .from("user_state")
+          .select("state_value,updated_at")
+          .eq("user_id", data.user.id)
+          .eq("state_key", CLOUD_STATE_KEY)
+          .maybeSingle()
+        if (cancelled) return
+        const cloudRaw = (row?.state_value && typeof row.state_value === "object" && !Array.isArray(row.state_value)) ? row.state_value as ExecutionState : null
+        if (cloudRaw && isCurrentPlan(cloudRaw, intelligence)) {
+          const cloudWithTimestamp = { ...cloudRaw, updatedAt: cloudRaw.updatedAt ?? row?.updated_at ?? cloudRaw.generatedAt }
+          if (stateTimestamp(cloudWithTimestamp) > stateTimestamp(local)) {
+            setState(cloudWithTimestamp)
+            localStorage.setItem(EXECUTION_KEY, JSON.stringify(cloudWithTimestamp))
+          }
+        }
+        setCloudStatus("saved")
+      } catch {
+        if (!cancelled) setCloudStatus("local")
+      }
+    }
+    void restoreCloud()
+    return () => { cancelled = true }
   }, [intelligence])
 
   const plan = useMemo(() => buildSevenDayPlan(intelligence), [intelligence])
@@ -222,6 +301,7 @@ export function TutorExecutionLoop({ intelligence }: { intelligence: StudentInte
   const quality = useMemo(() => evidenceQuality(intelligence), [intelligence])
   const completed = state.completed ?? []
   const completion = Math.round((completed.filter(id => plan.some(step => step.id === id)).length / plan.length) * 100)
+  const nextStep = plan.find(step => !completed.includes(step.id)) ?? null
 
   const changes = useMemo(() => {
     if (!previous) return [] as string[]
@@ -237,8 +317,15 @@ export function TutorExecutionLoop({ intelligence }: { intelligence: StudentInte
   }, [intelligence, previous])
 
   async function persist(next: ExecutionState) {
-    setState(next)
-    localStorage.setItem(EXECUTION_KEY, JSON.stringify(next))
+    const now = new Date().toISOString()
+    const normalised: ExecutionState = {
+      ...next,
+      generatedAt: next.generatedAt ?? now,
+      planKey: next.planKey ?? makePlanKey(intelligence, next.generatedAt ?? now),
+      updatedAt: now,
+    }
+    setState(normalised)
+    localStorage.setItem(EXECUTION_KEY, JSON.stringify(normalised))
     try {
       const supabase = createClient()
       const { data } = await supabase.auth.getUser()
@@ -246,8 +333,8 @@ export function TutorExecutionLoop({ intelligence }: { intelligence: StudentInte
       const { error } = await supabase.from("user_state").upsert({
         user_id: data.user.id,
         state_key: CLOUD_STATE_KEY,
-        state_value: next,
-        updated_at: new Date().toISOString(),
+        state_value: normalised,
+        updated_at: now,
       }, { onConflict: "user_id,state_key" })
       setCloudStatus(error ? "local" : "saved")
     } catch {
@@ -257,11 +344,11 @@ export function TutorExecutionLoop({ intelligence }: { intelligence: StudentInte
 
   function toggle(id: string) {
     const nextCompleted = completed.includes(id) ? completed.filter(item => item !== id) : [...completed, id]
-    void persist({ ...state, completed: nextCompleted, generatedAt: state.generatedAt ?? new Date().toISOString() })
+    void persist({ ...state, completed: nextCompleted })
   }
 
   function resetWeek() {
-    void persist({ completed: [], generatedAt: new Date().toISOString() })
+    void persist(freshExecutionState(intelligence))
   }
 
   if (!loaded) return <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-6"><div className="h-44 animate-pulse rounded-3xl border bg-white" /></section>
@@ -273,13 +360,13 @@ export function TutorExecutionLoop({ intelligence }: { intelligence: StudentInte
         <h2 id="execution-title" className="mt-2 font-serif text-3xl font-bold text-[#172b3a]">Turn diagnosis into evidence of improvement.</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Every priority now follows a diagnose → practise → transfer → retest cycle. The Tutor treats improvement as something to verify on a fresh task, not something to assume after one good attempt.</p>
       </div>
-      <div className="flex items-center gap-2"><Badge variant="outline"><ShieldCheck className="size-3.5" />Evidence quality: {quality.label}</Badge><Button size="sm" variant="outline" onClick={resetWeek}><RefreshCw className="size-4" />Reset week</Button></div>
+      <div className="flex flex-wrap items-center gap-2"><Badge variant="outline"><ShieldCheck className="size-3.5" />Evidence quality: {quality.label}</Badge><Badge variant="outline">Started {shortDate(state.generatedAt)}</Badge><Button size="sm" variant="outline" onClick={resetWeek}><RefreshCw className="size-4" />Regenerate plan</Button></div>
     </div>
 
     <div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]">
       <div className="space-y-5">
         <Card className="shadow-none">
-          <CardHeader><div className="flex items-center justify-between gap-2"><div><CardDescription>What changed since your last Tutor visit</CardDescription><CardTitle className="mt-1 font-serif text-2xl">Progress pulse</CardTitle></div><History className="size-5 text-[#147d91]" /></div></CardHeader>
+          <CardHeader><div className="flex items-center justify-between gap-2"><div><CardDescription>What changed since you opened the previous Tutor session</CardDescription><CardTitle className="mt-1 font-serif text-2xl">Progress pulse</CardTitle></div><History className="size-5 text-[#147d91]" /></div></CardHeader>
           <CardContent className="space-y-3">
             {previous ? changes.length ? changes.map(item => <div key={item} className="flex items-start gap-2 rounded-xl bg-[#f7fbfb] p-3 text-sm leading-6 text-slate-700"><Sparkles className="mt-1 size-4 shrink-0 text-[#147d91]" />{item}</div>) : <p className="text-sm leading-6 text-slate-600">No measurable change has been recorded since the previous Tutor visit. Completing a substantive task will create new comparison evidence.</p> : <p className="text-sm leading-6 text-slate-600">This is the first stored Tutor snapshot. From the next visit onward, ScholarBridge will show what actually changed rather than only the current score.</p>}
           </CardContent>
@@ -292,17 +379,18 @@ export function TutorExecutionLoop({ intelligence }: { intelligence: StudentInte
       </div>
 
       <Card className="shadow-none">
-        <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2"><CalendarDays className="size-5 text-[#147d91]" /><CardTitle className="font-serif text-2xl">7-day execution board</CardTitle></div><CardDescription className="mt-1">Generated from the current Tutor priority and recommendations.</CardDescription></div><Badge variant="outline">{completion}% complete</Badge></div><Progress value={completion} /></CardHeader>
+        <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2"><CalendarDays className="size-5 text-[#147d91]" /><CardTitle className="font-serif text-2xl">7-day execution board</CardTitle></div><CardDescription className="mt-1">A rolling plan tied to the current Tutor priority. A changed priority starts a fresh loop instead of carrying old completion ticks forward.</CardDescription></div><Badge variant="outline">{completion}% complete</Badge></div><Progress value={completion} /></CardHeader>
         <CardContent className="space-y-2">
           {plan.map(step => {
             const done = completed.includes(step.id)
-            return <div key={step.id} className={`grid gap-3 rounded-2xl border p-4 md:grid-cols-[auto_1fr_auto] md:items-center ${done ? "border-emerald-200 bg-emerald-50" : "bg-white"}`}>
-              <button onClick={() => toggle(step.id)} aria-label={`${done ? "Mark incomplete" : "Mark complete"}: ${step.label}`} className="flex items-center gap-2 text-left"><span className={`grid size-8 place-items-center rounded-full border ${done ? "border-emerald-600 bg-emerald-600 text-white" : "bg-white"}`}>{done ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />}</span><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Day {step.day}</span></button>
-              <div><div className="flex flex-wrap items-center gap-2"><strong className="text-sm">{step.label}</strong><Badge variant="outline">{step.kind}</Badge><Badge variant="outline"><Clock3 className="size-3" />{step.minutes} min</Badge></div><p className="mt-1 text-xs leading-5 text-slate-600">{step.note}</p></div>
+            const isNext = nextStep?.id === step.id
+            return <div key={step.id} className={`grid gap-3 rounded-2xl border p-4 md:grid-cols-[auto_1fr_auto] md:items-center ${done ? "border-emerald-200 bg-emerald-50" : isNext ? "border-[#8dd7de] bg-[#f4fbfb] ring-1 ring-[#8dd7de]/40" : "bg-white"}`}>
+              <button onClick={() => toggle(step.id)} aria-label={`${done ? "Mark incomplete" : "Mark complete"}: ${step.label}`} className="flex items-center gap-2 text-left"><span className={`grid size-8 place-items-center rounded-full border ${done ? "border-emerald-600 bg-emerald-600 text-white" : "bg-white"}`}>{done ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />}</span><span className="text-xs font-bold uppercase tracking-wider text-slate-500">{stepDate(state.generatedAt, step.day)}</span></button>
+              <div><div className="flex flex-wrap items-center gap-2"><strong className="text-sm">{step.label}</strong>{isNext && <Badge>Next</Badge>}<Badge variant="outline">{step.kind}</Badge><Badge variant="outline"><Clock3 className="size-3" />{step.minutes} min</Badge></div><p className="mt-1 text-xs leading-5 text-slate-600">{step.note}</p></div>
               <Button asChild size="sm" variant={done ? "outline" : "default"}><Link href={step.href}>{done ? "Revisit" : "Start"} <ArrowRight className="size-3.5" /></Link></Button>
             </div>
           })}
-          <p className="pt-1 text-right text-[11px] text-slate-400">{cloudStatus === "saved" ? "Execution progress saved to your account." : cloudStatus === "local" ? "Execution progress saved on this device." : "Completion saves automatically."}</p>
+          <p className="pt-1 text-right text-[11px] text-slate-400">{cloudStatus === "saved" ? "Execution progress synced to your account." : cloudStatus === "syncing" ? "Checking your account for a newer plan…" : cloudStatus === "local" ? "Execution progress saved on this device." : "Completion saves automatically."}</p>
         </CardContent>
       </Card>
     </div>
