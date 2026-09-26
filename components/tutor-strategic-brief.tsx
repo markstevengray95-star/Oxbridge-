@@ -5,6 +5,7 @@ import { ArrowRight, Brain, CalendarDays, Crosshair, FileQuestion, Loader2, Netw
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useTutorIntelligence } from "@/components/tutor-intelligence-context"
 
 type TutorMode = "review" | "plan"
 type BriefAction = { label: string; prompt: string; mode: TutorMode; icon: typeof Brain }
@@ -37,20 +38,26 @@ const actions: BriefAction[] = [
 ]
 
 export function TutorStrategicBrief() {
+  const { profile, intelligence, ready } = useTutorIntelligence()
   const [brief, setBrief] = useState("")
   const [active, setActive] = useState("")
   const [provider, setProvider] = useState("")
   const [loading, setLoading] = useState(false)
 
   async function generate(action: BriefAction) {
-    if (loading) return
+    if (loading || !ready) return
     setLoading(true)
     setActive(action.label)
     try {
       const response = await fetch("/api/personal-tutor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: action.prompt, mode: action.mode }),
+        body: JSON.stringify({
+          question: action.prompt,
+          mode: action.mode,
+          profile,
+          intelligence,
+        }),
       })
       const data = await response.json() as { reply?: string; provider?: string; authRequired?: boolean }
       setBrief(data.reply || "The Tutor could not generate a strategic brief from the available evidence. Complete another preparation activity and try again.")
@@ -70,16 +77,16 @@ export function TutorStrategicBrief() {
           <div>
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.18em] text-[#147d91]"><Sparkles className="size-4" />Tutor synthesis</div>
             <CardTitle className="mt-2 font-serif text-3xl">Turn the evidence into a strategy.</CardTitle>
-            <CardDescription className="mt-2 max-w-3xl text-sm leading-6">The persistent Tutor can combine your cloud-saved plans, mistake events, progress evidence, application evidence, supercurricular work and reflections. It must distinguish what is evidenced from what is uncertain and does not predict admissions outcomes.</CardDescription>
+            <CardDescription className="mt-2 max-w-3xl text-sm leading-6">The strategic Tutor now combines the same live evidence snapshot used by Deep Insight with your cloud-saved plans, mistake events, application evidence, supercurricular work and reflections. It must distinguish what is evidenced from what is uncertain and does not predict admissions outcomes.</CardDescription>
           </div>
-          <Badge variant="outline"><Brain className="size-3.5" />Evidence-aware</Badge>
+          <Badge variant="outline"><Brain className="size-3.5" />Live evidence-aware</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {actions.map(action => {
             const Icon = action.icon
-            return <Button key={action.label} variant={active === action.label ? "default" : "outline"} className="h-auto justify-start gap-3 py-3 text-left" onClick={() => void generate(action)} disabled={loading}>
+            return <Button key={action.label} variant={active === action.label ? "default" : "outline"} className="h-auto justify-start gap-3 py-3 text-left" onClick={() => void generate(action)} disabled={loading || !ready}>
               {loading && active === action.label ? <Loader2 className="size-4 animate-spin" /> : <Icon className="size-4" />}
               <span>{action.label}</span>
             </Button>
