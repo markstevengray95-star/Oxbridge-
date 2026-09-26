@@ -6,6 +6,7 @@ import { auditQuestionReliability, reliabilityScore } from "@/lib/question-relia
 import type { FullPaperQuestion } from "@/lib/full-paper-question"
 import { isYesNoStatementQuestion, validateFullPaperQuestion } from "@/lib/full-paper-question"
 import { ucatDecisionMakingStatementBank } from "@/lib/ucat-dm-statement-bank"
+import { ucatDmFamily } from "@/lib/ucat-dm-coverage"
 import { tmuaPaper1CoreTopics, tmuaPaper1Topic } from "@/lib/tmua-topic-coverage"
 import { esatCoverageTopics, esatCoverageTopic } from "@/lib/esat-topic-coverage"
 
@@ -236,8 +237,55 @@ function pickEsatModuleQuestions(module: EsatModule, form: PaperForm): TestQuest
   return prepareQuestionSet(selected, seed)
 }
 
+const ucatDmSingleFamilies = [
+  "Logical Puzzles",
+  "Statistical Reasoning",
+  "Assumption Recognition",
+  "Venn Diagrams",
+] as const
+
+function pickUcatDmSingleAnswerQuestions(form: PaperForm): TestQuestion[] {
+  const stablePool = reliableSectionPool("UCAT", "Decision Making", "dm-single")
+  const seed = hashString(`UCAT:Decision Making:form-${form}:family-breadth`)
+  const reservedByForm = new Map<PaperForm, TestQuestion[]>([[1, []], [2, []]])
+  const reservedIds = new Set<string>()
+
+  for (const family of ucatDmSingleFamilies) {
+    const familySeed = hashString(`UCAT:Decision Making:${family}:reserved`)
+    const familyPool = stablePool
+      .filter(question => ucatDmFamily(question) === family)
+      .sort((a, b) => {
+        const reliabilityDifference = reliabilityScore(b) - reliabilityScore(a)
+        if (reliabilityDifference !== 0) return reliabilityDifference
+        return seededRank(a.id, familySeed) - seededRank(b.id, familySeed)
+      })
+
+    if (familyPool.length < 8) {
+      throw new Error(`UCAT Decision Making requires at least eight reliable ${family} questions to create two balanced forms; found ${familyPool.length}.`)
+    }
+
+    for (const [index, question] of familyPool.slice(0, 8).entries()) {
+      const targetForm: PaperForm = index % 2 === 0 ? 1 : 2
+      reservedByForm.get(targetForm)?.push(question)
+      reservedIds.add(question.id)
+    }
+  }
+
+  const remaining = balanceFamilies(
+    stablePool.filter(question => !reservedIds.has(question.id)),
+    hashString("UCAT:Decision Making:family-balanced-fill"),
+  )
+  const filler = partitionDistinctForm(remaining, 11, form, "UCAT Decision Making family-balanced filler")
+  const selected = [...(reservedByForm.get(form) ?? []), ...filler]
+
+  if (selected.length !== 27) {
+    throw new Error(`UCAT Decision Making Form ${form} should contain 27 single-answer questions; found ${selected.length}.`)
+  }
+  return prepareQuestionSet(selected, seed)
+}
+
 function pickUcatDmQuestions(form: PaperForm): FullPaperQuestion[] {
-  const singleAnswer = pickUniqueQuestions("UCAT", "Decision Making", 27, form, "dm-single")
+  const singleAnswer = pickUcatDmSingleAnswerQuestions(form)
   const statementPool = [...ucatDecisionMakingStatementBank].sort((a, b) => a.id.localeCompare(b.id))
   if (statementPool.length < 16) throw new Error(`UCAT Decision Making requires at least 16 reliable multiple-statement sets; found ${statementPool.length}.`)
   const statementQuestions = statementPool.filter((_, index) => index % 2 === form - 1).slice(0, 8)
