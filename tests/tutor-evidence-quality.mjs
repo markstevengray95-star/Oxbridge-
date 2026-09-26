@@ -48,22 +48,30 @@ const base = {
   essayCount: 2,
 }
 
-const progress = {
+const staleProgress = {
   logs: [{ date: daysAgo(1) }, { date: daysAgo(8) }, { date: daysAgo(12) }],
   fullPaperResults: [{ date: daysAgo(4) }, { date: daysAgo(10) }],
   essayAnalyses: [{ date: daysAgo(70) }, { date: daysAgo(80) }],
 }
+const freshProgress = {
+  logs: [{ date: daysAgo(1) }, { date: daysAgo(8) }, { date: daysAgo(12) }],
+  fullPaperResults: [{ date: daysAgo(4) }, { date: daysAgo(10) }],
+  essayAnalyses: [{ date: daysAgo(2) }, { date: daysAgo(9) }],
+}
 
-const quality = buildTutorEvidenceQuality(progress, base)
+const quality = buildTutorEvidenceQuality(staleProgress, base)
 if (quality.freshness !== "stale") throw new Error(`Expected stale cross-domain evidence, found ${quality.freshness}.`)
 if (quality.leastCurrentDomain !== "Writing") throw new Error(`Expected Writing to be least-current, found ${quality.leastCurrentDomain}.`)
 if (quality.freshDomains !== 2) throw new Error(`Expected 2 current domains, found ${quality.freshDomains}.`)
 
-const first = refineStudentIntelligence(base, progress)
-const second = refineStudentIntelligence(base, progress)
-if (first.priority?.id !== "repeated-low") throw new Error(`Repeated evidence should outrank an isolated low result; got ${first.priority?.id}.`)
+const first = refineStudentIntelligence(base, staleProgress)
+const second = refineStudentIntelligence(base, staleProgress)
+const fresh = refineStudentIntelligence(base, freshProgress)
+if (!first.priority?.id.startsWith("repeated-low:provisional:")) throw new Error(`Repeated evidence should outrank an isolated low result and be marked provisional when stale; got ${first.priority?.id}.`)
+if (fresh.priority?.id !== "repeated-low") throw new Error(`Fresh repeated evidence should keep the stable priority id; got ${fresh.priority?.id}.`)
+if (first.priority?.id === fresh.priority?.id) throw new Error("Priority identity must change when evidence becomes provisional so cached daily plans invalidate.")
 if (first.strongest?.id !== "strong") throw new Error(`Expected strongest repeated evidence to be selected; got ${first.strongest?.id}.`)
 if (first.mistakes[0]?.id !== second.mistakes[0]?.id) throw new Error("Retest mistake IDs must remain deterministic across recalculation.")
 if (!first.recommendations.some(action => action.id === "refresh-writing-evidence")) throw new Error("Stale writing evidence should produce a writing refresh action.")
 
-console.log("PASS: Tutor evidence confidence detects stale domains, favours repeated evidence, creates stable IDs and recommends the correct refresh task.")
+console.log("PASS: Tutor evidence confidence detects stale domains, favours repeated evidence, invalidates provisional plans, creates stable IDs and recommends the correct refresh task.")
