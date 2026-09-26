@@ -2,6 +2,7 @@ import { uniqueFullPaperQuestionBank } from "@/lib/full-paper-unique-bank"
 import { reliabilityUpgradeQuestionBank } from "@/lib/question-bank-reliability-upgrades"
 import { ucatQrReliabilityUpgradeBank } from "@/lib/ucat-qr-reliability-upgrades"
 import { tmuaSpecificationExpansionBank } from "@/lib/tmua-spec-expansion"
+import { esatSpecificationExpansionBank } from "@/lib/esat-spec-expansion"
 import { auditQuestionReliability, repairQuestionReliability, reliabilityScore } from "@/lib/question-reliability"
 import { repairSemanticAnswerCues } from "@/lib/question-integrity-repair"
 
@@ -18,7 +19,8 @@ const primaryUpgrades = reliabilityUpgradeQuestionBank
 const rawUpgrades = [...primaryUpgrades, ...ucatQrReliabilityUpgradeBank]
 const upgradedRepaired = rawUpgrades.map(repair)
 const tmuaSpecRepaired = tmuaSpecificationExpansionBank.map(repair)
-const repaired = [...tmuaSpecRepaired, ...upgradedRepaired, ...originalRepaired]
+const esatSpecRepaired = esatSpecificationExpansionBank.map(repair)
+const repaired = [...tmuaSpecRepaired, ...esatSpecRepaired, ...upgradedRepaired, ...originalRepaired]
 
 export const reliableFullPaperQuestionBank = repaired.filter(question =>
   auditQuestionReliability(question).blocking.length === 0,
@@ -28,6 +30,7 @@ export const reliableFullPaperQuestionBankStats = {
   total: reliableFullPaperQuestionBank.length,
   upgraded: upgradedRepaired.length,
   tmuaSpecExpansion: tmuaSpecRepaired.length,
+  esatSpecExpansion: esatSpecRepaired.length,
   reserve: originalRepaired.length,
   repairedUpgradeOptions: rawUpgrades.filter((question, index) =>
     JSON.stringify(question.options) !== JSON.stringify(upgradedRepaired[index]?.options),
