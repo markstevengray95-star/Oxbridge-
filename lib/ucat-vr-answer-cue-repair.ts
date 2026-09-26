@@ -8,6 +8,9 @@ function normalise(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim()
 }
 
+const extremeWord = /\b(?:always|never|everyone|every|entirely|completely|guarantees?|impossible|automatically|only|all|none|solely|definitely)\b/i
+const giveawayWord = /\b(?:always|never|everyone|every|nobody|completely|entirely|automatically|impossible|guarantees?|definitely|solely|only|all|none|no useful conclusion|no factual statement)\b/i
+
 function hasLengthCue(question: TestQuestion) {
   if (question.answer < 0 || question.answer >= question.options.length) return false
   const correctLength = compactLength(question.options[question.answer] ?? "")
@@ -19,7 +22,12 @@ function hasLengthCue(question: TestQuestion) {
     || (shortest >= 1.65 * Math.max(1, correctLength) && shortest - correctLength >= 16)
 }
 
-const giveawayWord = /\b(?:always|never|everyone|nobody|completely|entirely|automatically|impossible|guarantees?|definitely|solely|every relevant outcome|no factual statement)\b/i
+function hasExtremeDistractorCue(question: TestQuestion) {
+  if (question.answer < 0 || question.answer >= question.options.length) return false
+  const correct = question.options[question.answer] ?? ""
+  if (extremeWord.test(correct)) return false
+  return question.options.filter((_, index) => index !== question.answer).filter(option => extremeWord.test(option)).length >= 2
+}
 
 function candidatePool(prompt: string) {
   if (/attitude.*best described|author'?s attitude/i.test(prompt)) {
@@ -91,13 +99,13 @@ function candidatePool(prompt: string) {
 }
 
 /**
- * Final UCAT VR-only option-shape repair. It retains existing distractors where
- * possible, adds close-reading near misses at several lengths, then chooses the
- * three alternatives whose lengths sit closest to the keyed option. The goal is
- * to remove a visual shortcut without making distractors vague or irrelevant.
+ * Final UCAT VR option-shape and wording repair. It retains good existing
+ * distractors, removes extreme-word giveaways, adds close-reading near misses
+ * at several lengths, then chooses three alternatives closest to the keyed
+ * option. Difficulty therefore comes from passage interpretation, not wording.
  */
 export function repairUcatVrAnswerLengthCue(question: TestQuestion): TestQuestion {
-  if (question.test !== "UCAT" || question.section !== "Verbal Reasoning" || !hasLengthCue(question)) return question
+  if (question.test !== "UCAT" || question.section !== "Verbal Reasoning" || (!hasLengthCue(question) && !hasExtremeDistractorCue(question))) return question
   if (question.answer < 0 || question.answer >= question.options.length) return question
 
   const correct = question.options[question.answer]
