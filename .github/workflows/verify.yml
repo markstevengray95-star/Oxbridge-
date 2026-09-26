@@ -27,6 +27,9 @@ jobs:
       - name: Cloud sync regression checks
         run: node tests/cloud-sync-config.cjs
 
+      - name: Tutor command centre integration checks
+        run: node tests/tutor-command-centre.cjs
+
       - name: Offline topic-alignment regression checks
         run: node tests/offline-topic-alignment.cjs
 
