@@ -67,11 +67,18 @@ for (const form of [1, 2]) {
     mcqCounts.set(family, (mcqCounts.get(family) ?? 0) + 1)
   }
 
+  const sourcePrefixes = new Map()
+  for (const question of single) {
+    const prefix = question.id.replace(/-\d+$/, "")
+    sourcePrefixes.set(prefix, (sourcePrefixes.get(prefix) ?? 0) + 1)
+  }
+
   const syllogisms = statementCounts.get("Syllogisms") ?? 0
   const information = statementCounts.get("Information Interpretation") ?? 0
   const statementOther = statement.length - syllogisms - information
   const mcqOther = mcqCounts.get("Other") ?? 0
 
+  console.log(`UCAT DM Form ${form} sources: ${[...sourcePrefixes.entries()].map(([prefix, count]) => `${prefix}=${count}`).join("; ")}.`)
   console.log(`UCAT DM Form ${form}: statements Syllogisms=${syllogisms}, Information Interpretation=${information}, Other=${statementOther}; MCQ ${requiredMcqFamilies.map(family => `${family}=${mcqCounts.get(family) ?? 0}`).join("; ")}; Other=${mcqOther}.`)
 
   if (syllogisms < 4 || information < 4 || statementOther !== 0) {
