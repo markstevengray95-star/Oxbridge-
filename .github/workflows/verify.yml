@@ -27,6 +27,9 @@ jobs:
       - name: Cloud sync regression checks
         run: node tests/cloud-sync-config.cjs
 
+      - name: Tutor command centre integration checks
+        run: node tests/tutor-command-centre.cjs
+
       - name: Offline topic-alignment regression checks
         run: node tests/offline-topic-alignment.cjs
 
@@ -62,6 +65,9 @@ jobs:
 
       - name: TARA five-option and reasoning coverage checks
         run: node tests/tara-format-coverage.mjs
+
+      - name: UCAT SJT response-format checks
+        run: node tests/ucat-sjt-format.mjs
 
       - name: Type-aware production build
         run: npm run build
