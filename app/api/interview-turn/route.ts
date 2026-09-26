@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
 import { localInterviewFollowUp, type InterviewAnswerClassification } from "@/lib/interview-answer-quality"
+import { interviewQuestions } from "@/lib/oxbridge-data"
 
 export const runtime = "nodejs"
 
@@ -29,6 +30,16 @@ type ModelEvaluation = {
 }
 
 const classifications = new Set<InterviewAnswerClassification>(["incorrect", "vague", "irrelevant", "partial", "responsive"])
+
+function normaliseQuestion(text: string) {
+  return text.toLowerCase().replace(/\s+/g, " ").trim()
+}
+
+function canonicalQuestionFor(question: string | undefined) {
+  const target = normaliseQuestion(question ?? "")
+  if (!target) return undefined
+  return interviewQuestions.find(item => normaliseQuestion(item.prompt) === target)
+}
 
 function extractGeminiText(data: unknown) {
   if (!data || typeof data !== "object") return ""
@@ -68,11 +79,16 @@ export async function POST(request: Request) {
   const answer = (body.answer ?? "").trim()
   if (!answer) return NextResponse.json({ error: "Candidate answer is required" }, { status: 400 })
 
+  const canonical = canonicalQuestionFor(body.question)
+  const concepts = body.concepts?.length ? body.concepts : canonical?.concepts
+  const stimulus = body.stimulus?.trim() || canonical?.stimulus
+  const referenceAnswer = body.referenceAnswer?.trim() || canonical?.strongAnswer
+
   const fallback = localInterviewFollowUp({
     question: body.question,
     answer,
-    concepts: body.concepts,
-    referenceAnswer: body.referenceAnswer,
+    concepts,
+    referenceAnswer,
   }, body.persona ?? "Socratic")
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return NextResponse.json({ reply: fallback.reply, classification: fallback.classification, provider: "local", configured: false })
@@ -116,14 +132,14 @@ export async function POST(request: Request) {
     "Return ONLY valid JSON in this exact shape: {\"classification\":\"incorrect|vague|irrelevant|partial|responsive\",\"reply\":\"your natural spoken interviewer response ending with exactly one substantive question\"}.",
     `Course: ${body.course ?? "unspecified"}. Subject family: ${body.track ?? "unspecified"}. Difficulty: ${body.difficulty ?? "Stretch"}.`,
     `Interviewer persona: ${body.persona ?? "Socratic"}. Session mode: ${body.mode ?? "Realistic"}. Voice delivery: ${body.delivery ?? "natural"}.`,
-    `Potentially relevant concepts: ${(body.concepts ?? []).slice(0, 8).join(", ") || "course-specific reasoning"}.`,
+    `Potentially relevant concepts: ${(concepts ?? []).slice(0, 8).join(", ") || "course-specific reasoning"}.`,
   ].join("\n")
 
   const conversation = recentTurns.map(turn => `${turn.speaker || (turn.role === "interviewer" ? "Interviewer" : "Candidate")}: ${turn.text}`).join("\n")
   const userPrompt = [
     `Current question: ${body.question ?? "Continue the academic discussion."}`,
-    body.stimulus ? `Stimulus or source material: ${body.stimulus}` : "",
-    body.referenceAnswer ? `Hidden reference reasoning for correctness checking only: ${body.referenceAnswer}` : "Hidden reference reasoning: unavailable. Be conservative about declaring factual error.",
+    stimulus ? `Stimulus or source material: ${stimulus}` : "",
+    referenceAnswer ? `Hidden reference reasoning for correctness checking only: ${referenceAnswer}` : "Hidden reference reasoning: unavailable. Be conservative about declaring factual error.",
     `Recent conversation:\n${conversation || "No earlier turns."}`,
     `Candidate's latest answer:\n${answer}`,
     "Judge the latest answer first. If it is wrong, vague, irrelevant or partial, stay with the current question and repair that issue. Only deepen or move on if it is responsive.",
