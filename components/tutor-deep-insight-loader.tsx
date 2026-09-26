@@ -40,6 +40,6 @@ export function TutorDeepInsightLoader() {
 
   return <>
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6"><TutorDeepInsight intelligence={intelligence} /></div>
-    <TutorExecutionLoop intelligence={intelligence} />
+    <div id="tutor-week" className="scroll-mt-28"><TutorExecutionLoop intelligence={intelligence} /></div>
   </>
 }
