@@ -33,6 +33,9 @@ jobs:
       - name: Tutor evidence-confidence behaviour checks
         run: node tests/tutor-evidence-quality.mjs
 
+      - name: Interview answer-quality behaviour checks
+        run: node tests/interview-answer-quality.mjs
+
       - name: Offline topic-alignment regression checks
         run: node tests/offline-topic-alignment.cjs
 
