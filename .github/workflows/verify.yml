@@ -3,7 +3,7 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feature/harder-authentic-question-bank-v2]
 
 permissions:
   contents: read
