@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { BookOpenCheck, Brain, Mic2, TimerReset } from "lucide-react"
 import { PersonalTutorDashboard } from "@/components/personal-tutor-dashboard"
+import { TutorDeepInsightLoader } from "@/components/tutor-deep-insight-loader"
 import { TutorEvidenceStrip } from "@/components/tutor-evidence-strip"
 import { NextgenTutorPanel } from "@/components/nextgen-tutor-panel"
 
@@ -8,6 +9,7 @@ export function PersonalTutorShell() {
   return (
     <>
       <PersonalTutorDashboard />
+      <TutorDeepInsightLoader />
       <TutorEvidenceStrip />
       <NextgenTutorPanel />
 
