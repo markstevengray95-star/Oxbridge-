@@ -16,12 +16,20 @@ function text(question: FullPaperQuestion) {
   return `${question.prompt} ${question.explanation}`.toLowerCase()
 }
 
+function productionFamily(id: string): UcatDmFamily | null {
+  if (id.startsWith("ucat-dm-production-puzzle-")) return "Logical Puzzles"
+  if (id.startsWith("ucat-dm-production-statistical-")) return "Statistical Reasoning"
+  if (id.startsWith("ucat-dm-production-assumption-")) return "Assumption Recognition"
+  if (id.startsWith("ucat-dm-production-venn-")) return "Venn Diagrams"
+  return null
+}
+
 /**
  * Classifies Decision Making practice by the response/item families reported in
- * the UCAT technical material. Statement questions are deliberately kept to
- * the two multi-statement families; single-answer questions use the four MCQ
- * families. "Other" is retained so CI can expose format drift rather than
- * silently forcing an ill-fitting question into a category.
+ * the UCAT technical material. Verified production MCQs carry an explicit
+ * family in their stable id; that metadata is authoritative because wording can
+ * legitimately contain terms shared by several reasoning families. "Other" is
+ * retained for legacy/unrecognised material so CI still exposes format drift.
  */
 export function ucatDmFamily(question: FullPaperQuestion): UcatDmFamily {
   const content = text(question)
@@ -40,19 +48,25 @@ export function ucatDmFamily(question: FullPaperQuestion): UcatDmFamily {
     return "Other"
   }
 
-  if (/\b(assumption|argument|conclusion|strengthen|weaken|reasoning|claim)\b/.test(content)) return "Assumption Recognition"
+  const verifiedFamily = productionFamily(question.id)
+  if (verifiedFamily) return verifiedFamily
 
-  if (/\b(venn|both|neither|at least one|exactly one|only one|overlap|intersection|union)\b/.test(content) || /\bpeople surveyed\b/.test(content)) {
-    return "Venn Diagrams"
+  // Legacy/reserve material falls back to content inference. Order matters:
+  // puzzle/statistical markers are more diagnostic than generic words such as
+  // "assumption", "both" or "conclusion" that may appear in explanations.
+  if (/\b(slot|slots|scheduled|schedule|order|ordered|before|after|arrange|arranged|assignment|assigned|position|positions|sequence|seating|route)\b/.test(content)) {
+    return "Logical Puzzles"
   }
 
   if (/\b(probability|chance|random|odds|mean|median|percentage|percent|rate|sample|statistical|expected value|risk)\b/.test(content)) {
     return "Statistical Reasoning"
   }
 
-  if (/\b(slot|slots|scheduled|schedule|order|ordered|before|after|arrange|arranged|assignment|assigned|position|positions|sequence|seating|route)\b/.test(content)) {
-    return "Logical Puzzles"
+  if (/\b(venn|both|neither|at least one|exactly one|only one|overlap|intersection|union)\b/.test(content) || /\bpeople surveyed\b/.test(content)) {
+    return "Venn Diagrams"
   }
+
+  if (/\b(assumption|argument|conclusion|strengthen|weaken|reasoning|claim)\b/.test(content)) return "Assumption Recognition"
 
   return "Other"
 }
