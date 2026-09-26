@@ -7,6 +7,7 @@ import type { FullPaperQuestion } from "@/lib/full-paper-question"
 import { isYesNoStatementQuestion, validateFullPaperQuestion } from "@/lib/full-paper-question"
 import { ucatDecisionMakingStatementBank } from "@/lib/ucat-dm-statement-bank"
 import { tmuaPaper1CoreTopics, tmuaPaper1Topic } from "@/lib/tmua-topic-coverage"
+import { esatCoverageTopics, esatCoverageTopic } from "@/lib/esat-topic-coverage"
 
 export type FullPaperTest = TestQuestion["test"]
 export type PaperForm = 1 | 2
@@ -146,9 +147,6 @@ function pickTmuaPaper1Questions(form: PaperForm): TestQuestion[] {
   const stablePool = reliableSectionPool("TMUA", sectionName, "paper-1")
   const seed = hashString(`TMUA:${sectionName}:form-${form}:spec-breadth`)
 
-  // Reserve one different high-reliability item per specification domain for
-  // each form. Both forms therefore cover the full Part 1 breadth without
-  // sharing a prompt structure.
   const reservedByForm = new Map<PaperForm, TestQuestion[]>([[1, []], [2, []]])
   const reservedIds = new Set<string>()
 
@@ -183,9 +181,6 @@ function pickTmuaPaper1Questions(form: PaperForm): TestQuestion[] {
     hashString("TMUA:paper-1:foundation-fill"),
   )
 
-  // 8 guaranteed domains + 8 additional core-topic questions + 4 useful
-  // foundational questions = 20. The filler pools are also partitioned across
-  // forms, preserving the zero-overlap guarantee.
   const topicReserved = reservedByForm.get(form) ?? []
   const coreFill = partitionDistinctForm(coreRemaining, 8, form, "TMUA Paper 1 core-topic filler")
   const foundationFill = partitionDistinctForm(foundationalRemaining, 4, form, "TMUA Paper 1 foundational filler")
@@ -197,10 +192,51 @@ function pickTmuaPaper1Questions(form: PaperForm): TestQuestion[] {
   return prepareQuestionSet(selected, seed)
 }
 
+function pickEsatModuleQuestions(module: EsatModule, form: PaperForm): TestQuestion[] {
+  const salt = `module-${esatCode[module]}`
+  const stablePool = reliableSectionPool("ESAT", module, salt)
+  const topics = esatCoverageTopics[module]
+  const seed = hashString(`ESAT:${module}:form-${form}:spec-breadth`)
+  const reservedByForm = new Map<PaperForm, TestQuestion[]>([[1, []], [2, []]])
+  const reservedIds = new Set<string>()
+
+  for (const topic of topics) {
+    const topicPool = stablePool
+      .filter(question => esatCoverageTopic(question) === topic)
+      .sort((a, b) => {
+        const reliabilityDifference = reliabilityScore(b) - reliabilityScore(a)
+        if (reliabilityDifference !== 0) return reliabilityDifference
+        const topicSeed = hashString(`ESAT:${module}:${topic}:reserved`)
+        return seededRank(a.id, topicSeed) - seededRank(b.id, topicSeed)
+      })
+
+    if (topicPool.length < 2) {
+      throw new Error(`ESAT ${module} requires at least two reliable ${topic} questions to create distinct forms; found ${topicPool.length}.`)
+    }
+
+    const form1Question = topicPool[0]
+    const form2Question = topicPool[1]
+    reservedByForm.get(1)?.push(form1Question)
+    reservedByForm.get(2)?.push(form2Question)
+    reservedIds.add(form1Question.id)
+    reservedIds.add(form2Question.id)
+  }
+
+  const remaining = balanceFamilies(
+    stablePool.filter(question => !reservedIds.has(question.id)),
+    hashString(`ESAT:${module}:breadth-fill`),
+  )
+  const fillCount = 27 - topics.length
+  const filler = partitionDistinctForm(remaining, fillCount, form, `ESAT ${module} breadth filler`)
+  const selected = [...(reservedByForm.get(form) ?? []), ...filler]
+
+  if (selected.length !== 27) {
+    throw new Error(`ESAT ${module} Form ${form} should contain 27 questions; found ${selected.length}.`)
+  }
+  return prepareQuestionSet(selected, seed)
+}
+
 function pickUcatDmQuestions(form: PaperForm): FullPaperQuestion[] {
-  // UCAT Decision Making mixes ordinary four-option questions with five
-  // Yes/No statements. Eight statement sets per form provide realistic format
-  // switching while keeping Forms 1 and 2 completely disjoint.
   const singleAnswer = pickUniqueQuestions("UCAT", "Decision Making", 27, form, "dm-single")
   const statementPool = [...ucatDecisionMakingStatementBank].sort((a, b) => a.id.localeCompare(b.id))
   if (statementPool.length < 16) throw new Error(`UCAT Decision Making requires at least 16 reliable multiple-statement sets; found ${statementPool.length}.`)
@@ -457,14 +493,14 @@ export function buildFullPaper(
       title: `ESAT Practice Form ${form}`,
       subtitle: selected.join(" · "),
       totalMinutes: selected.length * 40,
-      note: "Mathematics 1 is compulsory. This mock uses two additional distinct modules selected by the student. No calculator and no negative marking. Generated numerical answers are checked for equivalent options and explanation consistency, and Forms 1 and 2 draw from separate prompt pools.",
+      note: "Mathematics 1 is compulsory. This mock uses two additional distinct modules selected by the student. Each module is deliberately balanced across broad current specification strands, then filled from reliability-screened questions. No calculator, no negative marking, and Forms 1 and 2 use separate prompt pools.",
       sections: selected.map(module => ({
         id: `module-${esatCode[module]}`,
         title: module,
         kind: "mcq" as const,
         durationMinutes: 40,
-        questions: pickUniqueQuestions("ESAT", module, 27, form, `module-${esatCode[module]}`),
-        instructions: `Answer 27 ${module} questions. The next module begins only after this module is submitted or time expires.`,
+        questions: pickEsatModuleQuestions(module, form),
+        instructions: `Answer 27 ${module} questions spanning the module's broad specification strands. The next module begins only after this module is submitted or time expires.`,
       })),
     })
   }
