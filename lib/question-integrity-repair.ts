@@ -43,7 +43,9 @@ function taraCriticalThinkingDistractors(question: TestQuestion): [string, strin
 }
 
 function ucatVerbalReasoningDistractors(question: TestQuestion): [string, string, string] | null {
-  if (question.test !== "UCAT" || question.section !== "Verbal Reasoning") return null
+  // Preserve structured True / False / Can't Tell items exactly. This repair is
+  // only appropriate for ordinary four-option verbal-reasoning questions.
+  if (question.test !== "UCAT" || question.section !== "Verbal Reasoning" || question.options.length !== 4) return null
   const prompt = question.prompt.toLowerCase()
 
   if (/best supported|most strongly supported/.test(prompt)) {
