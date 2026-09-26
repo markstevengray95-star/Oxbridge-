@@ -1,6 +1,7 @@
 import { uniqueFullPaperQuestionBank } from "@/lib/full-paper-unique-bank"
 import { reliabilityUpgradeQuestionBank } from "@/lib/question-bank-reliability-upgrades"
 import { ucatQrReliabilityUpgradeBank } from "@/lib/ucat-qr-reliability-upgrades"
+import { ucatSjtOfficialFormatBank } from "@/lib/ucat-sjt-official-format-bank"
 import { tmuaSpecificationExpansionBank } from "@/lib/tmua-spec-expansion"
 import { esatSpecificationExpansionBank } from "@/lib/esat-spec-expansion"
 import { esatSpecificationReserveBank } from "@/lib/esat-spec-reserve"
@@ -26,6 +27,7 @@ const primaryUpgrades = reliabilityUpgradeQuestionBank
   .filter(question => !(question.test === "UCAT" && question.section === "Quantitative Reasoning"))
 const rawUpgrades = [...primaryUpgrades, ...ucatQrReliabilityUpgradeBank]
 const upgradedRepaired = rawUpgrades.map(repair)
+const ucatSjtOfficialRepaired = ucatSjtOfficialFormatBank.map(repair)
 const tmuaSpecRepaired = tmuaSpecificationExpansionBank.map(repair)
 const esatSpecRepaired = esatSpecificationExpansionBank.map(repair)
 const esatSpecReserveRepaired = esatSpecificationReserveBank.map(repair)
@@ -41,6 +43,7 @@ const repaired = [
   ...taraSpecRepaired,
   ...taraRelevantSelectionRepaired,
   ...taraSimilarityRepaired,
+  ...ucatSjtOfficialRepaired,
   ...upgradedRepaired,
   ...originalRepaired,
 ]
@@ -52,6 +55,7 @@ export const reliableFullPaperQuestionBank = repaired.filter(question =>
 export const reliableFullPaperQuestionBankStats = {
   total: reliableFullPaperQuestionBank.length,
   upgraded: upgradedRepaired.length,
+  ucatSjtOfficialFormat: ucatSjtOfficialRepaired.length,
   tmuaSpecExpansion: tmuaSpecRepaired.length,
   esatSpecExpansion: esatSpecRepaired.length,
   esatSpecReserve: esatSpecReserveRepaired.length,
