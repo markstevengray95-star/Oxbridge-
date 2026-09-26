@@ -48,6 +48,9 @@ jobs:
       - name: Question reliability checks
         run: node tests/question-reliability.mjs
 
+      - name: Answer-pattern authenticity checks
+        run: node tests/answer-pattern-authenticity.mjs
+
       - name: Upgraded question bank checks
         run: node tests/reliability-upgrade-bank.mjs
 
