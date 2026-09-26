@@ -25,15 +25,12 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
+import { useTutorIntelligence } from "@/components/tutor-intelligence-context"
 import { createClient } from "@/lib/supabase/client"
 import {
-  PROFILE_KEY,
-  PROGRESS_KEY,
   TUTOR_KEY,
   buildDailyPlan,
-  buildStudentIntelligence,
   type TutorPlan,
-  type TutorProfile,
 } from "@/lib/personal-tutor"
 
 type TutorMode = "coach" | "challenge" | "explain" | "plan" | "review"
@@ -43,6 +40,7 @@ type TutorState = {
   availableMinutes?: number
   currentPlan?: TutorPlan
   planHistory?: TutorPlan[]
+  planEvidenceKey?: string
   reflection?: string
   completedActionIds?: string[]
   chat?: ChatMessage[]
@@ -95,8 +93,7 @@ function cleanChat(value: unknown): ChatMessage[] {
 }
 
 export function PersonalTutorDashboard() {
-  const [profile, setProfile] = useState<Record<string, unknown>>({ university: "Both", course: "Physics", year: "2027" })
-  const [progressData, setProgressData] = useState<Record<string, unknown>>({})
+  const { intelligence, ready: intelligenceReady } = useTutorIntelligence()
   const [tutorState, setTutorState] = useState<TutorState>({ availableMinutes: 30, completedActionIds: [] })
   const [loaded, setLoaded] = useState(false)
   const [cloudHydrated, setCloudHydrated] = useState(false)
@@ -111,8 +108,6 @@ export function PersonalTutorDashboard() {
   useEffect(() => {
     const hydrate = async () => {
       try {
-        setProfile({ university: "Both", course: "Physics", year: "2027", ...readJson(PROFILE_KEY) })
-        setProgressData(readJson(PROGRESS_KEY))
         const saved = readJson(TUTOR_KEY) as TutorState
         setTutorState({ availableMinutes: 30, completedActionIds: [], ...saved })
         setChat(cleanChat(saved.chat))
@@ -158,25 +153,44 @@ export function PersonalTutorDashboard() {
     void hydrate()
   }, [])
 
-  const intelligence = useMemo(() => buildStudentIntelligence(profile, progressData), [profile, progressData])
   const availableMinutes = tutorState.availableMinutes ?? 30
+  const planEvidenceKey = useMemo(() => [
+    intelligence.priority?.id ?? "baseline",
+    intelligence.priority?.score ?? 0,
+    intelligence.interviewCount,
+    intelligence.fullPaperCount,
+    intelligence.essayCount,
+    intelligence.evidence.length,
+  ].join(":"), [intelligence])
   const plan = useMemo(
-    () => tutorState.currentPlan?.availableMinutes === availableMinutes ? tutorState.currentPlan : buildDailyPlan(intelligence, availableMinutes),
-    [tutorState.currentPlan, availableMinutes, intelligence],
+    () => tutorState.currentPlan?.availableMinutes === availableMinutes && tutorState.planEvidenceKey === planEvidenceKey
+      ? tutorState.currentPlan
+      : buildDailyPlan(intelligence, availableMinutes),
+    [tutorState.currentPlan, tutorState.planEvidenceKey, availableMinutes, intelligence, planEvidenceKey],
   )
-  const completed = tutorState.completedActionIds ?? []
+  const completed = tutorState.planEvidenceKey === planEvidenceKey ? (tutorState.completedActionIds ?? []) : []
   const planMinutes = plan.actions.reduce((sum, item) => sum + item.minutes, 0)
   const priority = intelligence.priority
   const strongest = intelligence.strongest
-  const profileTyped = profile as TutorProfile
 
   useEffect(() => {
-    if (!loaded) return
-    localStorage.setItem(TUTOR_KEY, JSON.stringify({ ...tutorState, currentPlan: plan, chat, mode }))
-  }, [loaded, tutorState, plan, chat, mode])
+    if (!loaded || !intelligenceReady || tutorState.planEvidenceKey === planEvidenceKey) return
+    setTutorState(current => ({
+      ...current,
+      currentPlan: plan,
+      planEvidenceKey,
+      completedActionIds: [],
+      planHistory: [plan, ...(current.planHistory ?? [])].slice(0, 20),
+    }))
+  }, [loaded, intelligenceReady, tutorState.planEvidenceKey, planEvidenceKey, plan])
 
   useEffect(() => {
-    if (!loaded) return
+    if (!loaded || !intelligenceReady) return
+    localStorage.setItem(TUTOR_KEY, JSON.stringify({ ...tutorState, currentPlan: plan, planEvidenceKey, chat, mode }))
+  }, [loaded, intelligenceReady, tutorState, plan, planEvidenceKey, chat, mode])
+
+  useEffect(() => {
+    if (!loaded || !intelligenceReady) return
     const supabase = createClient()
     let cancelled = false
     const save = async () => {
@@ -190,7 +204,7 @@ export function PersonalTutorDashboard() {
     }
     void save()
     return () => { cancelled = true }
-  }, [loaded, intelligence])
+  }, [loaded, intelligenceReady, intelligence])
 
   useEffect(() => {
     if (!cloudHydrated) return
@@ -214,6 +228,7 @@ export function PersonalTutorDashboard() {
       ...tutorState,
       availableMinutes: minutes,
       currentPlan: next,
+      planEvidenceKey,
       completedActionIds: [],
       planHistory: [next, ...(tutorState.planHistory ?? [])].slice(0, 20),
     }
@@ -227,7 +242,7 @@ export function PersonalTutorDashboard() {
 
   function toggleAction(id: string) {
     const next = completed.includes(id) ? completed.filter(item => item !== id) : [...completed, id]
-    setTutorState(current => ({ ...current, completedActionIds: next }))
+    setTutorState(current => ({ ...current, planEvidenceKey, completedActionIds: next }))
   }
 
   async function askTutor(customText?: string, customMode?: TutorMode) {
@@ -253,6 +268,8 @@ export function PersonalTutorDashboard() {
             strongest: intelligence.strongest,
             mistakes: intelligence.mistakes.slice(0, 5),
             skills: intelligence.skills.filter(item => item.evidenceCount).slice(0, 10),
+            evidence: intelligence.evidence.slice(0, 10),
+            preparationScore: intelligence.preparationScore,
             counts: { interviews: intelligence.interviewCount, papers: intelligence.fullPaperCount, essays: intelligence.essayCount },
           },
           plan,
@@ -324,6 +341,8 @@ export function PersonalTutorDashboard() {
     }, { onConflict: "user_id,state_key" })
   }
 
+  if (!loaded || !intelligenceReady) return <main className="min-h-[42rem] bg-[#f4f7f7] px-4 py-10"><div className="mx-auto h-72 max-w-7xl animate-pulse rounded-3xl border bg-white" /></main>
+
   return <main className="min-h-screen bg-[#f4f7f7] text-[#172b3a]">
     <header className="border-b bg-[#102a43] text-white">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
@@ -349,7 +368,7 @@ export function PersonalTutorDashboard() {
             {plan.actions.map((action, index) => {
               const done = completed.includes(action.id)
               return <div key={action.id} className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center ${done ? "border-emerald-200 bg-emerald-50" : "bg-[#fbfcfc]"}`}>
-                <button onClick={() => toggleAction(action.id)} className={`grid size-9 shrink-0 place-items-center rounded-full border text-sm font-bold ${done ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 bg-white"}`}>{done ? <CheckCircle2 className="size-5" /> : index + 1}</button>
+                <button onClick={() => toggleAction(action.id)} aria-label={`${done ? "Mark incomplete" : "Mark complete"}: ${action.label}`} className={`grid size-9 shrink-0 place-items-center rounded-full border text-sm font-bold ${done ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 bg-white"}`}>{done ? <CheckCircle2 className="size-5" /> : index + 1}</button>
                 <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><strong>{action.label}</strong><Badge variant="outline">{action.minutes} min</Badge><Badge variant="outline">{action.domain}</Badge></div><p className="mt-1 text-sm leading-6 text-slate-600">{action.note}</p></div>
                 {action.href.startsWith("/tutor#") ? <Button variant="outline" onClick={() => document.getElementById("reflection")?.scrollIntoView({ behavior: "smooth" })}>Reflect</Button> : <Button asChild><Link href={action.href}>Start <ArrowRight /></Link></Button>}
               </div>
@@ -367,7 +386,7 @@ export function PersonalTutorDashboard() {
         <Card className="border-amber-200 bg-amber-50 shadow-none"><CardHeader><Target className="size-5 text-amber-800" /><CardDescription>Priority</CardDescription><CardTitle className="font-serif text-xl">{priority?.label ?? "Build baseline"}</CardTitle></CardHeader><CardContent><p className="text-sm leading-6 text-slate-700">{priority?.note ?? "Complete a formal interview and full paper so the tutor can target preparation accurately."}</p>{priority && <div className="mt-3"><Progress value={priority.score} /><p className="mt-1 text-xs text-slate-500">{priority.score}% · {priority.status}</p></div>}</CardContent></Card>
         <Card className="border-emerald-200 bg-emerald-50 shadow-none"><CardHeader><TrendingUp className="size-5 text-emerald-700" /><CardDescription>Strongest evidenced area</CardDescription><CardTitle className="font-serif text-xl">{strongest?.label ?? "Not enough evidence yet"}</CardTitle></CardHeader><CardContent><p className="text-sm leading-6 text-slate-700">{strongest ? `${strongest.score}% across ${strongest.evidenceCount} evidence point${strongest.evidenceCount === 1 ? "" : "s"}.` : "The tutor will identify this as you complete preparation."}</p></CardContent></Card>
         <Card className="shadow-none"><CardHeader><Sparkles className="size-5 text-[#147d91]" /><CardDescription>Mistake DNA</CardDescription><CardTitle className="font-serif text-xl">{intelligence.mistakes[0]?.label ?? "Collecting patterns"}</CardTitle></CardHeader><CardContent><p className="text-sm leading-6 text-slate-600">{intelligence.mistakes[0]?.evidence ?? "The tutor looks for repeated reasoning behaviours across papers, interviews and essays."}</p><Button asChild variant="link" className="mt-2 h-auto p-0"><Link href="/mistake-dna">Open Mistake DNA <ArrowRight /></Link></Button></CardContent></Card>
-        <Card className="shadow-none"><CardHeader><CalendarCheck2 className="size-5 text-[#147d91]" /><CardDescription>Application twin</CardDescription><CardTitle className="font-serif text-xl">{profileTyped.course ?? "Course"} evidence map</CardTitle></CardHeader><CardContent><p className="text-sm leading-6 text-slate-600">Connect books, projects, written work and academic interests to realistic interview questions.</p><Button asChild variant="link" className="mt-2 h-auto p-0"><Link href="/application-profile">Open digital twin <ArrowRight /></Link></Button></CardContent></Card>
+        <Card className="shadow-none"><CardHeader><CalendarCheck2 className="size-5 text-[#147d91]" /><CardDescription>Application twin</CardDescription><CardTitle className="font-serif text-xl">{intelligence.profile.course ?? "Course"} evidence map</CardTitle></CardHeader><CardContent><p className="text-sm leading-6 text-slate-600">Connect books, projects, written work and academic interests to realistic interview questions.</p><Button asChild variant="link" className="mt-2 h-auto p-0"><Link href="/application-profile">Open digital twin <ArrowRight /></Link></Button></CardContent></Card>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]">

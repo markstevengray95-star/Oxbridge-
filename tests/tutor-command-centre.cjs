@@ -1,0 +1,32 @@
+const fs = require("node:fs")
+const path = require("node:path")
+
+const root = path.resolve(__dirname, "..")
+const read = file => fs.readFileSync(path.join(root, file), "utf8")
+const assert = (condition, message) => { if (!condition) throw new Error(message) }
+const count = (text, needle) => text.split(needle).length - 1
+
+const shell = read("components/personal-tutor-shell.tsx")
+const provider = read("components/tutor-intelligence-context.tsx")
+const deepLoader = read("components/tutor-deep-insight-loader.tsx")
+const executionLoader = read("components/tutor-execution-loop-loader.tsx")
+const execution = read("components/tutor-execution-loop.tsx")
+const dashboard = read("components/personal-tutor-dashboard.tsx")
+const strategy = read("components/tutor-strategic-brief.tsx")
+const tools = read("components/nextgen-tutor-panel.tsx")
+
+assert(shell.includes("<TutorIntelligenceProvider>"), "Tutor shell must provide one shared intelligence context.")
+assert(count(shell, "<TutorExecutionLoopLoader />") === 1, "Tutor weekly loop must be mounted exactly once in the shell.")
+assert(shell.includes('id="tutor-today"') && shell.includes('id="tutor-insight"') && shell.includes('id="tutor-week"') && shell.includes('id="tutor-strategy"') && shell.includes('id="tutor-tools"'), "Tutor command-centre anchors are incomplete.")
+assert(!deepLoader.includes("TutorExecutionLoop"), "Deep Insight loader must not secretly mount a duplicate Weekly Loop.")
+assert(deepLoader.includes("useTutorIntelligence"), "Deep Insight must use the shared intelligence source.")
+assert(executionLoader.includes("useTutorIntelligence"), "Weekly Loop must use the shared intelligence source.")
+assert(dashboard.includes("useTutorIntelligence"), "Today dashboard must use the shared intelligence source.")
+assert(!dashboard.includes("buildStudentIntelligence"), "Today dashboard must not rebuild a second student-intelligence model.")
+assert(strategy.includes("useTutorIntelligence") && strategy.includes("intelligence,"), "Strategic Brief must receive the live shared intelligence snapshot.")
+assert(tools.includes("useTutorIntelligence"), "Tutor-ranked tools must use the shared intelligence source.")
+assert(provider.includes('window.addEventListener("focus", refresh)') && provider.includes('window.addEventListener("storage", onStorage)'), "Tutor intelligence provider must refresh after external progress changes.")
+assert(execution.includes("planKey") && execution.includes("CLOUD_STATE_KEY") && execution.includes("restoreCloud"), "Weekly execution loop must preserve plan identity and cross-device restore.")
+assert(execution.includes("snapshotInitialised"), "Progress pulse must keep a stable previous-session baseline while current evidence refreshes.")
+
+console.log("PASS: Tutor command centre is mounted once, shares one live intelligence source, refreshes stale plans and preserves cross-device execution continuity.")
