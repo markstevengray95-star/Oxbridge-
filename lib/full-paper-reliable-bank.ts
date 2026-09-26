@@ -17,6 +17,7 @@ import { auditQuestionReliability, repairQuestionReliability, reliabilityScore }
 import { repairSemanticAnswerCues } from "@/lib/question-integrity-repair"
 import { repairLnatAnswerLengthCue } from "@/lib/lnat-answer-cue-repair"
 import { repairUcatVrAnswerLengthCue } from "@/lib/ucat-vr-answer-cue-repair"
+import { repairUcatDmAnswerLengthCue } from "@/lib/ucat-dm-answer-cue-repair"
 
 // Keep the original diverse bank as reliable reserve material rather than
 // removing whole sections when an upgraded bank is present. The paper builder
@@ -27,7 +28,8 @@ const repair = (question: Parameters<typeof repairQuestionReliability>[0]) => {
   const semanticallyRepaired = repairSemanticAnswerCues(structurallyRepaired)
   const lnatRepaired = repairLnatAnswerLengthCue(semanticallyRepaired)
   const verbalReasoningRepaired = repairUcatVrAnswerLengthCue(lnatRepaired)
-  return verbalReasoningRepaired.test === "TARA" ? ensureTaraFiveOptions(verbalReasoningRepaired) : verbalReasoningRepaired
+  const decisionMakingRepaired = repairUcatDmAnswerLengthCue(verbalReasoningRepaired)
+  return decisionMakingRepaired.test === "TARA" ? ensureTaraFiveOptions(decisionMakingRepaired) : decisionMakingRepaired
 }
 
 // Generic distractor strengthening treats absolute words as suspicious cues.
