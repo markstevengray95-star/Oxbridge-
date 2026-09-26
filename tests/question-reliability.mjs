@@ -27,17 +27,24 @@ function loadTypeScriptModule(path) {
 
 const bankModule = loadTypeScriptModule("../lib/full-paper-unique-bank.ts")
 const reliabilityModule = loadTypeScriptModule("../lib/question-reliability.ts")
+const taraFormatModule = loadTypeScriptModule("../lib/tara-question-format.ts")
 const rawBank = bankModule.uniqueFullPaperQuestionBank
 const { auditQuestionReliability, repairQuestionReliability } = reliabilityModule
+const { ensureTaraFiveOptions } = taraFormatModule
 
 if (!Array.isArray(rawBank) || !rawBank.length) throw new Error("Question bank failed to load for reliability audit.")
 if (typeof auditQuestionReliability !== "function" || typeof repairQuestionReliability !== "function") throw new Error("Reliability auditor failed to load.")
+if (typeof ensureTaraFiveOptions !== "function") throw new Error("TARA five-option normaliser failed to load.")
 
 // This test protects the complete source/reserve bank against broken questions.
-// Warning-level discrimination and answer-pattern quality are enforced separately
-// on the upgraded bank and on every assembled live paper, so weak reserve items
-// cannot block improvements while still being prevented from reaching students.
-const bank = rawBank.map(repairQuestionReliability)
+// TARA source items are normalised to the same five-option form used in production
+// before structural auditing. Warning-level discrimination and answer-pattern
+// quality are enforced separately on the upgraded bank and assembled live papers.
+const bank = rawBank.map(raw => {
+  let question = repairQuestionReliability(raw)
+  if (question.test === "TARA") question = ensureTaraFiveOptions(question)
+  return question
+})
 const repairCount = bank.filter((question, index) => JSON.stringify(question.options) !== JSON.stringify(rawBank[index].options)).length
 const sectionStats = new Map()
 const blocking = []
@@ -63,7 +70,7 @@ for (const question of bank) {
 }
 
 if (blocking.length) {
-  console.error("Blocking source-bank reliability failures after deterministic numeric repair:")
+  console.error("Blocking source-bank reliability failures after production-format normalisation:")
   blocking.slice(0, 40).forEach(issue => console.error(`- ${issue}`))
   if (blocking.length > 40) console.error(`...and ${blocking.length - 40} more`)
   process.exit(1)
@@ -80,5 +87,5 @@ for (const [section, row] of sectionStats) {
 }
 
 const warningSummary = [...warningCounts.entries()].sort((a, b) => b[1] - a[1])
-console.log(`Source-bank structural audit passed across ${bank.length} questions with zero blocking failures after ${repairCount} deterministic numeric repair(s).`)
+console.log(`Source-bank structural audit passed across ${bank.length} questions with zero blocking failures after ${repairCount} production-format repair(s).`)
 if (warningSummary.length) console.log(`Reserve-bank quality warnings (live papers are gated separately): ${warningSummary.map(([code, count]) => `${code}=${count}`).join(", ")}`)
