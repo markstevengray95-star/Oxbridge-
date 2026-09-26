@@ -241,8 +241,13 @@ export function refineStudentIntelligence(base: StudentIntelligence, progressVal
     recommendations.push(action)
   }
 
-  const priorityWithConfidence = priority && (evidenceQuality.freshness === "stale" || evidenceQuality.confidence < 45)
-    ? { ...priority, note: `${priority.note} Treat this as provisional until a fresh task confirms it.` }
+  const provisional = evidenceQuality.freshness === "stale" || evidenceQuality.freshness === "none" || evidenceQuality.confidence < 45
+  const priorityWithConfidence = priority && provisional
+    ? {
+        ...priority,
+        id: `${priority.id}:provisional:${stableKey(evidenceQuality.leastCurrentDomain)}`,
+        note: `${priority.note} Treat this as provisional until a fresh task confirms it.`,
+      }
     : priority
 
   return {
