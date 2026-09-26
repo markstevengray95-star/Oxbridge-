@@ -6,6 +6,7 @@ import { esatSpecificationExpansionBank } from "@/lib/esat-spec-expansion"
 import { esatSpecificationReserveBank } from "@/lib/esat-spec-reserve"
 import { esatEnergeticsReliabilityBank } from "@/lib/esat-energetics-reliability"
 import { taraSpecificationExpansionBank } from "@/lib/tara-spec-expansion"
+import { taraRelevantSelectionReserveBank } from "@/lib/tara-relevant-selection-reserve"
 import { ensureTaraFiveOptions } from "@/lib/tara-question-format"
 import { auditQuestionReliability, repairQuestionReliability, reliabilityScore } from "@/lib/question-reliability"
 import { repairSemanticAnswerCues } from "@/lib/question-integrity-repair"
@@ -29,12 +30,14 @@ const esatSpecRepaired = esatSpecificationExpansionBank.map(repair)
 const esatSpecReserveRepaired = esatSpecificationReserveBank.map(repair)
 const esatEnergeticsRepaired = esatEnergeticsReliabilityBank.map(repair)
 const taraSpecRepaired = taraSpecificationExpansionBank.map(repair)
+const taraRelevantSelectionRepaired = taraRelevantSelectionReserveBank.map(repair)
 const repaired = [
   ...tmuaSpecRepaired,
   ...esatSpecRepaired,
   ...esatSpecReserveRepaired,
   ...esatEnergeticsRepaired,
   ...taraSpecRepaired,
+  ...taraRelevantSelectionRepaired,
   ...upgradedRepaired,
   ...originalRepaired,
 ]
@@ -51,6 +54,7 @@ export const reliableFullPaperQuestionBankStats = {
   esatSpecReserve: esatSpecReserveRepaired.length,
   esatEnergeticsReserve: esatEnergeticsRepaired.length,
   taraSpecExpansion: taraSpecRepaired.length,
+  taraRelevantSelectionReserve: taraRelevantSelectionRepaired.length,
   reserve: originalRepaired.length,
   repairedUpgradeOptions: rawUpgrades.filter((question, index) =>
     JSON.stringify(question.options) !== JSON.stringify(upgradedRepaired[index]?.options),
