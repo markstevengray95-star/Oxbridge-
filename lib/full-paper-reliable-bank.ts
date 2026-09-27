@@ -5,7 +5,13 @@ import { ucatQrOfficialDataBank } from "@/lib/ucat-qr-official-data-bank"
 import { ucatVrMixedFormatBank } from "@/lib/ucat-vr-mixed-format-bank"
 import { ucatDecisionMakingProductionMcqBank } from "@/lib/ucat-dm-official-production-bank"
 import { ucatSjtOfficialFormatBank } from "@/lib/ucat-sjt-official-format-bank"
+import { ucatDmChallengeBank } from "@/lib/ucat-dm-challenge-bank"
+import { tmuaChallengeBank } from "@/lib/tmua-challenge-bank"
 import { tmuaSpecificationExpansionBank } from "@/lib/tmua-spec-expansion"
+import { esatM1ChallengeBank } from "@/lib/esat-m1-challenge-bank"
+import { esatM2ChallengeBank } from "@/lib/esat-m2-challenge-bank"
+import { esatPhysicsChallengeBank } from "@/lib/esat-physics-challenge-bank"
+import { esatChemistryChallengeBank } from "@/lib/esat-chemistry-challenge-bank"
 import { esatSpecificationExpansionBank } from "@/lib/esat-spec-expansion"
 import { esatSpecificationReserveBank } from "@/lib/esat-spec-reserve"
 import { esatEnergeticsReliabilityBank } from "@/lib/esat-energetics-reliability"
@@ -15,15 +21,25 @@ import { taraSimilarityReserveBank } from "@/lib/tara-similarity-reserve"
 import { ensureTaraFiveOptions } from "@/lib/tara-question-format"
 import { auditQuestionReliability, repairQuestionReliability, reliabilityScore } from "@/lib/question-reliability"
 import { repairSemanticAnswerCues } from "@/lib/question-integrity-repair"
+import { repairLnatAnswerLengthCue } from "@/lib/lnat-answer-cue-repair"
+import { repairUcatVrAnswerLengthCue } from "@/lib/ucat-vr-answer-cue-repair"
+import { repairUcatDmAnswerLengthCue } from "@/lib/ucat-dm-answer-cue-repair"
+import { repairEsatBiologyAnswerLengthCue } from "@/lib/esat-biology-answer-cue-repair"
 
 // Keep the original diverse bank as reliable reserve material rather than
 // removing whole sections when an upgraded bank is present. Timed UCAT VR, DM
-// and QR are exceptions: dedicated banks preserve the official response mix,
-// reasoning-family breadth and data-led QR style. Legacy UCAT questions remain
-// available elsewhere in the app; they are simply not part of full-paper assembly.
+// and QR are exceptions: dedicated current-format banks preserve the official
+// response mix, reasoning-family breadth and data-led QR style. The stronger DM
+// reserve is deliberately retained as extra material because the current family
+// allocator can balance it across the same four single-answer reasoning families.
 const repair = (question: Parameters<typeof repairQuestionReliability>[0]) => {
-  const repaired = repairSemanticAnswerCues(repairQuestionReliability(question))
-  return repaired.test === "TARA" ? ensureTaraFiveOptions(repaired) : repaired
+  const structurallyRepaired = repairQuestionReliability(question)
+  const semanticallyRepaired = repairSemanticAnswerCues(structurallyRepaired)
+  const lnatRepaired = repairLnatAnswerLengthCue(semanticallyRepaired)
+  const verbalReasoningRepaired = repairUcatVrAnswerLengthCue(lnatRepaired)
+  const decisionMakingRepaired = repairUcatDmAnswerLengthCue(verbalReasoningRepaired)
+  const biologyRepaired = repairEsatBiologyAnswerLengthCue(decisionMakingRepaired)
+  return biologyRepaired.test === "TARA" ? ensureTaraFiveOptions(biologyRepaired) : biologyRepaired
 }
 
 function isUcatVr(question: TestQuestion) {
@@ -68,6 +84,7 @@ function protectUcatSjtStructuredOptions(question: TestQuestion): TestQuestion {
 const originalRepaired = uniqueFullPaperQuestionBank
   .map(repair)
   .filter(question => !isUcatVr(question) && !isUcatDm(question) && !isUcatQr(question))
+
 const primaryUpgrades = reliabilityUpgradeQuestionBank
   .filter(question => !(question.test === "UCAT" && (
     question.section === "Quantitative Reasoning" ||
@@ -76,19 +93,33 @@ const primaryUpgrades = reliabilityUpgradeQuestionBank
   )))
 const rawUpgrades = [...primaryUpgrades]
 const upgradedRepaired = rawUpgrades.map(repair)
+
 const ucatVrMixedFormatRepaired = ucatVrMixedFormatBank.map(repair)
+const ucatDmChallengeRepaired = ucatDmChallengeBank.map(repair)
 const ucatDmOfficialRepaired = ucatDecisionMakingProductionMcqBank.map(repair)
 const ucatQrOfficialRepaired = ucatQrOfficialDataBank.map(repair)
 const ucatSjtOfficialRepaired = ucatSjtOfficialFormatBank.map(repair).map(protectUcatSjtStructuredOptions)
+
+const tmuaChallengeRepaired = tmuaChallengeBank.map(repair)
 const tmuaSpecRepaired = tmuaSpecificationExpansionBank.map(repair)
+const esatM1ChallengeRepaired = esatM1ChallengeBank.map(repair)
+const esatM2ChallengeRepaired = esatM2ChallengeBank.map(repair)
+const esatPhysicsChallengeRepaired = esatPhysicsChallengeBank.map(repair)
+const esatChemistryChallengeRepaired = esatChemistryChallengeBank.map(repair)
 const esatSpecRepaired = esatSpecificationExpansionBank.map(repair)
 const esatSpecReserveRepaired = esatSpecificationReserveBank.map(repair)
 const esatEnergeticsRepaired = esatEnergeticsReliabilityBank.map(repair)
 const taraSpecRepaired = taraSpecificationExpansionBank.map(repair)
 const taraRelevantSelectionRepaired = taraRelevantSelectionReserveBank.map(repair)
 const taraSimilarityRepaired = taraSimilarityReserveBank.map(repair)
+
 const repaired = [
+  ...tmuaChallengeRepaired,
   ...tmuaSpecRepaired,
+  ...esatM1ChallengeRepaired,
+  ...esatM2ChallengeRepaired,
+  ...esatPhysicsChallengeRepaired,
+  ...esatChemistryChallengeRepaired,
   ...esatSpecRepaired,
   ...esatSpecReserveRepaired,
   ...esatEnergeticsRepaired,
@@ -96,6 +127,7 @@ const repaired = [
   ...taraRelevantSelectionRepaired,
   ...taraSimilarityRepaired,
   ...ucatVrMixedFormatRepaired,
+  ...ucatDmChallengeRepaired,
   ...ucatDmOfficialRepaired,
   ...ucatQrOfficialRepaired,
   ...ucatSjtOfficialRepaired,
@@ -111,10 +143,16 @@ export const reliableFullPaperQuestionBankStats = {
   total: reliableFullPaperQuestionBank.length,
   upgraded: upgradedRepaired.length,
   ucatVrMixedFormat: ucatVrMixedFormatRepaired.length,
+  ucatDmChallenge: ucatDmChallengeRepaired.length,
   ucatDmOfficial: ucatDmOfficialRepaired.length,
   ucatQrOfficialData: ucatQrOfficialRepaired.length,
   ucatSjtOfficialFormat: ucatSjtOfficialRepaired.length,
+  tmuaChallenge: tmuaChallengeRepaired.length,
   tmuaSpecExpansion: tmuaSpecRepaired.length,
+  esatM1Challenge: esatM1ChallengeRepaired.length,
+  esatM2Challenge: esatM2ChallengeRepaired.length,
+  esatPhysicsChallenge: esatPhysicsChallengeRepaired.length,
+  esatChemistryChallenge: esatChemistryChallengeRepaired.length,
   esatSpecExpansion: esatSpecRepaired.length,
   esatSpecReserve: esatSpecReserveRepaired.length,
   esatEnergeticsReserve: esatEnergeticsRepaired.length,

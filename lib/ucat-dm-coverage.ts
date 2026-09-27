@@ -16,20 +16,21 @@ function text(question: FullPaperQuestion) {
   return `${question.prompt} ${question.explanation}`.toLowerCase()
 }
 
-function productionFamily(id: string): UcatDmFamily | null {
-  if (id.startsWith("ucat-dm-production-puzzle-")) return "Logical Puzzles"
-  if (id.startsWith("ucat-dm-production-statistical-")) return "Statistical Reasoning"
-  if (id.startsWith("ucat-dm-production-assumption-")) return "Assumption Recognition"
-  if (id.startsWith("ucat-dm-production-venn-")) return "Venn Diagrams"
+function verifiedSingleAnswerFamily(id: string): UcatDmFamily | null {
+  if (id.startsWith("ucat-dm-production-puzzle-") || id.startsWith("ucat-dm-challenge-order-")) return "Logical Puzzles"
+  if (id.startsWith("ucat-dm-production-statistical-") || id.startsWith("ucat-dm-challenge-prob-")) return "Statistical Reasoning"
+  if (id.startsWith("ucat-dm-production-assumption-") || id.startsWith("ucat-dm-challenge-argument-")) return "Assumption Recognition"
+  if (id.startsWith("ucat-dm-production-venn-") || id.startsWith("ucat-dm-challenge-sets-")) return "Venn Diagrams"
   return null
 }
 
 /**
  * Classifies Decision Making practice by the response/item families reported in
- * the UCAT technical material. Verified production MCQs carry an explicit
- * family in their stable id; that metadata is authoritative because wording can
- * legitimately contain terms shared by several reasoning families. "Other" is
- * retained for legacy/unrecognised material so CI still exposes format drift.
+ * the UCAT technical material. Verified production and challenge MCQs carry an
+ * explicit family in their stable id; that metadata is authoritative because
+ * wording can legitimately contain terms shared by several reasoning families.
+ * "Other" is retained for legacy/unrecognised material so CI still exposes
+ * genuine format drift.
  */
 export function ucatDmFamily(question: FullPaperQuestion): UcatDmFamily {
   const content = text(question)
@@ -48,7 +49,7 @@ export function ucatDmFamily(question: FullPaperQuestion): UcatDmFamily {
     return "Other"
   }
 
-  const verifiedFamily = productionFamily(question.id)
+  const verifiedFamily = verifiedSingleAnswerFamily(question.id)
   if (verifiedFamily) return verifiedFamily
 
   // Legacy/reserve material falls back to content inference. Order matters:
