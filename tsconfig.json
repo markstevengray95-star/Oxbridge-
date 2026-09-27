@@ -26,6 +26,9 @@
       "@/lib/writing/offline-review": [
         "./lib/writing/offline-review-v4"
       ],
+      "@/lib/oxbridge-data": [
+        "./lib/oxbridge-data-v2"
+      ],
       "@/*": [
         "./*"
       ]
