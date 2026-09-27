@@ -414,7 +414,7 @@ function pickUcatVrQuestions(form: PaperForm) {
 function pickUcatSjtQuestions(form: PaperForm) {
   const groups = allocatePassageGroups(
     passageGroups("UCAT", "Situational Judgement", "sjt", ucatSjtScenarioKey).filter(group => group.questions.length >= 3),
-    16,
+    22,
     form,
     "UCAT Situational Judgement",
   )
@@ -667,7 +667,7 @@ export function buildFullPaper(
         kind: "mcq",
         durationMinutes: 26,
         questions: pickUcatSjtQuestions(form),
-        instructions: "69 questions · 26 minutes. Related judgements stay together within each scenario; choose the response that best fits the information given.",
+        instructions: "69 questions · 26 minutes · 22 scenario groups. Related judgements stay together within each scenario; choose the response that best fits the information given.",
       },
     ],
   })
