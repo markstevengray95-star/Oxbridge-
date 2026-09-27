@@ -52,11 +52,12 @@ for (let i = 0; i < 8; i++) {
   const rise2 = pctB[i]
   const finalValue = start * (1 - fall / 100) * (1 + rise2 / 100)
   const netPct = (finalValue - start) / start * 100
+  const inverseStylePct = ((1 + rise2 / 100) / (1 - fall / 100) - 1) * 100
   out.push(mc(
     `esat-m1-challenge-number-${i}`,
     `A measured quantity starts at ${start}. It falls by ${fall}% and then, from the reduced value, rises by ${rise2}%. Compared with the original quantity, what is the final percentage change?`,
     `${netPct.toFixed(1)}%`,
-    [`${(rise2 - fall).toFixed(1)}%`, `${(fall - rise2).toFixed(1)}%`, `${((1 + rise2 / 100) / (1 - fall / 100) - 1) * 100 .toFixed?.(1) ?? "0.0"}%`],
+    [`${(rise2 - fall).toFixed(1)}%`, `${(fall - rise2).toFixed(1)}%`, `${inverseStylePct.toFixed(1)}%`],
     `Successive percentage changes multiply: ${start}×${(1 - fall / 100).toFixed(2)}×${(1 + rise2 / 100).toFixed(2)}=${finalValue.toFixed(2)}. Relative to ${start}, the change is (${finalValue.toFixed(2)}−${start})/${start}×100=${netPct.toFixed(1)}%.`,
     i + 11,
   ))
