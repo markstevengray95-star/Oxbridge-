@@ -108,7 +108,7 @@ function parseNumericValue(raw: string) {
 }
 
 function quantityClaims(text: string): QuantityClaim[] {
-  const pattern = /(-?\d+(?:\.\d+)?(?:\s*[×x*]\s*10\s*\^?\s*-?\d+)?|-?\d+(?:\.\d+)?\s*\/\s*-?\d+(?:\.\d+)?)(?:\s*)(%|°\s*c|kg|g|m\/s(?:\^?2|²)?|m\s*s(?:-2|⁻²)|m|s|n|j|w|pa|v|a|ω|ohms?|hz|k|mol|metres?|meters?|seconds?|kilograms?|grams?|newtons?|joules?|watts?|pascals?|volts?|amps?|amperes?|hertz|kelvin|celsius|moles?|percent(?:age)?)?/gi
+  const pattern = /(-?\d+(?:\.\d+)?\s*\/\s*-?\d+(?:\.\d+)?|-?\d+(?:\.\d+)?(?:\s*[×x*]\s*10\s*\^?\s*-?\d+)?)(?:\s*)(%|°\s*c|kg|g|m\/s(?:\^?2|²)?|m\s*s(?:-2|⁻²)|m|s|n|j|w|pa|v|a|ω|ohms?|hz|k|mol|metres?|meters?|seconds?|kilograms?|grams?|newtons?|joules?|watts?|pascals?|volts?|amps?|amperes?|hertz|kelvin|celsius|moles?|percent(?:age)?)?/gi
   const claims: QuantityClaim[] = []
   for (const match of text.matchAll(pattern)) {
     const value = parseNumericValue(match[1])
