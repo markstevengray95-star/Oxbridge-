@@ -7,6 +7,7 @@ import { ucatSjtOfficialFormatBank } from "@/lib/ucat-sjt-official-format-bank"
 import { ucatDmChallengeBank } from "@/lib/ucat-dm-challenge-bank"
 import { tmuaChallengeBank } from "@/lib/tmua-challenge-bank"
 import { tmuaSpecificationExpansionBank } from "@/lib/tmua-spec-expansion"
+import { esatM1ChallengeBank } from "@/lib/esat-m1-challenge-bank"
 import { esatSpecificationExpansionBank } from "@/lib/esat-spec-expansion"
 import { esatSpecificationReserveBank } from "@/lib/esat-spec-reserve"
 import { esatEnergeticsReliabilityBank } from "@/lib/esat-energetics-reliability"
@@ -71,6 +72,7 @@ const ucatSjtOfficialRepaired = ucatSjtOfficialFormatBank.map(repair).map(protec
 const ucatDmChallengeRepaired = ucatDmChallengeBank.map(repair)
 const tmuaChallengeRepaired = tmuaChallengeBank.map(repair)
 const tmuaSpecRepaired = tmuaSpecificationExpansionBank.map(repair)
+const esatM1ChallengeRepaired = esatM1ChallengeBank.map(repair)
 const esatSpecRepaired = esatSpecificationExpansionBank.map(repair)
 const esatSpecReserveRepaired = esatSpecificationReserveBank.map(repair)
 const esatEnergeticsRepaired = esatEnergeticsReliabilityBank.map(repair)
@@ -81,6 +83,7 @@ const repaired = [
   ...tmuaChallengeRepaired,
   ...tmuaSpecRepaired,
   ...ucatDmChallengeRepaired,
+  ...esatM1ChallengeRepaired,
   ...esatSpecRepaired,
   ...esatSpecReserveRepaired,
   ...esatEnergeticsRepaired,
@@ -104,6 +107,7 @@ export const reliableFullPaperQuestionBankStats = {
   ucatDmChallenge: ucatDmChallengeRepaired.length,
   tmuaChallenge: tmuaChallengeRepaired.length,
   tmuaSpecExpansion: tmuaSpecRepaired.length,
+  esatM1Challenge: esatM1ChallengeRepaired.length,
   esatSpecExpansion: esatSpecRepaired.length,
   esatSpecReserve: esatSpecReserveRepaired.length,
   esatEnergeticsReserve: esatEnergeticsRepaired.length,
