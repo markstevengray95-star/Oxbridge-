@@ -35,6 +35,7 @@ const REASONING_LANGUAGE = /\b(?:because|therefore|since|so that|hence|implies?|
 const EXPLANATION_QUESTION = /\b(?:why|explain|justify|reason|talk through|show|prove|develop|evaluate|how would|what happens|what would|estimate|interpret|compare|argue|defend)\b/i
 const DIRECT_ANSWER_LANGUAGE = /\b(?:my answer is|i would say|therefore|so the answer|the result is|this means|i conclude|it is|it would|it increases|it decreases|it stays|yes,|no,)\b/i
 const NUMERICAL_QUESTION = /\b(?:how many|calculate|estimate|determine|work out|what (?:is|are).*?(?:value|number|ratio|mass|time|speed|velocity|acceleration|force|energy|power|pressure|current|voltage|resistance|temperature|distance|length|frequency|wavelength|momentum|density|percentage|probability))\b/i
+const SAME_TURN_REVISION = /\b(?:but\s+actually|however\s*,?\s+actually|actually|on reflection|thinking again|let me correct(?: that)?|instead)\b/gi
 
 const CONTRAST_PAIRS: Array<[string, string]> = [
   ["warmer", "cooler"],
@@ -202,8 +203,29 @@ function tokenSimilarity(a: string, b: string) {
   return intersection / Math.max(left.size, right.size)
 }
 
+function escapeRegex(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
 function phrasePresent(text: string, phrase: string) {
-  return text.toLowerCase().includes(phrase.toLowerCase())
+  const lower = text.toLowerCase()
+  const pattern = new RegExp(`\\b${escapeRegex(phrase.toLowerCase()).replace(/\\ /g, "\\s+")}\\b`, "g")
+  for (const match of lower.matchAll(pattern)) {
+    const index = match.index ?? 0
+    const prefix = lower.slice(Math.max(0, index - 28), index)
+    if (/\b(?:not|never|no|isn't|is not|doesn't|does not|cannot|can't|wouldn't|would not|shouldn't|should not|isn't|wasn't|was not)\s*$/.test(prefix)) continue
+    return true
+  }
+  return false
+}
+
+function effectiveFinalPosition(text: string) {
+  const matches = [...text.matchAll(SAME_TURN_REVISION)]
+  if (!matches.length) return text
+  const last = matches[matches.length - 1]
+  const start = (last.index ?? 0) + last[0].length
+  const suffix = text.slice(start).replace(/^[\s,:;-]+/, "").trim()
+  return suffix.length >= 3 ? suffix : text
 }
 
 function contradictsConcreteClaim(answer: string, comparison: string) {
@@ -218,9 +240,10 @@ function contradictsConcreteClaim(answer: string, comparison: string) {
 }
 
 function referenceConflictReason(answer: string, referenceAnswer: string, question: string) {
-  const numericConflict = numericReferenceConflict(answer, referenceAnswer, question)
+  const effectiveAnswer = effectiveFinalPosition(answer)
+  const numericConflict = numericReferenceConflict(effectiveAnswer, referenceAnswer, question)
   if (numericConflict) return numericConflict
-  if (contradictsConcreteClaim(answer, referenceAnswer)) {
+  if (contradictsConcreteClaim(effectiveAnswer, referenceAnswer)) {
     return "The response appears to reverse a concrete relationship, category or direction stated in the reference reasoning."
   }
   return ""
