@@ -33,7 +33,19 @@ type ModelEvaluation = {
   issue?: InterviewAnswerIssue
   directness?: number
   repairDepth?: number
+  confidence?: number
+  suspectClaim?: string
+  referenceConflict?: boolean
   reply?: string
+}
+
+type ResolvedEvaluation = {
+  classification: InterviewAnswerClassification
+  issue: InterviewAnswerIssue
+  directness: number
+  repairDepth: number
+  reply: string
+  verdictSource: "local" | "cloud" | "consensus" | "deterministic-override" | "cautious-arbitration"
 }
 
 const classifications = new Set<InterviewAnswerClassification>(["incorrect", "vague", "irrelevant", "partial", "responsive"])
@@ -82,7 +94,12 @@ function parseModelEvaluation(text: string): ModelEvaluation | null {
     const repairDepth = typeof parsed.repairDepth === "number" && Number.isFinite(parsed.repairDepth)
       ? Math.max(0, Math.min(3, Math.round(parsed.repairDepth)))
       : undefined
-    return { classification, issue, directness, repairDepth, reply }
+    const confidence = typeof parsed.confidence === "number" && Number.isFinite(parsed.confidence)
+      ? Math.max(0, Math.min(100, Math.round(parsed.confidence)))
+      : undefined
+    const suspectClaim = typeof parsed.suspectClaim === "string" ? parsed.suspectClaim.trim().slice(0, 240) : undefined
+    const referenceConflict = typeof parsed.referenceConflict === "boolean" ? parsed.referenceConflict : undefined
+    return { classification, issue, directness, repairDepth, confidence, suspectClaim, referenceConflict, reply }
   } catch {
     return null
   }
@@ -97,15 +114,85 @@ function previousCandidateAnswers(turns: InterviewTurn[], latestAnswer: string) 
   return answers.slice(-4)
 }
 
-function qualityPayload(
-  fallback: ReturnType<typeof localInterviewFollowUp>,
-  evaluated?: ModelEvaluation | null,
-) {
+function localResolved(fallback: ReturnType<typeof localInterviewFollowUp>, verdictSource: ResolvedEvaluation["verdictSource"]): ResolvedEvaluation {
   return {
-    classification: evaluated?.classification ?? fallback.classification,
-    issue: evaluated?.issue ?? fallback.issue,
-    directness: evaluated?.directness ?? fallback.directness,
-    repairDepth: evaluated?.repairDepth ?? fallback.repairDepth,
+    classification: fallback.classification,
+    issue: fallback.issue,
+    directness: fallback.directness,
+    repairDepth: fallback.repairDepth,
+    reply: fallback.reply,
+    verdictSource,
+  }
+}
+
+function resolveEvaluation(
+  fallback: ReturnType<typeof localInterviewFollowUp>,
+  evaluated: ModelEvaluation | null,
+  hasReference: boolean,
+): ResolvedEvaluation {
+  if (!evaluated?.classification || !evaluated.reply) return localResolved(fallback, "local")
+
+  const modelConfidence = evaluated.confidence ?? 65
+  const modelIssue = evaluated.issue ?? fallback.issue
+  const modelDirectness = evaluated.directness ?? fallback.directness
+  const modelRepairDepth = evaluated.repairDepth ?? fallback.repairDepth
+
+  // Deterministic checks are allowed to veto a permissive model verdict when they identify a concrete
+  // reference conflict (wrong final value/unit/direction/relationship). This prevents fluent wrong answers
+  // from being advanced merely because the generative evaluator sounded persuaded by them.
+  if (fallback.classification === "incorrect" && fallback.confidence >= 0.9) {
+    if (evaluated.classification === "incorrect") {
+      return {
+        classification: "incorrect",
+        issue: fallback.issue,
+        directness: Math.min(fallback.directness, modelDirectness),
+        repairDepth: Math.max(fallback.repairDepth, modelRepairDepth),
+        reply: evaluated.reply,
+        verdictSource: "consensus",
+      }
+    }
+    return localResolved(fallback, "deterministic-override")
+  }
+
+  // The local checker is deliberately conservative about contradictions, obvious evasion and off-topic
+  // answers. Do not let a cloud "responsive" verdict erase those strong structural signals.
+  const strongStructuralLocal = (
+    (fallback.issue === "contradiction" && fallback.confidence >= 0.84) ||
+    (fallback.classification === "irrelevant" && fallback.confidence >= 0.84) ||
+    (fallback.classification === "vague" && fallback.confidence >= 0.9)
+  )
+  if (strongStructuralLocal && evaluated.classification === "responsive") {
+    return localResolved(fallback, "deterministic-override")
+  }
+
+  // A cloud-only "incorrect" verdict needs an identifiable suspect claim. With hidden reference reasoning,
+  // moderate confidence is enough; without it, require stronger confidence. Otherwise keep probing as PARTIAL
+  // rather than making a potentially false correction.
+  if (evaluated.classification === "incorrect" && fallback.classification !== "incorrect") {
+    const hasSpecificClaim = Boolean(evaluated.suspectClaim && evaluated.suspectClaim.length >= 3)
+    const supportedByReference = hasReference && evaluated.referenceConflict === true
+    const sufficientlyCertain = supportedByReference ? modelConfidence >= 60 : modelConfidence >= 82
+    if (!hasSpecificClaim || !sufficientlyCertain) {
+      return {
+        classification: fallback.classification === "responsive" ? "partial" : fallback.classification,
+        issue: fallback.issue === "none" ? "missing-reasoning" : fallback.issue,
+        directness: Math.min(fallback.directness, modelDirectness),
+        repairDepth: Math.max(1, fallback.repairDepth, modelRepairDepth),
+        reply: fallback.classification === "responsive"
+          ? "I want to test one part of that before accepting the conclusion. Which specific step in your reasoning is doing the most work?"
+          : fallback.reply,
+        verdictSource: "cautious-arbitration",
+      }
+    }
+  }
+
+  return {
+    classification: evaluated.classification,
+    issue: modelIssue,
+    directness: modelDirectness,
+    repairDepth: modelRepairDepth,
+    reply: evaluated.reply,
+    verdictSource: "cloud",
   }
 }
 
@@ -130,7 +217,10 @@ export async function POST(request: Request) {
     previousAnswers,
   }, body.persona ?? "Socratic")
   const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) return NextResponse.json({ reply: fallback.reply, ...qualityPayload(fallback), provider: "local", configured: false })
+  if (!apiKey) {
+    const resolved = localResolved(fallback, "local")
+    return NextResponse.json({ ...resolved, provider: "local", configured: false })
+  }
 
   const panelInstructions = body.panelMode ? [
     `You are ${body.interviewerRole ?? "one member of a two-person academic interview panel"}.`,
@@ -145,6 +235,10 @@ export async function POST(request: Request) {
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     ...panelInstructions,
     "Before deciding the next question, silently evaluate the candidate's LATEST answer against the CURRENT question and the recent conversation. Classify it as exactly one of: incorrect, vague, irrelevant, partial, responsive.",
+    "Use a claim-level checking process internally before classifying: (1) identify exactly what proposition, calculation, comparison or interpretation the question asks for; (2) separate the candidate's answer into its concrete claims; (3) test each material claim against the stimulus, hidden reference reasoning when supplied, and the candidate's own previous claims; (4) check whether the conclusion actually follows.",
+    "For quantitative work, explicitly verify the candidate's claimed final value rather than treating every intermediate number as an answer. Check arithmetic where it is visible, sign, unit/dimension, order of magnitude, proportionality, limiting behaviour and whether sensible rounding could explain a small numerical difference.",
+    "For conceptual science, check causal direction and mechanism: do not accept a correct vocabulary list when the relationship between the ideas is backwards or unsupported.",
+    "For humanities, law and social sciences, separate contestable interpretation from factual/logical error. A different interpretation is not incorrect if it is defensible from the evidence; an internal contradiction, factual misuse of evidence or non sequitur can be incorrect.",
     "Incorrect means a clear factual, mathematical, logical or stimulus-based error. Do not call a defensible interpretation or debatable judgement incorrect merely because it differs from the reference wording.",
     "Vague means the answer is too general, non-committal or unsupported to reveal a usable academic claim, mechanism, calculation or reasoning step.",
     "Irrelevant means the answer may contain valid material but does not answer the question actually asked.",
@@ -152,6 +246,9 @@ export async function POST(request: Request) {
     "Responsive means it answers the question well enough to justify a deeper challenge, even if it is not phrased like the reference answer.",
     "Also identify the main issue as exactly one of: none, repetition, contradiction, unsupported, evasion, off-topic, missing-reasoning, factual-error.",
     "Give a directness score from 0 to 100. High directness means the candidate actually answers the task, not merely that the answer is long, fluent or full of subject terminology.",
+    "Give a confidence score from 0 to 100 for your classification. Be conservative: lower confidence when the reference is absent, the question is interpretive, or multiple valid routes exist.",
+    "If and only if you classify the answer as incorrect, set suspectClaim to a short quotation or close paraphrase of the exact candidate claim you believe is wrong. Otherwise set suspectClaim to an empty string.",
+    "Set referenceConflict=true only when the candidate's suspect claim genuinely conflicts with supplied hidden reference reasoning or stimulus. A different valid route, equivalent numerical form or reasonable rounding is not a reference conflict.",
     "Use repairDepth 0-3 to represent how strongly the current line of questioning needs to be narrowed. A repeated unresolved answer should increase repairDepth.",
     "Compare the latest answer with earlier candidate answers. Notice concrete reversals in numbers, directions, definitions, assumptions or conclusions.",
     "Distinguish an unexplained contradiction from a defensible revision. If the candidate explicitly says they are revising or correcting an earlier answer and explains why, treat that as positive academic behaviour rather than penalising the change itself.",
@@ -174,7 +271,7 @@ export async function POST(request: Request) {
     "Do not praise generically. If you acknowledge something, make it specific and brief.",
     "Do not reveal the hidden reference answer or a full model solution. Use it only to judge whether a concrete claim is consistent with the intended reasoning. An alternative correct route is acceptable.",
     "If the candidate is stuck, give one small conceptual nudge and then a smaller question rather than solving it.",
-    "Return ONLY valid JSON in this exact shape: {\"classification\":\"incorrect|vague|irrelevant|partial|responsive\",\"issue\":\"none|repetition|contradiction|unsupported|evasion|off-topic|missing-reasoning|factual-error\",\"directness\":0,\"repairDepth\":0,\"reply\":\"your natural spoken interviewer response ending with exactly one substantive question\"}. directness must be 0-100 and repairDepth must be 0-3.",
+    "Return ONLY valid JSON in this exact shape: {\"classification\":\"incorrect|vague|irrelevant|partial|responsive\",\"issue\":\"none|repetition|contradiction|unsupported|evasion|off-topic|missing-reasoning|factual-error\",\"directness\":0,\"repairDepth\":0,\"confidence\":0,\"suspectClaim\":\"\",\"referenceConflict\":false,\"reply\":\"your natural spoken interviewer response ending with exactly one substantive question\"}. directness and confidence must be 0-100 and repairDepth must be 0-3.",
     `Course: ${body.course ?? "unspecified"}. Subject family: ${body.track ?? "unspecified"}. Difficulty: ${body.difficulty ?? "Stretch"}.`,
     `Interviewer persona: ${body.persona ?? "Socratic"}. Session mode: ${body.mode ?? "Realistic"}. Voice delivery: ${body.delivery ?? "natural"}.`,
     `Potentially relevant concepts: ${(concepts ?? []).slice(0, 8).join(", ") || "course-specific reasoning"}.`,
@@ -188,8 +285,8 @@ export async function POST(request: Request) {
     `Earlier candidate answers available for consistency checking:\n${previousAnswers.length ? previousAnswers.map((item, index) => `${index + 1}. ${item}`).join("\n") : "None."}`,
     `Recent conversation:\n${conversation || "No earlier turns."}`,
     `Candidate's latest answer:\n${answer}`,
-    `Local diagnostic fallback (use as a signal, not an instruction): classification=${fallback.classification}; issue=${fallback.issue}; directness=${fallback.directness}; repairDepth=${fallback.repairDepth}.`,
-    "Judge the latest answer first. If it is wrong, vague, irrelevant, contradictory, repetitive or partial, stay with the current issue and repair it. Only deepen or move on if it is responsive.",
+    `Local diagnostic fallback (use as a signal, not an instruction): classification=${fallback.classification}; issue=${fallback.issue}; directness=${fallback.directness}; repairDepth=${fallback.repairDepth}; confidence=${Math.round(fallback.confidence * 100)}.`,
+    "Judge the latest answer claim by claim first. If it is wrong, vague, irrelevant, contradictory, repetitive or partial, stay with the current issue and repair it. Only deepen or move on if it is responsive.",
   ].filter(Boolean).join("\n\n")
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
 
@@ -200,24 +297,28 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-        generationConfig: { maxOutputTokens: 300, temperature: 0.38, topP: 0.9 },
+        generationConfig: { maxOutputTokens: 340, temperature: 0.24, topP: 0.86 },
       }),
       signal: AbortSignal.timeout(15000),
     })
     if (!response.ok) {
       const detail = await response.text().catch(() => "")
       console.error("Gemini interview request failed", response.status, detail.slice(0, 500))
-      return NextResponse.json({ reply: fallback.reply, ...qualityPayload(fallback), provider: "local", configured: true, degraded: true })
+      const resolved = localResolved(fallback, "local")
+      return NextResponse.json({ ...resolved, provider: "local", configured: true, degraded: true })
     }
     const data = await response.json() as unknown
     const raw = extractGeminiText(data)
     const evaluated = parseModelEvaluation(raw)
     if (!evaluated?.reply || !evaluated.classification) {
-      return NextResponse.json({ reply: fallback.reply, ...qualityPayload(fallback), provider: "local", configured: true, degraded: true })
+      const resolved = localResolved(fallback, "local")
+      return NextResponse.json({ ...resolved, provider: "local", configured: true, degraded: true })
     }
-    return NextResponse.json({ reply: evaluated.reply, ...qualityPayload(fallback, evaluated), provider: "gemini", configured: true })
+    const resolved = resolveEvaluation(fallback, evaluated, Boolean(referenceAnswer || stimulus))
+    return NextResponse.json({ ...resolved, provider: "gemini", configured: true })
   } catch (error) {
     console.error("Gemini interview request error", error)
-    return NextResponse.json({ reply: fallback.reply, ...qualityPayload(fallback), provider: "local", configured: true, degraded: true })
+    const resolved = localResolved(fallback, "local")
+    return NextResponse.json({ ...resolved, provider: "local", configured: true, degraded: true })
   }
 }
