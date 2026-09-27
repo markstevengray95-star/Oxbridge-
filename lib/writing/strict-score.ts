@@ -1,7 +1,7 @@
 import { lnatEssayPrompts2027, taraWritingPrompts2027 } from "@/lib/question-bank-2027"
 import { analyseOfflineEssayTask } from "./offline-review-v3"
 import { analyseOfflineTopicAlignment } from "./offline-review-v2"
-import type { WritingReport } from "./review"
+import { REPORT_TEXT_LIMIT, type WritingReport } from "./review"
 
 export type UniversityEssayClassification =
   | "Exceptional First"
@@ -259,16 +259,16 @@ export function attachStrictEssayScoring(report: WritingReport, prompt: string, 
   if (!mark || report.summary.startsWith(SCORE_PREFIX)) return { report, strictScore: mark }
 
   const caps = mark.caps.length
-    ? ` Classification ceiling${mark.caps.length === 1 ? "" : "s"}: ${mark.caps.map(cap => `${cap.maximum}/100 (${cap.reason})`).join("; ")}.`
+    ? ` Classification ceiling: ${mark.caps[0].maximum}/100 (${mark.caps[0].reason}). Full ceiling details appear in the score breakdown.`
     : " No classification ceiling was triggered."
-  report.summary = `${SCORE_PREFIX} ${mark.score}/100 — ${mark.classification} (${mark.descriptor}). Raw weighted mark: ${mark.rawScore}/100.${caps} ${report.summary}`
+  report.summary = `${SCORE_PREFIX} ${mark.score}/100 — ${mark.classification} (${mark.descriptor}). Raw weighted mark: ${mark.rawScore}/100.${caps} ${report.summary}`.slice(0, REPORT_TEXT_LIMIT)
 
   report.criteria = report.criteria.map((criterion, index) => {
     const component = mark.components[index]
     if (!component || criterion.judgement.startsWith("University-style weighted mark:")) return criterion
     return {
       ...criterion,
-      judgement: `University-style weighted mark: ${component.earned}/${component.weight}. ${criterion.judgement}`,
+      judgement: `University-style weighted mark: ${component.earned}/${component.weight}. ${criterion.judgement}`.slice(0, REPORT_TEXT_LIMIT),
     }
   })
 

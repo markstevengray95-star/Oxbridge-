@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { CheckCircle2, GraduationCap, KeyRound, Loader2, LockKeyhole, Mail, RefreshCw, UserPlus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { safeLocalPath } from "@/lib/auth/safe-path"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -17,7 +18,7 @@ const PRIVACY_VERSION="2026-09-25"
 function nextPath() {
   if (typeof window === "undefined") return "/post-login"
   const next = new URLSearchParams(window.location.search).get("next")
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/post-login"
+  return safeLocalPath(next)
 }
 function confirmationRedirect(next = nextPath()) { return `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}` }
 

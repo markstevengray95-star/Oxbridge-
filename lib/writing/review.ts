@@ -5,7 +5,8 @@ export const RUBRICS = {
   statement: ["Academic motivation", "Subject engagement", "Reflection and learning", "Evidence of preparation", "Course relevance", "Clarity and authentic voice"],
 } as const
 export const LEVELS = ["Not demonstrated", "Emerging", "Developing", "Secure", "Convincing"]
-const text = z.string().min(1).max(1800)
+export const REPORT_TEXT_LIMIT = 1800
+const text = z.string().min(1).max(REPORT_TEXT_LIMIT)
 const anchor = z.object({ paragraph: z.number().int().min(0).nullable(), quote: z.string().max(800) })
 export const reportSchema = z.object({
   summary: text,

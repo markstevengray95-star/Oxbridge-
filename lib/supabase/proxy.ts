@@ -11,17 +11,48 @@ const PRO_ROUTES = [
   "/full-papers","/advanced-practice","/adaptive-paper","/admissions-test-courses","/preparation-report","/weekly-programme","/research-project","/knowledge-graph",
 ]
 const SCHOOL_ROUTES = ["/school-dashboard","/school-overview","/school-reports","/human-review","/teacher-coach","/teacher-live-console","/human-interviewer"]
-const PUBLIC_PAGE_ROUTES = ["/login", "/reset-password", "/auth/confirm", "/admin/login"]
+const PUBLIC_PAGE_ROUTES = ["/login", "/reset-password", "/auth/confirm", "/admin/login", "/privacy", "/terms", "/cookies", "/safeguarding"]
 const PUBLIC_ASSET_ROUTES = ["/manifest.webmanifest", "/sw.js", "/robots.txt", "/sitemap.xml"]
 const PLAN_GATE_ROUTES = ["/premium", "/post-login"]
 
 function matchesAny(pathname: string, routes: string[]) { return routes.some(route => pathname === route || pathname.startsWith(`${route}/`)) }
 function effectiveTier(tier: unknown, status: unknown) { const active=status==="active"||status==="trialing"; if(active&&tier==="school")return "school" as const;if(active&&tier==="pro")return "pro" as const;return "free" as const }
-function redirectTo(request: NextRequest, pathname: string, next?: string) { const url=request.nextUrl.clone();url.pathname=pathname;url.search="";if(next)url.searchParams.set("next",next);return NextResponse.redirect(url) }
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
-  const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, { cookies: { getAll(){return request.cookies.getAll()}, setAll(cookiesToSet){cookiesToSet.forEach(({name,value})=>request.cookies.set(name,value));response=NextResponse.next({request});cookiesToSet.forEach(({name,value,options})=>response.cookies.set(name,value,options))} } })
+  function redirect(url: URL) {
+    const redirected = NextResponse.redirect(url)
+    response.cookies.getAll().forEach(cookie => redirected.cookies.set(cookie))
+    for (const header of ["cache-control", "expires", "pragma"]) {
+      const value = response.headers.get(header)
+      if (value) redirected.headers.set(header, value)
+    }
+    return redirected
+  }
+  function redirectTo(request: NextRequest, pathname: string, next?: string) {
+    const url = request.nextUrl.clone()
+    url.pathname = pathname
+    url.search = ""
+    if (next) url.searchParams.set("next", next)
+    return redirect(url)
+  }
+  const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    cookies: {
+      getAll() { return request.cookies.getAll() },
+      setAll(cookiesToSet, headers) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+        const previous = response
+        response = NextResponse.next({ request })
+        previous.cookies.getAll().forEach(cookie => response.cookies.set(cookie))
+        for (const header of ["cache-control", "expires", "pragma"]) {
+          const value = previous.headers.get(header)
+          if (value) response.headers.set(header, value)
+        }
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+        Object.entries(headers).forEach(([name, value]) => response.headers.set(name, value))
+      },
+    },
+  })
   const { data } = await supabase.auth.getClaims()
   const user=data?.claims
   const userId=typeof user?.sub==="string"?user.sub:null
@@ -32,6 +63,13 @@ export async function updateSession(request: NextRequest) {
   const isPublicAsset=matchesAny(pathname,PUBLIC_ASSET_ROUTES)
   const adminLogin=pathname==="/admin/login"
   const requiresAdmin=pathname==="/admin"||(pathname.startsWith("/admin/")&&!adminLogin)
+
+  // Webhooks and cron jobs verify their own service credentials. All other APIs
+  // require a user, including AI routes that spend server-side provider credits.
+  const serviceApi = pathname === "/api/billing/webhook" || pathname === "/api/cron/weekly-programmes"
+  if (isApi && !serviceApi && !userId) {
+    return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: { "Cache-Control": "no-store" } })
+  }
 
   if(pathname==="/") return redirectTo(request,userId?"/post-login":"/login",userId?undefined:"/post-login")
 
@@ -48,7 +86,7 @@ export async function updateSession(request: NextRequest) {
   const isAdmin=isConfiguredAdminEmail(userEmail)
 
   if(adminLogin&&isAdmin) return redirectTo(request,"/admin")
-  if(requiresAdmin&&!isAdmin){const url=request.nextUrl.clone();url.pathname="/admin/login";url.search="";url.searchParams.set("error","not-authorized");return NextResponse.redirect(url)}
+  if(requiresAdmin&&!isAdmin){const url=request.nextUrl.clone();url.pathname="/admin/login";url.search="";url.searchParams.set("error","not-authorized");return redirect(url)}
 
   if(!isApi&&!isPublicPage&&!isPublicAsset&&!matchesAny(pathname,PLAN_GATE_ROUTES)&&!requiresAdmin&&!isAdmin){
     const [{data:subscription},{data:seat},{data:onboarding}] = await Promise.all([
@@ -60,9 +98,9 @@ export async function updateSession(request: NextRequest) {
     const tier=seat?.active?"school":paidTier
     const cookieFreePlan=request.cookies.get(FREE_PLAN_COOKIE)?.value===userId
     const hasChosenPlan=tier==="pro"||tier==="school"||cookieFreePlan||onboardingCompleted(onboarding?.state_value)
-    if(!hasChosenPlan){const url=request.nextUrl.clone();url.pathname="/premium";url.search="";url.searchParams.set("onboarding","required");return NextResponse.redirect(url)}
+    if(!hasChosenPlan){const url=request.nextUrl.clone();url.pathname="/premium";url.search="";url.searchParams.set("onboarding","required");return redirect(url)}
     const hasPro=tier==="pro"||tier==="school", hasSchool=tier==="school"
-    if((requiresSchool&&!hasSchool)||(requiresPro&&!hasPro)){const url=request.nextUrl.clone();url.pathname="/premium";url.search="";url.searchParams.set("feature",pathname);url.searchParams.set("required",requiresSchool?"school":"pro");return NextResponse.redirect(url)}
+    if((requiresSchool&&!hasSchool)||(requiresPro&&!hasPro)){const url=request.nextUrl.clone();url.pathname="/premium";url.search="";url.searchParams.set("feature",pathname);url.searchParams.set("required",requiresSchool?"school":"pro");return redirect(url)}
   }
 
   return response

@@ -117,6 +117,7 @@ export function CloudProgressSync() {
     let cancelled = false
     let timer: number | null = null
     let activeUserId: string | null = null
+    let initialisedUserId: string | null = null
     let syncInFlight = false
     let pullInFlight = false
     let syncBaseline = readSyncBaseline()
@@ -141,6 +142,7 @@ export function CloudProgressSync() {
 
     function resetSignedOutCache() {
       activeUserId = null
+      initialisedUserId = null
       lastSeen.clear()
       syncBaseline = {}
       stopTimer()
@@ -255,6 +257,7 @@ export function CloudProgressSync() {
         return
       }
 
+      if (cancelled || userId !== activeUserId) return
       rememberSynced(key, raw)
       if (key === PROGRESS_KEY) await importInterviewLogs(userId, value)
     }
@@ -271,12 +274,13 @@ export function CloudProgressSync() {
         console.warn("Oxbridge cloud delete failed", key, error.message)
         return
       }
+      if (cancelled || userId !== activeUserId) return
       forgetSynced(key)
     }
 
     async function syncLocalChanges() {
       const userId = activeUserId
-      if (!userId || cancelled || syncInFlight || !navigator.onLine) return
+      if (!userId || userId !== initialisedUserId || cancelled || syncInFlight || !navigator.onLine) return
       syncInFlight = true
 
       try {
@@ -299,7 +303,7 @@ export function CloudProgressSync() {
 
     async function pullCloudChanges() {
       const userId = activeUserId
-      if (!userId || cancelled || pullInFlight || !navigator.onLine) return false
+      if (!userId || userId !== initialisedUserId || cancelled || pullInFlight || !navigator.onLine) return false
       pullInFlight = true
 
       try {
@@ -364,6 +368,10 @@ export function CloudProgressSync() {
     }
 
     async function reconcileWithCloud() {
+      if (!initialisedUserId) {
+        await refreshUser()
+        return
+      }
       await syncLocalChanges()
       const changed = await pullCloudChanges()
       if (changed && !cancelled) window.location.reload()
@@ -371,6 +379,7 @@ export function CloudProgressSync() {
 
     async function initialise(userId: string) {
       stopTimer()
+      initialisedUserId = null
       window.dispatchEvent(new CustomEvent("oxbridge-cloud-not-ready", { detail: { userId } }))
       const previousOwner = localStorage.getItem(LOCAL_CACHE_OWNER_KEY)
       const switchedAccount = Boolean(previousOwner && previousOwner !== userId)
@@ -428,6 +437,11 @@ export function CloudProgressSync() {
           }
           rememberSynced(key, cloudRaw)
           if (key === PROGRESS_KEY) await importInterviewLogs(userId, cloudRow.state_value)
+        } else if (localRaw !== null && baselineFingerprint !== undefined && !localChangedSinceSync) {
+          // The unchanged local copy was deleted from another device.
+          localStorage.removeItem(key)
+          forgetSynced(key)
+          restored = true
         } else if (localRaw !== null) {
           await pushKey(userId, key, localRaw)
         } else if (baselineFingerprint !== undefined) {
@@ -435,6 +449,8 @@ export function CloudProgressSync() {
         }
       }
 
+      if (cancelled || userId !== activeUserId) return
+      initialisedUserId = userId
       const marker = `${userId}:all-app-state-v5`
       if (restored && sessionStorage.getItem(RESTORE_MARKER) !== marker) {
         sessionStorage.setItem(RESTORE_MARKER, marker)
@@ -447,21 +463,24 @@ export function CloudProgressSync() {
     }
 
     async function refreshUser() {
-      const { data } = await supabase.auth.getUser()
+      const { data, error } = await supabase.auth.getUser()
+      // A failed network/auth request is not an explicit sign-out.
+      if (cancelled || error) return
       const userId = data.user?.id ?? null
       if (!userId) {
         resetSignedOutCache()
         return
       }
-      if (userId !== activeUserId) await initialise(userId)
+      if (userId !== activeUserId || userId !== initialisedUserId) await initialise(userId)
     }
 
     void refreshUser()
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return
       const userId = session?.user?.id ?? null
       if (!userId) {
-        resetSignedOutCache()
+        if (event === "SIGNED_OUT") resetSignedOutCache()
         return
       }
       if (userId !== activeUserId) void initialise(userId)
@@ -469,7 +488,7 @@ export function CloudProgressSync() {
 
     const onStorage = (event: StorageEvent) => {
       const userId = activeUserId
-      if (!userId || !isAppStateKey(event.key)) return
+      if (!userId || userId !== initialisedUserId || !isAppStateKey(event.key)) return
       if (event.newValue === null) void deleteKey(userId, event.key)
       else void pushKey(userId, event.key, event.newValue)
     }

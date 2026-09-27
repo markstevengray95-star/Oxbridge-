@@ -21,74 +21,11 @@ jobs:
         with:
           node-version: "22.13"
 
-      - name: Install dependencies
-        run: npm install --legacy-peer-deps
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
 
-      - name: Mobile navigation regression checks
-        run: node tests/mobile-navigation.cjs
-
-      - name: Cloud sync regression checks
-        run: node tests/cloud-sync-config.cjs
-
-      - name: Tutor command centre integration checks
-        run: node tests/tutor-command-centre.cjs
-
-      - name: Tutor evidence-confidence behaviour checks
-        run: node tests/tutor-evidence-quality.mjs
-
-      - name: Interview answer-quality behaviour checks
-        run: node tests/interview-answer-quality.mjs
-
-      - name: Offline topic-alignment regression checks
-        run: node tests/offline-topic-alignment.cjs
-
-      - name: Offline task-aware essay regression checks
-        run: node tests/offline-analysis-v3.cjs
-
-      - name: Strict essay grading regression checks
-        run: node tests/strict-essay-score.cjs
-
-      - name: Full paper uniqueness checks
-        run: node tests/full-paper-uniqueness.mjs
-
-      - name: Question reliability checks
-        run: node tests/question-reliability.mjs
-
-      - name: Answer-pattern authenticity checks
-        run: node tests/answer-pattern-authenticity.mjs
-
-      - name: Upgraded question bank checks
-        run: node tests/reliability-upgrade-bank.mjs
-
-      - name: Full paper form-separation checks
-        run: node tests/full-paper-form-separation.mjs
-
-      - name: Paper assembly integrity checks
-        run: node tests/paper-assembly-integrity.mjs
-
-      - name: TMUA specification breadth checks
-        run: node tests/tmua-topic-coverage.mjs
-
-      - name: ESAT specification breadth checks
-        run: node tests/esat-topic-coverage.mjs
-
-      - name: TARA five-option and reasoning coverage checks
-        run: node tests/tara-format-coverage.mjs
-
-      - name: UCAT SJT response-format checks
-        run: node tests/ucat-sjt-format.mjs
-
-      - name: UCAT calculator integration checks
-        run: node tests/ucat-calculator.cjs
-
-      - name: UCAT verbal reasoning format checks
-        run: node tests/ucat-vr-format.mjs
-
-      - name: UCAT decision-making family checks
-        run: node tests/ucat-dm-format.mjs
-
-      - name: UCAT quantitative-reasoning data checks
-        run: node tests/ucat-qr-format.mjs
+      - name: All regression checks
+        run: npm test
 
       - name: Type-aware production build
         run: npm run build
