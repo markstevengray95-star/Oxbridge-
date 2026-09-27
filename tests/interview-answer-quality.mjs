@@ -144,6 +144,56 @@ if (buzzword.classification !== "vague" || buzzword.issue !== "unsupported") {
   throw new Error(`Technical vocabulary without a direct reasoning chain should not count as responsive, found ${JSON.stringify(buzzword)}.`)
 }
 
+const wrongUnit = evaluateInterviewAnswerLocally({
+  question: "Calculate the speed of the object from the data and give the value with a unit.",
+  answer: "The result is 5 m because distance divided by time gives the speed.",
+  concepts: ["speed", "distance", "time"],
+  referenceAnswer: "Using speed = distance/time gives a result of 5 m/s.",
+})
+if (wrongUnit.classification !== "incorrect" || wrongUnit.issue !== "factual-error") {
+  throw new Error(`Correct number with the wrong physical unit must be incorrect, found ${JSON.stringify(wrongUnit)}.`)
+}
+
+const roundedValue = evaluateInterviewAnswerLocally({
+  question: "Calculate the speed of the object and explain your calculation.",
+  answer: "The result is about 3.3 m/s because I divide the distance by the elapsed time.",
+  concepts: ["speed", "distance", "time"],
+  referenceAnswer: "The result is 3.33 m/s from distance divided by time.",
+})
+if (roundedValue.classification === "incorrect") {
+  throw new Error(`Sensible rounding should not be marked incorrect, found ${JSON.stringify(roundedValue)}.`)
+}
+
+const intermediateNumbers = evaluateInterviewAnswerLocally({
+  question: cubeQuestion,
+  answer: "There are 27 small cubes in total, but exactly 12 have two painted faces because each edge contributes one non-corner cube.",
+  concepts: cubeConcepts,
+  referenceAnswer: cubeReference,
+})
+if (intermediateNumbers.classification === "incorrect") {
+  throw new Error(`Intermediate numbers must not be confused with the candidate's final claim, found ${JSON.stringify(intermediateNumbers)}.`)
+}
+
+const wrongProportionality = evaluateInterviewAnswerLocally({
+  question: "How does resistance depend on cross-sectional area for a wire of fixed material and length? Explain the relationship.",
+  answer: "Resistance is directly proportional to cross-sectional area, so making the wire thicker increases the resistance.",
+  concepts: ["resistance", "cross-sectional area", "resistivity"],
+  referenceAnswer: "Resistance is inversely proportional to cross-sectional area, so increasing area decreases resistance when length and material are fixed.",
+})
+if (wrongProportionality.classification !== "incorrect") {
+  throw new Error(`Reversing a proportional relationship should be caught as incorrect, found ${JSON.stringify(wrongProportionality)}.`)
+}
+
+const correctEquivalent = evaluateInterviewAnswerLocally({
+  question: "Calculate the probability and justify your answer.",
+  answer: "The result is 1/2 because there are two equally likely outcomes and one is favourable.",
+  concepts: ["probability", "outcomes"],
+  referenceAnswer: "The answer is 0.5 because one of the two equally likely outcomes is favourable.",
+})
+if (correctEquivalent.classification === "incorrect") {
+  throw new Error(`Equivalent fractional and decimal answers should not be treated as a numerical conflict, found ${JSON.stringify(correctEquivalent)}.`)
+}
+
 const strong = evaluateInterviewAnswerLocally(cases.find(item => item.name === "responsive reasoned answer").input)
 if (strong.directness < 60) throw new Error(`A direct reasoned answer should receive a useful directness score; found ${strong.directness}.`)
 
@@ -157,8 +207,12 @@ for (const marker of [
   "Earlier candidate answers available for consistency checking",
   "repairDepth",
   "technical vocabulary is not responsive",
+  "claim-level checking process",
+  "suspectClaim",
+  "deterministic-override",
+  "sensible rounding",
 ]) {
-  if (!apiSource.includes(marker)) throw new Error(`Shared interview API is missing conversation-aware answer-quality rule: ${marker}`)
+  if (!apiSource.includes(marker)) throw new Error(`Shared interview API is missing accuracy rule: ${marker}`)
 }
 if (!roomSource.includes('fetch("/api/interview-turn"') || !roomSource.includes("referenceAnswer") || !roomSource.includes("Checking response…")) {
   throw new Error("Focused interview room is not routed through semantic answer checking.")
@@ -175,4 +229,4 @@ for (const marker of [
   if (!liveSource.includes(marker)) throw new Error(`Gemini Live instructions are missing conversation-aware answer-quality gate: ${marker}`)
 }
 
-console.log("PASS: interview modes detect wrong, vague, irrelevant, partial, repeated and contradictory answers, recognise justified revisions, reject unsupported fluency, and escalate repair before deepening.")
+console.log("PASS: interview modes catch wrong values, units, directions and proportional relationships; tolerate sensible rounding/equivalent forms; reject unsupported fluency; and preserve contradiction/repetition repair behaviour.")
