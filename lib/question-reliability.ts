@@ -173,6 +173,15 @@ function stemOverlapScore(prompt: string, option: string) {
   return optionTokens.filter(token => promptTokens.has(token)).length / optionTokens.length
 }
 
+function cuePrompt(question: TestQuestion, prompt: string) {
+  if (question.test !== "UCAT" || question.section !== "Verbal Reasoning") return prompt
+  const blocks = (question.prompt ?? "").split(/\n\s*\n/).map(compact).filter(Boolean)
+  // UCAT VR embeds a passage before the actual instruction. Comparing answer
+  // wording against that whole passage incorrectly flags legitimate retrieval
+  // and inference answers as stem echoes, so use only the final instruction.
+  return blocks.at(-1) ?? prompt
+}
+
 export function auditQuestionReliability(question: TestQuestion): QuestionReliabilityAudit {
   const issues: ReliabilityIssue[] = []
   const prompt = compact(question.prompt ?? "")
@@ -228,8 +237,9 @@ export function auditQuestionReliability(question: TestQuestion): QuestionReliab
       addIssue(issues, "warning", "extreme-distractor-cue", "Multiple distractors use extreme wording while the keyed answer does not.")
     }
 
-    const correctOverlap = stemOverlapScore(prompt, correct)
-    const distractorOverlap = distractors.map(option => stemOverlapScore(prompt, option))
+    const overlapPrompt = cuePrompt(question, prompt)
+    const correctOverlap = stemOverlapScore(overlapPrompt, correct)
+    const distractorOverlap = distractors.map(option => stemOverlapScore(overlapPrompt, option))
     const bestDistractorOverlap = Math.max(0, ...distractorOverlap)
     if (correctOverlap >= 0.62 && correctOverlap - bestDistractorOverlap >= 0.35 && contentTokens(correct).length >= 4) {
       addIssue(issues, "warning", "stem-echo-cue", "The keyed answer uniquely echoes the wording of the stem more strongly than the distractors.")
