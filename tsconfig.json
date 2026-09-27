@@ -29,6 +29,9 @@
       "@/lib/oxbridge-data": [
         "./lib/oxbridge-data-v2"
       ],
+      "@/lib/interview-marking": [
+        "./lib/interview-marking-v2"
+      ],
       "@/*": [
         "./*"
       ]
