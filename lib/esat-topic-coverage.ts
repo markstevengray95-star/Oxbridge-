@@ -63,13 +63,13 @@ export function esatCoverageTopic(question: TestQuestion): EsatCoverageTopic | "
   const id = question.id
 
   if (question.section === "Mathematics 1") {
-    if (starts(id, "esat-spec-m1-units-")) return "Units"
-    if (starts(id, "esat-spec-m1-number-")) return "Number"
-    if (starts(id, "esat-spec-m1-geometry-")) return "Geometry"
-    if (starts(id, "esat-spec-m1-statistics-")) return "Statistics"
-    if (starts(id, "esat-spec-m1-probability-")) return "Probability"
-    if (starts(id, "uniq-esat-m1-square-")) return "Ratio and proportion"
-    if (/^uniq-esat-m1-(linear|root|seq|line|ineq)-/.test(id)) return "Algebra"
+    if (starts(id, "esat-m1-challenge-units-") || starts(id, "esat-spec-m1-units-")) return "Units"
+    if (starts(id, "esat-m1-challenge-number-") || starts(id, "esat-spec-m1-number-")) return "Number"
+    if (starts(id, "esat-m1-challenge-ratio-") || starts(id, "uniq-esat-m1-square-")) return "Ratio and proportion"
+    if (starts(id, "esat-m1-challenge-algebra-") || /^uniq-esat-m1-(linear|root|seq|line|ineq)-/.test(id)) return "Algebra"
+    if (starts(id, "esat-m1-challenge-geometry-") || starts(id, "esat-spec-m1-geometry-")) return "Geometry"
+    if (starts(id, "esat-m1-challenge-statistics-") || starts(id, "esat-spec-m1-statistics-")) return "Statistics"
+    if (starts(id, "esat-m1-challenge-probability-") || starts(id, "esat-spec-m1-probability-")) return "Probability"
   }
 
   if (question.section === "Mathematics 2") {
