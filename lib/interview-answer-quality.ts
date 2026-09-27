@@ -18,6 +18,12 @@ export type InterviewAnswerInput = {
   previousAnswers?: string[]
 }
 
+type QuantityClaim = {
+  raw: string
+  value: number
+  unit: string
+}
+
 const STOP_WORDS = new Set([
   "about", "after", "again", "against", "also", "because", "before", "being", "between", "could", "does", "from", "have", "into", "more", "most", "only", "other", "should", "some", "such", "than", "that", "their", "there", "these", "they", "this", "those", "through", "under", "very", "what", "when", "where", "which", "while", "with", "would", "your", "then", "them", "just", "like", "think", "question", "answer",
 ])
@@ -28,6 +34,7 @@ const REVISION_LANGUAGE = /\b(?:i(?:'d| would)\s+(?:revise|change|correct)|i\s+(
 const REASONING_LANGUAGE = /\b(?:because|therefore|since|so that|hence|implies?|means that|if|given|assuming|as a result|which means|this leads to|so the)\b/i
 const EXPLANATION_QUESTION = /\b(?:why|explain|justify|reason|talk through|show|prove|develop|evaluate|how would|what happens|what would|estimate|interpret|compare|argue|defend)\b/i
 const DIRECT_ANSWER_LANGUAGE = /\b(?:my answer is|i would say|therefore|so the answer|the result is|this means|i conclude|it is|it would|it increases|it decreases|it stays|yes,|no,)\b/i
+const NUMERICAL_QUESTION = /\b(?:how many|calculate|estimate|determine|work out|what (?:is|are).*?(?:value|number|ratio|mass|time|speed|velocity|acceleration|force|energy|power|pressure|current|voltage|resistance|temperature|distance|length|frequency|wavelength|momentum|density|percentage|probability))\b/i
 
 const CONTRAST_PAIRS: Array<[string, string]> = [
   ["warmer", "cooler"],
@@ -40,7 +47,34 @@ const CONTRAST_PAIRS: Array<[string, string]> = [
   ["positive", "negative"],
   ["halves", "doubles"],
   ["true", "false"],
+  ["directly proportional", "inversely proportional"],
+  ["converges", "diverges"],
+  ["converging", "diverging"],
+  ["absorbs", "emits"],
+  ["absorbed", "emitted"],
+  ["endothermic", "exothermic"],
+  ["oxidised", "reduced"],
+  ["oxidized", "reduced"],
 ]
+
+const UNIT_ALIASES: Record<string, string> = {
+  "metre": "m", "metres": "m", "meter": "m", "meters": "m",
+  "second": "s", "seconds": "s", "sec": "s",
+  "kilogram": "kg", "kilograms": "kg",
+  "gram": "g", "grams": "g",
+  "newton": "n", "newtons": "n",
+  "joule": "j", "joules": "j",
+  "watt": "w", "watts": "w",
+  "pascal": "pa", "pascals": "pa",
+  "volt": "v", "volts": "v",
+  "amp": "a", "amps": "a", "ampere": "a", "amperes": "a",
+  "ohm": "ohm", "ohms": "ohm", "ω": "ohm", "Ω": "ohm",
+  "hertz": "hz",
+  "kelvin": "k",
+  "celsius": "°c", "°c": "°c",
+  "mole": "mol", "moles": "mol",
+  "percent": "%", "percentage": "%",
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
@@ -54,15 +88,81 @@ function tokens(text: string) {
     ?.filter(token => !STOP_WORDS.has(token)) ?? []
 }
 
-function numberTokens(text: string) {
-  return text
-    .replace(/[−–—]/g, "-")
-    .match(/-?\d+(?:\.\d+)?(?:\s*[×x*]\s*10\s*\^?\s*-?\d+)?/g)
-    ?.map(value => value.replace(/\s+/g, "").toLowerCase()) ?? []
-}
-
 function containsMath(text: string) {
   return /\d|[=<>≤≥√π²³×÷+−*/]/.test(text)
+}
+
+function normaliseUnit(unit: string) {
+  const compact = unit.trim().toLowerCase().replace(/\s+/g, "").replace(/²/g, "^2").replace(/³/g, "^3")
+  return UNIT_ALIASES[compact] ?? compact
+}
+
+function parseNumericValue(raw: string) {
+  const text = raw.trim().replace(/,/g, "").replace(/[−–—]/g, "-").replace(/×/g, "x")
+  const sci = text.match(/^(-?\d+(?:\.\d+)?)\s*[x*]\s*10\s*\^?\s*(-?\d+)$/i)
+  if (sci) return Number(sci[1]) * (10 ** Number(sci[2]))
+  const fraction = text.match(/^(-?\d+(?:\.\d+)?)\s*\/\s*(-?\d+(?:\.\d+)?)$/)
+  if (fraction && Number(fraction[2]) !== 0) return Number(fraction[1]) / Number(fraction[2])
+  const value = Number(text)
+  return Number.isFinite(value) ? value : null
+}
+
+function quantityClaims(text: string): QuantityClaim[] {
+  const pattern = /(-?\d+(?:\.\d+)?(?:\s*[×x*]\s*10\s*\^?\s*-?\d+)?|-?\d+(?:\.\d+)?\s*\/\s*-?\d+(?:\.\d+)?)(?:\s*)(%|°\s*c|kg|g|m\/s(?:\^?2|²)?|m\s*s(?:-2|⁻²)|m|s|n|j|w|pa|v|a|ω|ohms?|hz|k|mol|metres?|meters?|seconds?|kilograms?|grams?|newtons?|joules?|watts?|pascals?|volts?|amps?|amperes?|hertz|kelvin|celsius|moles?|percent(?:age)?)?/gi
+  const claims: QuantityClaim[] = []
+  for (const match of text.matchAll(pattern)) {
+    const value = parseNumericValue(match[1])
+    if (value === null) continue
+    claims.push({ raw: match[0], value, unit: normaliseUnit(match[2] ?? "") })
+  }
+  return claims
+}
+
+function explicitClaimQuantities(text: string, question = "") {
+  const marker = /\b(?:answer|result|value|estimate|therefore|hence|so(?:\s+the)?(?:\s+[a-z]+){0,3})\s*(?:is|are|=|gives?|comes?\s+to)\s*([^.!?;]+)/gi
+  const explicit: QuantityClaim[] = []
+  for (const match of text.matchAll(marker)) explicit.push(...quantityClaims(match[1]))
+  if (explicit.length) return explicit
+
+  const all = quantityClaims(text)
+  if (NUMERICAL_QUESTION.test(question)) {
+    const answerLike = /\b(?:there (?:are|is)|i get|i calculate|i make it|my answer is|the answer is|the result is)\b/i.test(text)
+    if (answerLike && all.length) return [all[0]]
+    if (all.length === 1) return all
+  }
+  return []
+}
+
+function nearlyEqual(a: number, b: number, exact = false) {
+  if (Object.is(a, b)) return true
+  if (exact) return false
+  const scale = Math.max(1, Math.abs(a), Math.abs(b))
+  return Math.abs(a - b) <= scale * 0.02
+}
+
+function integerCountQuestion(question: string) {
+  return /\b(?:how many|number of|count)\b/i.test(question)
+}
+
+function numericReferenceConflict(answer: string, referenceAnswer: string, question: string) {
+  if (!NUMERICAL_QUESTION.test(question)) return null
+  const expected = explicitClaimQuantities(referenceAnswer, question)
+  const claimed = explicitClaimQuantities(answer, question)
+  if (!expected.length || !claimed.length) return null
+
+  const exact = integerCountQuestion(question)
+  const matchingValue = claimed.some(candidate => expected.some(target => nearlyEqual(candidate.value, target.value, exact)))
+  if (!matchingValue) return "The candidate's claimed numerical result conflicts with the reference result."
+
+  for (const candidate of claimed) {
+    for (const target of expected) {
+      if (!nearlyEqual(candidate.value, target.value, exact)) continue
+      if (candidate.unit && target.unit && candidate.unit !== target.unit) {
+        return `The numerical value matches the reference, but the stated unit (${candidate.unit}) conflicts with the expected unit (${target.unit}).`
+      }
+    }
+  }
+  return null
 }
 
 function overlapCount(question: string, answer: string, concepts: string[]) {
@@ -84,27 +184,28 @@ function tokenSimilarity(a: string, b: string) {
   return intersection / Math.max(left.size, right.size)
 }
 
+function phrasePresent(text: string, phrase: string) {
+  return text.toLowerCase().includes(phrase.toLowerCase())
+}
+
 function contradictsConcreteClaim(answer: string, comparison: string) {
-  const lowerAnswer = answer.toLowerCase()
-  const lowerComparison = comparison.toLowerCase()
   for (const [a, b] of CONTRAST_PAIRS) {
-    if ((lowerComparison.includes(a) && lowerAnswer.includes(b)) || (lowerComparison.includes(b) && lowerAnswer.includes(a))) return true
+    if ((phrasePresent(comparison, a) && phrasePresent(answer, b)) || (phrasePresent(comparison, b) && phrasePresent(answer, a))) return true
   }
 
-  const previousNumbers = numberTokens(comparison)
-  const currentNumbers = numberTokens(answer)
-  if (previousNumbers.length === 1 && currentNumbers.length === 1 && previousNumbers[0] !== currentNumbers[0]) return true
+  const previous = explicitClaimQuantities(comparison)
+  const current = explicitClaimQuantities(answer)
+  if (previous.length === 1 && current.length === 1 && !nearlyEqual(previous[0].value, current[0].value)) return true
   return false
 }
 
-function contradictsReference(answer: string, referenceAnswer: string, question: string) {
-  if (contradictsConcreteClaim(answer, referenceAnswer)) return true
-  if (/\b(?:how many|estimate|calculate|what .*ratio|what .*value|what .*mass|what .*number)\b/i.test(question)) {
-    const expected = numberTokens(referenceAnswer)
-    const claimed = numberTokens(answer)
-    if (expected.length && claimed.length && !claimed.some(value => expected.includes(value))) return true
+function referenceConflictReason(answer: string, referenceAnswer: string, question: string) {
+  const numericConflict = numericReferenceConflict(answer, referenceAnswer, question)
+  if (numericConflict) return numericConflict
+  if (contradictsConcreteClaim(answer, referenceAnswer)) {
+    return "The response appears to reverse a concrete relationship, category or direction stated in the reference reasoning."
   }
-  return false
+  return ""
 }
 
 function historySignals(answer: string, previousAnswers: string[]) {
@@ -162,12 +263,15 @@ export function evaluateInterviewAnswerLocally(input: InterviewAnswerInput): Int
   const topicalSignal = conceptHits + lexicalHits
   const mathematical = containsMath(answer)
 
-  if (referenceAnswer && contradictsReference(answer, referenceAnswer, question)) {
-    return result("incorrect", 0.9, "The response appears to contradict a concrete relationship or numerical result in the reference reasoning.", "factual-error", directness, Math.max(history.repairDepth, 1) as 1 | 2 | 3)
+  if (referenceAnswer) {
+    const conflictReason = referenceConflictReason(answer, referenceAnswer, question)
+    if (conflictReason) {
+      return result("incorrect", 0.94, conflictReason, "factual-error", directness, Math.max(history.repairDepth, 1) as 1 | 2 | 3)
+    }
   }
 
   if (history.contradiction && !history.explicitRevision) {
-    return result("partial", 0.84, "The response reverses a concrete claim made earlier without explaining what changed in the reasoning.", "contradiction", directness, Math.max(history.repairDepth, 1) as 1 | 2 | 3)
+    return result("partial", 0.86, "The response reverses a concrete claim made earlier without explaining what changed in the reasoning.", "contradiction", directness, Math.max(history.repairDepth, 1) as 1 | 2 | 3)
   }
 
   if (wordCount >= 10 && topicalSignal === 0 && !mathematical) {
@@ -186,7 +290,7 @@ export function evaluateInterviewAnswerLocally(input: InterviewAnswerInput): Int
   }
 
   if (wordCount >= 18 && conceptHits >= 2 && lexicalHits === 0 && !REASONING_LANGUAGE.test(answer) && !DIRECT_ANSWER_LANGUAGE.test(answer)) {
-    return result("vague", 0.76, "The response uses relevant terminology but does not turn it into a direct claim or reasoning chain that answers the task.", "unsupported", directness, history.repairDepth)
+    return result("vague", 0.78, "The response uses relevant terminology but does not turn it into a direct claim or reasoning chain that answers the task.", "unsupported", directness, history.repairDepth)
   }
 
   if (EXPLANATION_QUESTION.test(question) && wordCount < 18 && !REASONING_LANGUAGE.test(answer)) {
@@ -227,7 +331,7 @@ export function localInterviewFollowUp(input: InterviewAnswerInput, persona = "S
   if (quality.classification === "incorrect") {
     const question = quality.repairDepth >= 2
       ? "Check one thing only: the sign, direction, unit or numerical step that your conclusion depends on. Which one changes the result?"
-      : "I don't think that conclusion follows from the information we've got. Which exact step would you check first?"
+      : "I don't think that conclusion follows from the information we've got. Which exact step, value, unit or relationship would you check first?"
     return { ...quality, reply: `${open} ${question}` }
   }
   if (quality.classification === "irrelevant") {
