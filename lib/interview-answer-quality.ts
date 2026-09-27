@@ -230,7 +230,12 @@ function effectiveFinalPosition(text: string) {
 
 function contradictsConcreteClaim(answer: string, comparison: string) {
   for (const [a, b] of CONTRAST_PAIRS) {
-    if ((phrasePresent(comparison, a) && phrasePresent(answer, b)) || (phrasePresent(comparison, b) && phrasePresent(answer, a))) return true
+    const comparisonA = phrasePresent(comparison, a)
+    const comparisonB = phrasePresent(comparison, b)
+    const answerA = phrasePresent(answer, a)
+    const answerB = phrasePresent(answer, b)
+    if (comparisonA && !comparisonB && answerB && !answerA) return true
+    if (comparisonB && !comparisonA && answerA && !answerB) return true
   }
 
   const previous = explicitClaimQuantities(comparison)
