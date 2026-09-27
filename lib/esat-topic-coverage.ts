@@ -63,45 +63,45 @@ export function esatCoverageTopic(question: TestQuestion): EsatCoverageTopic | "
   const id = question.id
 
   if (question.section === "Mathematics 1") {
-    if (starts(id, "esat-spec-m1-units-")) return "Units"
-    if (starts(id, "esat-spec-m1-number-")) return "Number"
-    if (starts(id, "esat-spec-m1-geometry-")) return "Geometry"
-    if (starts(id, "esat-spec-m1-statistics-")) return "Statistics"
-    if (starts(id, "esat-spec-m1-probability-")) return "Probability"
-    if (starts(id, "uniq-esat-m1-square-")) return "Ratio and proportion"
-    if (/^uniq-esat-m1-(linear|root|seq|line|ineq)-/.test(id)) return "Algebra"
+    if (starts(id, "esat-m1-challenge-units-") || starts(id, "esat-spec-m1-units-")) return "Units"
+    if (starts(id, "esat-m1-challenge-number-") || starts(id, "esat-spec-m1-number-")) return "Number"
+    if (starts(id, "esat-m1-challenge-ratio-") || starts(id, "uniq-esat-m1-square-")) return "Ratio and proportion"
+    if (starts(id, "esat-m1-challenge-algebra-") || /^uniq-esat-m1-(linear|root|seq|line|ineq)-/.test(id)) return "Algebra"
+    if (starts(id, "esat-m1-challenge-geometry-") || starts(id, "esat-spec-m1-geometry-")) return "Geometry"
+    if (starts(id, "esat-m1-challenge-statistics-") || starts(id, "esat-spec-m1-statistics-")) return "Statistics"
+    if (starts(id, "esat-m1-challenge-probability-") || starts(id, "esat-spec-m1-probability-")) return "Probability"
   }
 
   if (question.section === "Mathematics 2") {
-    if (starts(id, "esat-spec-m2-algebra-")) return "Algebra and functions"
-    if (starts(id, "esat-spec-m2-sequences-")) return "Sequences and series"
-    if (starts(id, "esat-spec-m2-integration-")) return "Integration"
-    if (starts(id, "esat-spec-m2-graphs-")) return "Graphs of functions"
-    if (/^uniq-esat-m2-(distance|circle)-/.test(id)) return "Coordinate geometry"
-    if (starts(id, "uniq-esat-m2-trig-")) return "Trigonometry"
-    if (starts(id, "uniq-esat-m2-log-")) return "Exponentials and logarithms"
-    if (starts(id, "uniq-esat-m2-deriv-")) return "Differentiation"
+    if (starts(id, "esat-m2-challenge-algebra-") || starts(id, "esat-spec-m2-algebra-")) return "Algebra and functions"
+    if (starts(id, "esat-m2-challenge-sequences-") || starts(id, "esat-spec-m2-sequences-")) return "Sequences and series"
+    if (starts(id, "esat-m2-challenge-coordinate-") || /^uniq-esat-m2-(distance|circle)-/.test(id)) return "Coordinate geometry"
+    if (starts(id, "esat-m2-challenge-trigonometry-") || starts(id, "uniq-esat-m2-trig-")) return "Trigonometry"
+    if (starts(id, "esat-m2-challenge-logarithms-") || starts(id, "uniq-esat-m2-log-")) return "Exponentials and logarithms"
+    if (starts(id, "esat-m2-challenge-differentiation-") || starts(id, "uniq-esat-m2-deriv-")) return "Differentiation"
+    if (starts(id, "esat-m2-challenge-integration-") || starts(id, "esat-spec-m2-integration-")) return "Integration"
+    if (starts(id, "esat-m2-challenge-graphs-") || starts(id, "esat-spec-m2-graphs-")) return "Graphs of functions"
   }
 
   if (question.section === "Physics") {
-    if (starts(id, "uniq-esat-phy-ohm-")) return "Electricity"
-    if (starts(id, "esat-spec-physics-magnetism-")) return "Magnetism"
-    if (/^uniq-esat-phy-(force|energy|momentum|power)-/.test(id)) return "Mechanics"
-    if (starts(id, "esat-spec-physics-thermal-")) return "Thermal physics"
-    if (/^uniq-esat-phy-(density|pressure)-/.test(id)) return "Matter"
-    if (starts(id, "uniq-esat-phy-wave-")) return "Waves"
-    if (starts(id, "esat-spec-physics-radioactivity-")) return "Radioactivity"
+    if (starts(id, "esat-physics-challenge-electricity-") || starts(id, "uniq-esat-phy-ohm-")) return "Electricity"
+    if (starts(id, "esat-physics-challenge-magnetism-") || starts(id, "esat-spec-physics-magnetism-")) return "Magnetism"
+    if (starts(id, "esat-physics-challenge-mechanics-") || /^uniq-esat-phy-(force|energy|momentum|power)-/.test(id)) return "Mechanics"
+    if (starts(id, "esat-physics-challenge-thermal-") || starts(id, "esat-spec-physics-thermal-")) return "Thermal physics"
+    if (starts(id, "esat-physics-challenge-matter-") || /^uniq-esat-phy-(density|pressure)-/.test(id)) return "Matter"
+    if (starts(id, "esat-physics-challenge-waves-") || starts(id, "uniq-esat-phy-wave-")) return "Waves"
+    if (starts(id, "esat-physics-challenge-radioactivity-") || starts(id, "esat-spec-physics-radioactivity-")) return "Radioactivity"
   }
 
   if (question.section === "Chemistry") {
-    if (starts(id, "uniq-esat-chem-atom-")) return "Atomic structure and periodicity"
-    if (starts(id, "esat-spec-chem-reactions-")) return "Reactions and equilibrium"
-    if (/^uniq-esat-chem-(moles|conc|dilute|stoich|yield)-/.test(id)) return "Quantitative chemistry"
-    if (starts(id, "esat-spec-chem-bonding-")) return "Bonding and structure"
-    if (starts(id, "esat-spec-chem-acids-")) return "Reactivity and acids"
-    if (starts(id, "esat-spec-chem-energetics-")) return "Energetics and rates"
-    if (starts(id, "esat-spec-chem-electroorganic-")) return "Electrochemistry and organic chemistry"
-    if (starts(id, "esat-spec-chem-analysis-")) return "Analysis, air and water"
+    if (starts(id, "esat-chem-challenge-atomic-") || starts(id, "uniq-esat-chem-atom-")) return "Atomic structure and periodicity"
+    if (starts(id, "esat-chem-challenge-equilibrium-") || starts(id, "esat-spec-chem-reactions-")) return "Reactions and equilibrium"
+    if (starts(id, "esat-chem-challenge-quantitative-") || /^uniq-esat-chem-(moles|conc|dilute|stoich|yield)-/.test(id)) return "Quantitative chemistry"
+    if (starts(id, "esat-chem-challenge-bonding-") || starts(id, "esat-spec-chem-bonding-")) return "Bonding and structure"
+    if (starts(id, "esat-chem-challenge-acids-") || starts(id, "esat-spec-chem-acids-")) return "Reactivity and acids"
+    if (starts(id, "esat-chem-challenge-energetics-") || starts(id, "esat-spec-chem-energetics-")) return "Energetics and rates"
+    if (starts(id, "esat-chem-challenge-electroorganic-") || starts(id, "esat-spec-chem-electroorganic-")) return "Electrochemistry and organic chemistry"
+    if (starts(id, "esat-chem-challenge-analysis-") || starts(id, "esat-spec-chem-analysis-")) return "Analysis, air and water"
   }
 
   if (question.section === "Biology") {

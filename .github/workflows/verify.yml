@@ -3,7 +3,7 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main]
 
 permissions:
   contents: read
@@ -50,6 +50,9 @@ jobs:
 
       - name: Question reliability checks
         run: node tests/question-reliability.mjs
+
+      - name: Answer-pattern authenticity checks
+        run: node tests/answer-pattern-authenticity.mjs
 
       - name: Upgraded question bank checks
         run: node tests/reliability-upgrade-bank.mjs

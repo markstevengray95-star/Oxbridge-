@@ -18,9 +18,15 @@ const META_OPTION = /\b(?:all of the above|none of the above|both a and b|all an
 const EXTREME_WORDS = /\b(?:always|never|everyone|entirely|completely|guarantees?|impossible|automatically|only|all|none)\b/i
 const OBVIOUS_DISTRACTOR = /\b(?:longer title|different (?:font|presentation font)|worked hard|uses past tense|too (?:few|many) words|widely discussed|popular online|unrelated (?:outcome|description)|everyone already agrees|some people dislike|contains long sentences)\b/i
 const DIRECT_NUMERIC_STEM = /\b(?:what is|calculate|find|how many|how much|what percentage|what is the probability|what is the mean)\b/i
+const REASONING_LANGUAGE = /\b(?:given that|assuming|suppose|however|therefore|which statement|which conclusion|which criticism|which assumption|which inference|most strongly|best supported|weakens?|strengthens?|necessarily|must follow|constraint|condition|compare|after|before|simultaneously|remaining|combined|evidence|reasoning|principle)\b/i
+const STOP_WORDS = new Set(["the","a","an","and","or","of","to","in","on","for","with","is","are","was","were","be","been","being","that","this","it","as","at","by","from","which","what","most","best","statement","following","would","could","should"])
 
 function compact(text: string) {
   return text.replace(/\s+/g, " ").trim()
+}
+
+function contentTokens(text: string) {
+  return compact(text).toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter(token => token.length >= 4 && !STOP_WORDS.has(token))
 }
 
 export function optionReliabilityKey(text: string) {
@@ -80,10 +86,8 @@ function numericAnswerSupported(question: TestQuestion) {
   const answer = question.options[question.answer]
   const value = parseSimpleNumber(answer)
   if (value === null) return true
-
   const candidateNumbers = explanationNumericValues(question.explanation)
   if (!candidateNumbers.length) return false
-
   return candidateNumbers.some(candidate =>
     Math.abs(candidate - value) <= Math.max(0.0005, Math.abs(value) * 0.002),
   )
@@ -162,6 +166,13 @@ function allowedOptionCounts(question: TestQuestion) {
   return [4]
 }
 
+function stemOverlapScore(prompt: string, option: string) {
+  const promptTokens = new Set(contentTokens(prompt))
+  const optionTokens = contentTokens(option)
+  if (!optionTokens.length) return 0
+  return optionTokens.filter(token => promptTokens.has(token)).length / optionTokens.length
+}
+
 export function auditQuestionReliability(question: TestQuestion): QuestionReliabilityAudit {
   const issues: ReliabilityIssue[] = []
   const prompt = compact(question.prompt ?? "")
@@ -171,9 +182,7 @@ export function auditQuestionReliability(question: TestQuestion): QuestionReliab
 
   if (!prompt) addIssue(issues, "blocking", "blank-prompt", "Question prompt is blank.")
   if (!explanation) addIssue(issues, "blocking", "blank-explanation", "Question explanation is blank.")
-  if (!allowedCounts.includes(options.length)) {
-    addIssue(issues, "blocking", "option-count", `Expected ${allowedCounts.join(" or ")} options but found ${options.length}.`)
-  }
+  if (!allowedCounts.includes(options.length)) addIssue(issues, "blocking", "option-count", `Expected ${allowedCounts.join(" or ")} options but found ${options.length}.`)
   if (!Number.isInteger(question.answer) || question.answer < 0 || question.answer >= options.length) addIssue(issues, "blocking", "answer-index", "Correct answer index is invalid.")
 
   const allText = [prompt, explanation, ...options].join(" ")
@@ -201,11 +210,14 @@ export function auditQuestionReliability(question: TestQuestion): QuestionReliab
     const longestDistractor = Math.max(1, ...distractorLengths)
     const shortestDistractor = Math.max(1, Math.min(...distractorLengths))
 
-    if (correctLength >= 1.55 * longestDistractor && correctLength - longestDistractor >= 12) {
+    if (correctLength >= 1.38 * longestDistractor && correctLength - longestDistractor >= 10) {
       addIssue(issues, "warning", "correct-length-clue", "Correct answer is conspicuously longer than every distractor.")
     }
-    if (correctLength >= 44 && shortestDistractor / correctLength < 0.28) {
-      addIssue(issues, "warning", "option-length-spread", "A very short distractor makes the correct answer easier to spot by length.")
+    if (shortestDistractor >= 1.65 * correctLength && shortestDistractor - correctLength >= 16) {
+      addIssue(issues, "warning", "correct-short-clue", "Correct answer is conspicuously shorter than every distractor.")
+    }
+    if (correctLength >= 38 && shortestDistractor / correctLength < 0.42) {
+      addIssue(issues, "warning", "option-length-spread", "Option lengths vary enough to create a test-taking cue instead of a content distinction.")
     }
 
     const obviousDistractors = distractors.filter(option => OBVIOUS_DISTRACTOR.test(option)).length
@@ -216,6 +228,13 @@ export function auditQuestionReliability(question: TestQuestion): QuestionReliab
       addIssue(issues, "warning", "extreme-distractor-cue", "Multiple distractors use extreme wording while the keyed answer does not.")
     }
 
+    const correctOverlap = stemOverlapScore(prompt, correct)
+    const distractorOverlap = distractors.map(option => stemOverlapScore(prompt, option))
+    const bestDistractorOverlap = Math.max(0, ...distractorOverlap)
+    if (correctOverlap >= 0.62 && correctOverlap - bestDistractorOverlap >= 0.35 && contentTokens(correct).length >= 4) {
+      addIssue(issues, "warning", "stem-echo-cue", "The keyed answer uniquely echoes the wording of the stem more strongly than the distractors.")
+    }
+
     if (!numericAnswerSupported(question)) {
       addIssue(issues, "blocking", "numeric-explanation-mismatch", "The explanation does not contain the keyed numeric result.")
     }
@@ -224,16 +243,19 @@ export function auditQuestionReliability(question: TestQuestion): QuestionReliab
   if (explanation.length < 28) addIssue(issues, "warning", "thin-explanation", "Explanation is too short to justify the answer robustly.")
 
   const allNumeric = allowedCounts.includes(options.length) && options.every(option => parseSimpleNumber(option) !== null)
-  if (allNumeric && prompt.length < 125 && DIRECT_NUMERIC_STEM.test(prompt) && !/\b(?:therefore|after|then|remaining|combined|changes?|compare|simultaneously|constraint|condition)\b/i.test(prompt)) {
+  const directOneStep = prompt.length < 145 && DIRECT_NUMERIC_STEM.test(prompt) && !REASONING_LANGUAGE.test(prompt)
+  if (allNumeric && directOneStep) {
     addIssue(issues, "warning", "low-reasoning-depth", "Question is a short direct calculation with limited reasoning depth.")
+  } else if (question.difficulty !== "Foundation" && prompt.length < 95 && DIRECT_NUMERIC_STEM.test(prompt) && !REASONING_LANGUAGE.test(prompt)) {
+    addIssue(issues, "warning", "low-discrimination-stem", "A Stretch/Challenge item is phrased as a short one-step calculation rather than an admissions-style reasoning problem.")
   }
 
   let score = 100
   for (const issue of issues) {
     if (issue.severity === "blocking") score -= 45
-    else if (issue.code === "implausible-distractors" || issue.code === "correct-length-clue") score -= 14
-    else if (issue.code === "option-length-spread" || issue.code === "extreme-distractor-cue") score -= 10
-    else if (issue.code === "low-reasoning-depth") score -= 7
+    else if (["implausible-distractors", "correct-length-clue", "correct-short-clue"].includes(issue.code)) score -= 16
+    else if (["option-length-spread", "extreme-distractor-cue", "stem-echo-cue"].includes(issue.code)) score -= 12
+    else if (["low-reasoning-depth", "low-discrimination-stem"].includes(issue.code)) score -= 12
     else score -= 6
   }
   score = Math.max(0, Math.min(100, score))
@@ -243,8 +265,15 @@ export function auditQuestionReliability(question: TestQuestion): QuestionReliab
   return { score, issues, blocking, warnings }
 }
 
+/**
+ * Used for paper selection. Reliability remains dominant, but equally reliable
+ * Challenge/Stretch items are preferred over routine Foundation items so the
+ * assembled papers discriminate at admissions-test level without changing the syllabus.
+ */
 export function reliabilityScore(question: TestQuestion) {
-  return auditQuestionReliability(question).score
+  const audit = auditQuestionReliability(question)
+  const difficultyAdjustment = question.difficulty === "Challenge" ? 0 : question.difficulty === "Stretch" ? -1 : -3
+  return Math.max(0, audit.score + difficultyAdjustment)
 }
 
 export function isQuestionStructurallyReliable(question: TestQuestion) {
