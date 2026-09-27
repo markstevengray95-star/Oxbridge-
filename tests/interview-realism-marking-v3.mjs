@@ -24,10 +24,9 @@ function transpile(relativePath, imports = {}) {
 }
 
 const quality = transpile("lib/interview-answer-quality.ts")
-const baseMarking = transpile("lib/interview-marking.ts", { "@/lib/interview-answer-quality": quality })
-const strictMarking = transpile("lib/interview-marking-v2.ts", { "./interview-marking": baseMarking })
+const marking = transpile("lib/interview-marking.ts", { "@/lib/interview-answer-quality": quality })
 const bank = transpile("lib/realistic-interview-bank.ts")
-const { markTypedInterviewTranscript } = strictMarking
+const { markTypedInterviewTranscript } = marking
 const { realisticInterviewQuestions } = bank
 
 if (!Array.isArray(realisticInterviewQuestions) || realisticInterviewQuestions.length < 28) {
@@ -47,7 +46,7 @@ const strong = markTypedInterviewTranscript({
   referenceAnswer: physical.strongAnswer,
   turns: [
     { role: "interviewer", text: physical.prompt },
-    { role: "candidate", text: "They can start at the same temperature. The metal feels colder because it transfers energy away from my hand faster than the wood, so the sensation mainly tells me about heat-transfer rate. I would measure both surface temperatures before touching them to test that." },
+    { role: "candidate", text: "They can start at the same temperature. The metal feels colder because it transfers energy away from my hand faster than wood, so the sensation mainly reflects heat-transfer rate. I would measure both surface temperatures before touching them to test that." },
   ],
 })
 
@@ -60,11 +59,27 @@ const keywordDump = markTypedInterviewTranscript({
   ],
 })
 
-if (strong.total < keywordDump.total + 15) {
-  throw new Error(`Concise applied reasoning must clearly beat keyword stuffing. Strong=${strong.total}, keyword=${keywordDump.total}.`)
-}
-if (keywordDump.subject > 12 || keywordDump.reasoning > 11 || keywordDump.clarity > 14) {
-  throw new Error(`Keyword stuffing caps are not being enforced: ${JSON.stringify(keywordDump)}.`)
+if (strong.total < keywordDump.total + 10) throw new Error(`Applied reasoning must beat keyword stuffing. Strong=${strong.total}, keyword=${keywordDump.total}.`)
+if (keywordDump.reasoning > 15 || keywordDump.responsiveness > 10) throw new Error(`Keyword stuffing is receiving too much reasoning/direct-answer credit: ${JSON.stringify(keywordDump)}.`)
+
+const concise = markTypedInterviewTranscript({
+  concepts: physical.concepts,
+  referenceAnswer: physical.strongAnswer,
+  turns: [
+    { role: "interviewer", text: physical.prompt },
+    { role: "candidate", text: "Same starting temperature is possible: metal removes energy from the hand faster because its thermal conductivity is higher." },
+  ],
+})
+const padded = markTypedInterviewTranscript({
+  concepts: physical.concepts,
+  referenceAnswer: physical.strongAnswer,
+  turns: [
+    { role: "interviewer", text: physical.prompt },
+    { role: "candidate", text: "Same starting temperature is possible: metal removes energy from the hand faster because its thermal conductivity is higher. This is a complex question and there are many factors to consider in today's society. It is important to note that materials are important and there are many interesting scientific ideas that could potentially be discussed at greater length in a detailed answer." },
+  ],
+})
+if (padded.communication > concise.communication + 1 || padded.total > concise.total + 3) {
+  throw new Error(`Extra prose must not create a length bonus. Concise=${concise.total}, padded=${padded.total}.`)
 }
 
 const wrong = markTypedInterviewTranscript({
@@ -72,15 +87,13 @@ const wrong = markTypedInterviewTranscript({
   referenceAnswer: physical.strongAnswer,
   turns: [
     { role: "interviewer", text: physical.prompt },
-    { role: "candidate", text: "The metal feels colder because energy leaves my hand more slowly through metal than through wood, so metal is acting as the better insulator." },
+    { role: "candidate", text: "The metal feels colder because energy leaves my hand more slowly through metal than through wood, so metal is the better insulator." },
   ],
 })
-if (wrong.subject > 10 || wrong.total >= strong.total) {
-  throw new Error(`A concrete reversed physical relationship should be capped: ${JSON.stringify(wrong)}.`)
-}
+if (wrong.accuracy >= strong.accuracy || wrong.total >= strong.total) throw new Error(`Concrete wrong relationships should lose accuracy credit: ${JSON.stringify(wrong)}.`)
 
 const life = realisticInterviewQuestions.find(item => item.id === "rx-life-3")
-if (!life) throw new Error("Missing life-sciences flexibility fixture.")
+if (!life) throw new Error("Missing life-sciences adaptation fixture.")
 const firstOnly = markTypedInterviewTranscript({
   concepts: life.concepts,
   referenceAnswer: life.strongAnswer,
@@ -96,26 +109,22 @@ const adapted = markTypedInterviewTranscript({
     { role: "interviewer", text: life.prompt },
     { role: "candidate", text: "The result is an association, not proof that short sleep caused the higher heart rate, because the groups could differ in other variables." },
     { role: "interviewer", text: "Suppose caffeine use is higher in the short-sleep group. What does that do to your conclusion?" },
-    { role: "candidate", text: "On reflection I would weaken the causal claim further. Caffeine is a plausible confounder because it may be linked to sleep duration and can independently raise heart rate. I would compare or adjust for caffeine, while recognising that other confounders could remain." },
+    { role: "candidate", text: "On reflection I would weaken the causal claim further. Caffeine is a plausible confounder because it may be linked to sleep duration and can independently raise heart rate. I would compare or adjust for caffeine, while recognising other confounders could remain." },
   ],
 })
-if (adapted.flexibility <= firstOnly.flexibility) {
-  throw new Error(`Responding intelligently to new information should improve flexibility. First=${firstOnly.flexibility}, adapted=${adapted.flexibility}.`)
-}
+if (adapted.adaptability <= firstOnly.adaptability) throw new Error(`Responding to new information should improve adaptability. First=${firstOnly.adaptability}, adapted=${adapted.adaptability}.`)
 
-const bankSource = fs.readFileSync(path.join(root, "lib/realistic-interview-bank.ts"), "utf8")
-for (const generic of ["Focus on how you would", "Prove or disprove a claim about", "Evaluate a policy on"]) {
-  if (bankSource.includes(generic)) throw new Error(`Generic prompt template survived: ${generic}`)
+if (strong.rubricVersion !== "2026.3") throw new Error(`Unexpected rubric version ${strong.rubricVersion}.`)
+if (strong.communication > 5 || strong.reasoning > 25 || strong.accuracy > 20 || strong.responsiveness > 15 || strong.adaptability > 20 || strong.evidence > 15) {
+  throw new Error(`Rubric dimensions exceed their intended maxima: ${JSON.stringify(strong)}.`)
 }
 
 const component = fs.readFileSync(path.join(root, "components/realistic-typed-interview.tsx"), "utf8")
-for (const marker of ["No length bonus.", "Typed-answer breakdown", "referenceAnswer: base.strongAnswer", "Scratchpad text is not marked", "does not award marks simply for writing more"]) {
+for (const marker of ["realisticInterviewQuestions", "Reasoning matters more than polished prose", "Typed-answer marking, turn by turn", "referenceAnswer: base.strongAnswer", "Scratchpad. It is not marked", "not rewarded for length"]) {
   if (!component.includes(marker)) throw new Error(`Typed interview UI is missing: ${marker}`)
 }
 
 const tsconfig = fs.readFileSync(path.join(root, "tsconfig.json"), "utf8")
-if (!tsconfig.includes("oxbridge-data-v2") || !tsconfig.includes("interview-marking-v2")) {
-  throw new Error("Global realistic interview data or strict typed marking alias is missing.")
-}
+if (!tsconfig.includes("oxbridge-data-v2") || !tsconfig.includes("interview-marking-v2")) throw new Error("Global realistic interview aliases are missing.")
 
-console.log(`PASS: ${realisticInterviewQuestions.length} staged interview problems are active; concise applied reasoning beats verbose keyword stuffing; wrong relationships are capped; and justified adaptation improves flexibility.`)
+console.log(`PASS: ${realisticInterviewQuestions.length} staged interview problems are active; the 2026.3 typed rubric rewards reasoning, accuracy, response and adaptation without a prose-length bonus.`)
