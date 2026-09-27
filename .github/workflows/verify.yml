@@ -81,5 +81,8 @@ jobs:
       - name: UCAT decision-making family checks
         run: node tests/ucat-dm-format.mjs
 
+      - name: UCAT quantitative-reasoning data checks
+        run: node tests/ucat-qr-format.mjs
+
       - name: Type-aware production build
         run: npm run build
