@@ -120,7 +120,7 @@ if (strong.communication > 5 || strong.reasoning > 25 || strong.accuracy > 20 ||
 }
 
 const component = fs.readFileSync(path.join(root, "components/realistic-typed-interview.tsx"), "utf8")
-for (const marker of ["realisticInterviewQuestions", "Reasoning matters more than polished prose", "Typed-answer marking, turn by turn", "referenceAnswer: base.strongAnswer", "Scratchpad. It is not marked", "not rewarded for length"]) {
+for (const marker of ["realisticInterviewQuestions", "Reasoning matters more than polished prose", "Typed-answer marking, turn by turn", "referenceAnswer: base.strongAnswer", "scratchpad. It is not marked", "not rewarded for length"]) {
   if (!component.includes(marker)) throw new Error(`Typed interview UI is missing: ${marker}`)
 }
 
