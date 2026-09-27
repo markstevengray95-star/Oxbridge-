@@ -1,7 +1,7 @@
 import type { TestQuestion } from "@/lib/oxbridge-data"
 import { uniqueFullPaperQuestionBank } from "@/lib/full-paper-unique-bank"
 import { reliabilityUpgradeQuestionBank } from "@/lib/question-bank-reliability-upgrades"
-import { ucatQrReliabilityUpgradeBank } from "@/lib/ucat-qr-reliability-upgrades"
+import { ucatQrOfficialDataBank } from "@/lib/ucat-qr-official-data-bank"
 import { ucatVrMixedFormatBank } from "@/lib/ucat-vr-mixed-format-bank"
 import { ucatDecisionMakingProductionMcqBank } from "@/lib/ucat-dm-official-production-bank"
 import { ucatSjtOfficialFormatBank } from "@/lib/ucat-sjt-official-format-bank"
@@ -17,10 +17,10 @@ import { auditQuestionReliability, repairQuestionReliability, reliabilityScore }
 import { repairSemanticAnswerCues } from "@/lib/question-integrity-repair"
 
 // Keep the original diverse bank as reliable reserve material rather than
-// removing whole sections when an upgraded bank is present. Timed UCAT VR and
-// DM are exceptions: dedicated banks preserve their official mixed response
-// formats and reasoning-family breadth. Legacy UCAT questions remain available
-// elsewhere in the app; they are simply not part of full-paper assembly.
+// removing whole sections when an upgraded bank is present. Timed UCAT VR, DM
+// and QR are exceptions: dedicated banks preserve the official response mix,
+// reasoning-family breadth and data-led QR style. Legacy UCAT questions remain
+// available elsewhere in the app; they are simply not part of full-paper assembly.
 const repair = (question: Parameters<typeof repairQuestionReliability>[0]) => {
   const repaired = repairSemanticAnswerCues(repairQuestionReliability(question))
   return repaired.test === "TARA" ? ensureTaraFiveOptions(repaired) : repaired
@@ -32,6 +32,10 @@ function isUcatVr(question: TestQuestion) {
 
 function isUcatDm(question: TestQuestion) {
   return question.test === "UCAT" && question.section === "Decision Making"
+}
+
+function isUcatQr(question: TestQuestion) {
+  return question.test === "UCAT" && question.section === "Quantitative Reasoning"
 }
 
 // Generic distractor strengthening treats absolute words as suspicious cues.
@@ -63,17 +67,18 @@ function protectUcatSjtStructuredOptions(question: TestQuestion): TestQuestion {
 
 const originalRepaired = uniqueFullPaperQuestionBank
   .map(repair)
-  .filter(question => !isUcatVr(question) && !isUcatDm(question))
+  .filter(question => !isUcatVr(question) && !isUcatDm(question) && !isUcatQr(question))
 const primaryUpgrades = reliabilityUpgradeQuestionBank
   .filter(question => !(question.test === "UCAT" && (
     question.section === "Quantitative Reasoning" ||
     question.section === "Verbal Reasoning" ||
     question.section === "Decision Making"
   )))
-const rawUpgrades = [...primaryUpgrades, ...ucatQrReliabilityUpgradeBank]
+const rawUpgrades = [...primaryUpgrades]
 const upgradedRepaired = rawUpgrades.map(repair)
 const ucatVrMixedFormatRepaired = ucatVrMixedFormatBank.map(repair)
 const ucatDmOfficialRepaired = ucatDecisionMakingProductionMcqBank.map(repair)
+const ucatQrOfficialRepaired = ucatQrOfficialDataBank.map(repair)
 const ucatSjtOfficialRepaired = ucatSjtOfficialFormatBank.map(repair).map(protectUcatSjtStructuredOptions)
 const tmuaSpecRepaired = tmuaSpecificationExpansionBank.map(repair)
 const esatSpecRepaired = esatSpecificationExpansionBank.map(repair)
@@ -92,6 +97,7 @@ const repaired = [
   ...taraSimilarityRepaired,
   ...ucatVrMixedFormatRepaired,
   ...ucatDmOfficialRepaired,
+  ...ucatQrOfficialRepaired,
   ...ucatSjtOfficialRepaired,
   ...upgradedRepaired,
   ...originalRepaired,
@@ -106,6 +112,7 @@ export const reliableFullPaperQuestionBankStats = {
   upgraded: upgradedRepaired.length,
   ucatVrMixedFormat: ucatVrMixedFormatRepaired.length,
   ucatDmOfficial: ucatDmOfficialRepaired.length,
+  ucatQrOfficialData: ucatQrOfficialRepaired.length,
   ucatSjtOfficialFormat: ucatSjtOfficialRepaired.length,
   tmuaSpecExpansion: tmuaSpecRepaired.length,
   esatSpecExpansion: esatSpecRepaired.length,
