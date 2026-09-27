@@ -6,6 +6,7 @@ import { CloudProgressSync } from "@/components/cloud-progress-sync";
 import { AccountDataMirror } from "@/components/account-data-mirror";
 import { PrivacyConsentBanner } from "@/components/privacy-consent-banner";
 import "./globals.css";
+import "./mobile.css";
 
 export const metadata: Metadata = {
   title: "ScholarBridge | AI University Admissions Preparation",
