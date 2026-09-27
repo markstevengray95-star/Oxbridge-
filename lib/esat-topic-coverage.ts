@@ -73,14 +73,14 @@ export function esatCoverageTopic(question: TestQuestion): EsatCoverageTopic | "
   }
 
   if (question.section === "Mathematics 2") {
-    if (starts(id, "esat-spec-m2-algebra-")) return "Algebra and functions"
-    if (starts(id, "esat-spec-m2-sequences-")) return "Sequences and series"
-    if (starts(id, "esat-spec-m2-integration-")) return "Integration"
-    if (starts(id, "esat-spec-m2-graphs-")) return "Graphs of functions"
-    if (/^uniq-esat-m2-(distance|circle)-/.test(id)) return "Coordinate geometry"
-    if (starts(id, "uniq-esat-m2-trig-")) return "Trigonometry"
-    if (starts(id, "uniq-esat-m2-log-")) return "Exponentials and logarithms"
-    if (starts(id, "uniq-esat-m2-deriv-")) return "Differentiation"
+    if (starts(id, "esat-m2-challenge-algebra-") || starts(id, "esat-spec-m2-algebra-")) return "Algebra and functions"
+    if (starts(id, "esat-m2-challenge-sequences-") || starts(id, "esat-spec-m2-sequences-")) return "Sequences and series"
+    if (starts(id, "esat-m2-challenge-coordinate-") || /^uniq-esat-m2-(distance|circle)-/.test(id)) return "Coordinate geometry"
+    if (starts(id, "esat-m2-challenge-trigonometry-") || starts(id, "uniq-esat-m2-trig-")) return "Trigonometry"
+    if (starts(id, "esat-m2-challenge-logarithms-") || starts(id, "uniq-esat-m2-log-")) return "Exponentials and logarithms"
+    if (starts(id, "esat-m2-challenge-differentiation-") || starts(id, "uniq-esat-m2-deriv-")) return "Differentiation"
+    if (starts(id, "esat-m2-challenge-integration-") || starts(id, "esat-spec-m2-integration-")) return "Integration"
+    if (starts(id, "esat-m2-challenge-graphs-") || starts(id, "esat-spec-m2-graphs-")) return "Graphs of functions"
   }
 
   if (question.section === "Physics") {
