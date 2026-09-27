@@ -1,0 +1,122 @@
+/* Mobile-first refinements shared across ScholarBridge pages. */
+html[data-mobile-ui="true"] body {
+  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+  overflow-x: hidden;
+}
+
+html[data-mobile-ui="true"] main,
+html[data-mobile-ui="true"] [role="main"] {
+  max-width: 100vw;
+}
+
+html[data-mobile-ui="true"] main > :where(div, section, article) {
+  scroll-margin-top: 4.5rem;
+}
+
+html[data-mobile-ui="true"] [data-slot="tabs-list"] {
+  width: 100%;
+  max-width: 100%;
+  justify-content: flex-start;
+  gap: .35rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+html[data-mobile-ui="true"] [data-slot="tabs-list"]::-webkit-scrollbar { display: none; }
+
+html[data-mobile-ui="true"] [data-slot="tabs-trigger"] {
+  min-height: 2.6rem;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+html[data-mobile-ui="true"] aside [data-slot="tabs-list"] {
+  flex-direction: row;
+}
+
+html[data-mobile-ui="true"] aside [data-slot="tabs-trigger"] {
+  width: auto;
+}
+
+html[data-mobile-ui="true"] .data-table {
+  min-width: 640px;
+}
+
+html[data-mobile-ui="true"] :where(button, a, input, select, textarea) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html[data-mobile-ui="true"] :where(button, a)[class*="rounded"] {
+  touch-action: manipulation;
+}
+
+html[data-mobile-ui="true"] .hero-card {
+  min-height: 210px;
+}
+
+html[data-mobile-ui="true"] .hero-card::after {
+  width: 240px;
+  height: 240px;
+  right: -110px;
+  top: -120px;
+  border-width: 38px;
+}
+
+html[data-mobile-ui="true"] .option {
+  grid-template-columns: 2rem minmax(0, 1fr) 1.1rem;
+  gap: .65rem;
+  padding: .8rem;
+}
+
+html[data-mobile-ui="true"] .route-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: .35rem;
+}
+
+html[data-mobile-ui="true"] .timeline-row {
+  grid-template-columns: 2.4rem minmax(0, 1fr);
+}
+
+html[data-mobile-ui="true"] .timeline-row > strong {
+  grid-column: 2;
+  white-space: normal;
+}
+
+html[data-mobile-ui="true"] .mobile-app-header,
+html[data-mobile-ui="true"] .mobile-bottom-nav {
+  display: block;
+}
+
+@media (max-width: 767px) {
+  body {
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+  }
+
+  main, [role="main"] { max-width: 100vw; }
+
+  [data-slot="tabs-list"] {
+    width: 100%;
+    max-width: 100%;
+    justify-content: flex-start;
+    gap: .35rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  [data-slot="tabs-list"]::-webkit-scrollbar { display: none; }
+  [data-slot="tabs-trigger"] { min-height: 2.6rem; flex: 0 0 auto; white-space: nowrap; }
+  aside [data-slot="tabs-list"] { flex-direction: row; }
+  aside [data-slot="tabs-trigger"] { width: auto; }
+
+  .data-table { min-width: 640px; }
+  .hero-card { min-height: 210px; }
+  .route-row { grid-template-columns: minmax(0, 1fr); gap: .35rem; }
+  .timeline-row { grid-template-columns: 2.4rem minmax(0, 1fr); }
+  .timeline-row > strong { grid-column: 2; white-space: normal; }
+
+  footer { padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important; }
+}
