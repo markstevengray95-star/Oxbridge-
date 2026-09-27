@@ -44,20 +44,36 @@ function balanceAssumptionOptions<T extends { options: string[]; answer: number 
   return { ...question, options }
 }
 
-const familySerial = new Map<string, number>()
-
-// full-paper-system groups questions after stripping the final numeric id
-// segment, then round-robins those groups before splitting Forms 1 and 2.
-// Giving the 56 verified MCQs one of four stable family prefixes therefore
-// guarantees broad Logical Puzzle / Statistical / Assumption / Venn coverage
-// without special-casing UCAT inside the shared paper allocator.
-export const ucatDecisionMakingProductionMcqBank = source.map(question => {
+const familyOrder = ["puzzle", "statistical", "assumption", "venn"] as const
+const byFamily = new Map<string, typeof source>()
+for (const family of familyOrder) byFamily.set(family, [])
+for (const question of source) {
   const family = familyFor(question.id)
-  const serial = (familySerial.get(family) ?? 0) + 1
-  familySerial.set(family, serial)
-  const strengthened = family === "assumption" ? balanceAssumptionOptions(question) : question
-  return {
-    ...strengthened,
-    id: `ucat-dm-production-${family}-${serial}`,
+  byFamily.get(family)?.push(question)
+}
+
+const buckets: typeof source[] = [[], [], [], []]
+for (const family of familyOrder) {
+  const questions = byFamily.get(family) ?? []
+  if (questions.length !== 14) {
+    throw new Error(`UCAT Decision Making production bank expects 14 ${family} items; found ${questions.length}.`)
   }
-})
+  questions.forEach((question, index) => buckets[index % buckets.length].push(question))
+}
+
+// The shared paper allocator round-robins id families and then sends alternating
+// positions to Forms 1 and 2. Four pure reasoning-family groups therefore caused
+// one form to receive only two of the four MCQ families. These four production
+// buckets deliberately contain a balanced mix of all reasoning families. Any
+// two buckets therefore give each form broad Logical Puzzle, Statistical,
+// Assumption and Venn/Set coverage while preserving zero prompt overlap.
+export const ucatDecisionMakingProductionMcqBank = buckets.flatMap((bucket, bucketIndex) =>
+  bucket.map((question, index) => {
+    const family = familyFor(question.id)
+    const strengthened = family === "assumption" ? balanceAssumptionOptions(question) : question
+    return {
+      ...strengthened,
+      id: `ucat-dm-production-bucket-${bucketIndex + 1}-${index + 1}`,
+    }
+  }),
+)
