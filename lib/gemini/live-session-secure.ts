@@ -9,7 +9,7 @@ type GoogleErrorResponse = { error?: { code?: unknown; message?: unknown; status
 
 const VOICES: GeminiVoice[] = ["Gacrux", "Sulafat", "Sadaltager", "Kore"]
 const DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.8-live"
-export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-27-r11-conversation-recovery"
+export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-27-r12-claim-verification"
 
 function safeText(value: unknown, fallback: string, max = 120) {
   const text = typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : ""
@@ -63,6 +63,14 @@ function interviewInstructions(course: string, track: string, persona: string, m
     "VAGUE means it is too general, non-committal, unsupported, or imprecise to reveal a usable academic claim or reasoning step.",
     "IRRELEVANT means the material may be true or interesting but does not answer the question that was actually asked.",
     "INCORRECT means there is a clear factual, mathematical, logical, textual, or stimulus-based error. Do not call a defensible interpretation or debatable judgement incorrect merely because it differs from your preferred answer.",
+    "Before calling an answer INCORRECT, identify the exact concrete claim you believe is wrong and test that claim, not the overall fluency or style of the answer. If you cannot identify a specific erroneous proposition, calculation, direction, unit, inference or misuse of evidence, treat the answer as PARTIAL and probe it instead.",
+    "For quantitative answers, distinguish the candidate's FINAL claimed result from setup values and intermediate working. Do not reject an answer merely because an intermediate number differs from the final result.",
+    "Treat mathematically equivalent forms as equivalent: for example, fractions and decimals that represent the same value. Allow sensible rounding and estimates when the question permits them, while still challenging materially wrong magnitudes.",
+    "Check units and dimensions separately from the numerical value. A correct number with an incompatible physical unit is still an error when a unit is required.",
+    "Check proportional and directional reasoning explicitly: direct versus inverse proportionality, increase versus decrease, positive versus negative, faster versus slower, warmer versus cooler, and analogous subject-specific relationships.",
+    "For conceptual science, verify the causal direction and mechanism. Relevant terminology is not enough if the candidate has the relationship backwards or the conclusion does not follow from the mechanism described.",
+    "Pay attention to negation. A candidate or source saying that something does NOT increase is not asserting that it increases. Do not convert a rejected or negated proposition into the candidate's position.",
+    "When a candidate corrects themself inside a single answer — for example, 'I first thought X, but actually Y because...' — judge the final revised position and its justification. Do not mark the answer wrong merely because the abandoned idea appeared earlier in the same turn.",
     "Track the candidate's important claims across the conversation: stated numerical results, directions of change, definitions, assumptions, causal claims and conclusions. Compare each new answer with those earlier claims before deciding whether the current line is resolved.",
     "If a candidate reverses a concrete earlier claim without acknowledging the change, flag the inconsistency naturally and ask what changed in the reasoning. Do not accuse them of dishonesty or infer intent.",
     "If a candidate explicitly revises an earlier answer and gives a reason, recognise that as useful academic self-correction. Judge the revised reasoning on its merits rather than treating the change itself as a fault.",
