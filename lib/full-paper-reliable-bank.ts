@@ -23,6 +23,7 @@ import { repairSemanticAnswerCues } from "@/lib/question-integrity-repair"
 import { repairLnatAnswerLengthCue } from "@/lib/lnat-answer-cue-repair"
 import { repairUcatVrAnswerLengthCue } from "@/lib/ucat-vr-answer-cue-repair"
 import { repairUcatDmAnswerLengthCue } from "@/lib/ucat-dm-answer-cue-repair"
+import { repairEsatBiologyAnswerLengthCue } from "@/lib/esat-biology-answer-cue-repair"
 
 // Keep the original diverse bank as reliable reserve material rather than
 // removing whole sections when an upgraded bank is present. The paper builder
@@ -34,7 +35,8 @@ const repair = (question: Parameters<typeof repairQuestionReliability>[0]) => {
   const lnatRepaired = repairLnatAnswerLengthCue(semanticallyRepaired)
   const verbalReasoningRepaired = repairUcatVrAnswerLengthCue(lnatRepaired)
   const decisionMakingRepaired = repairUcatDmAnswerLengthCue(verbalReasoningRepaired)
-  return decisionMakingRepaired.test === "TARA" ? ensureTaraFiveOptions(decisionMakingRepaired) : decisionMakingRepaired
+  const biologyRepaired = repairEsatBiologyAnswerLengthCue(decisionMakingRepaired)
+  return biologyRepaired.test === "TARA" ? ensureTaraFiveOptions(biologyRepaired) : biologyRepaired
 }
 
 // Generic distractor strengthening treats absolute words as suspicious cues.
