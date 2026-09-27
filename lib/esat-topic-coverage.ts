@@ -94,14 +94,14 @@ export function esatCoverageTopic(question: TestQuestion): EsatCoverageTopic | "
   }
 
   if (question.section === "Chemistry") {
-    if (starts(id, "uniq-esat-chem-atom-")) return "Atomic structure and periodicity"
-    if (starts(id, "esat-spec-chem-reactions-")) return "Reactions and equilibrium"
-    if (/^uniq-esat-chem-(moles|conc|dilute|stoich|yield)-/.test(id)) return "Quantitative chemistry"
-    if (starts(id, "esat-spec-chem-bonding-")) return "Bonding and structure"
-    if (starts(id, "esat-spec-chem-acids-")) return "Reactivity and acids"
-    if (starts(id, "esat-spec-chem-energetics-")) return "Energetics and rates"
-    if (starts(id, "esat-spec-chem-electroorganic-")) return "Electrochemistry and organic chemistry"
-    if (starts(id, "esat-spec-chem-analysis-")) return "Analysis, air and water"
+    if (starts(id, "esat-chem-challenge-atomic-") || starts(id, "uniq-esat-chem-atom-")) return "Atomic structure and periodicity"
+    if (starts(id, "esat-chem-challenge-equilibrium-") || starts(id, "esat-spec-chem-reactions-")) return "Reactions and equilibrium"
+    if (starts(id, "esat-chem-challenge-quantitative-") || /^uniq-esat-chem-(moles|conc|dilute|stoich|yield)-/.test(id)) return "Quantitative chemistry"
+    if (starts(id, "esat-chem-challenge-bonding-") || starts(id, "esat-spec-chem-bonding-")) return "Bonding and structure"
+    if (starts(id, "esat-chem-challenge-acids-") || starts(id, "esat-spec-chem-acids-")) return "Reactivity and acids"
+    if (starts(id, "esat-chem-challenge-energetics-") || starts(id, "esat-spec-chem-energetics-")) return "Energetics and rates"
+    if (starts(id, "esat-chem-challenge-electroorganic-") || starts(id, "esat-spec-chem-electroorganic-")) return "Electrochemistry and organic chemistry"
+    if (starts(id, "esat-chem-challenge-analysis-") || starts(id, "esat-spec-chem-analysis-")) return "Analysis, air and water"
   }
 
   if (question.section === "Biology") {
