@@ -84,13 +84,13 @@ export function esatCoverageTopic(question: TestQuestion): EsatCoverageTopic | "
   }
 
   if (question.section === "Physics") {
-    if (starts(id, "uniq-esat-phy-ohm-")) return "Electricity"
-    if (starts(id, "esat-spec-physics-magnetism-")) return "Magnetism"
-    if (/^uniq-esat-phy-(force|energy|momentum|power)-/.test(id)) return "Mechanics"
-    if (starts(id, "esat-spec-physics-thermal-")) return "Thermal physics"
-    if (/^uniq-esat-phy-(density|pressure)-/.test(id)) return "Matter"
-    if (starts(id, "uniq-esat-phy-wave-")) return "Waves"
-    if (starts(id, "esat-spec-physics-radioactivity-")) return "Radioactivity"
+    if (starts(id, "esat-physics-challenge-electricity-") || starts(id, "uniq-esat-phy-ohm-")) return "Electricity"
+    if (starts(id, "esat-physics-challenge-magnetism-") || starts(id, "esat-spec-physics-magnetism-")) return "Magnetism"
+    if (starts(id, "esat-physics-challenge-mechanics-") || /^uniq-esat-phy-(force|energy|momentum|power)-/.test(id)) return "Mechanics"
+    if (starts(id, "esat-physics-challenge-thermal-") || starts(id, "esat-spec-physics-thermal-")) return "Thermal physics"
+    if (starts(id, "esat-physics-challenge-matter-") || /^uniq-esat-phy-(density|pressure)-/.test(id)) return "Matter"
+    if (starts(id, "esat-physics-challenge-waves-") || starts(id, "uniq-esat-phy-wave-")) return "Waves"
+    if (starts(id, "esat-physics-challenge-radioactivity-") || starts(id, "esat-spec-physics-radioactivity-")) return "Radioactivity"
   }
 
   if (question.section === "Chemistry") {
