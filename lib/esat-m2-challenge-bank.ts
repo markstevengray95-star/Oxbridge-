@@ -28,13 +28,20 @@ function mc(
 
 const out: TestQuestion[] = []
 const angles = [30, 45, 60, 30, 45, 60, 30, 45]
+const contexts = [
+  "telescope calibration",
+  "bridge-load model",
+  "satellite tracking problem",
+  "laboratory sensor study",
+  "railway optimisation model",
+  "renewable-energy trial",
+  "robotics motion test",
+  "fluid-flow simulation",
+] as const
 
 for (let i = 0; i < 8; i++) {
-  // These IDs deliberately end in a descriptive suffix rather than a bare
-  // number. The paper assembler strips only trailing numeric variant markers;
-  // keeping each challenge item independently rankable lets admissions-level
-  // quality remain primary while topic breadth is still enforced separately.
   const variant = `${i}-linked`
+  const context = contexts[i]
 
   // Algebra and functions: linked function evaluation.
   const a = 2 + (i % 4)
@@ -45,7 +52,7 @@ for (let i = 0; i < 8; i++) {
   const result = fn * fn - c
   out.push(mc(
     `esat-m2-challenge-algebra-${variant}`,
-    `Given f(x) = ${a}x + ${b} and g(x) = x² − ${c}, use both functions together to evaluate g(f(${n})).`,
+    `During a ${context}, an input is transformed first by f(x) = ${a}x + ${b} and then by g(x) = x² − ${c}. Given an initial input of ${n}, what output is produced after both transformations?`,
     String(result),
     [String(fn - c), String(fn * fn + c), String(a * fn + b - c)],
     `First f(${n})=${a}×${n}+${b}=${fn}. Then g(f(${n}))=${fn}²−${c}=${result}.`,
@@ -61,10 +68,10 @@ for (let i = 0; i < 8; i++) {
   const blockSum = sumTo(q) - sumTo(p - 1)
   out.push(mc(
     `esat-m2-challenge-sequences-${variant}`,
-    `An arithmetic sequence has first term ${first} and common difference ${d}. Given that only terms ${p} through ${q}, inclusive, are required, what is their total?`,
+    `A ${context} generates an arithmetic sequence with first term ${first} and common difference ${d}. Only readings ${p} through ${q}, inclusive, are retained. What is the sum of the retained readings?`,
     String(blockSum),
     [String(sumTo(q)), String(sumTo(q) - sumTo(p)), String((q - p + 1) * (first + (p - 1) * d))],
-    `Use Sₙ=n/2[2a+(n−1)d]. S_${q}=${sumTo(q)} and S_${p - 1}=${sumTo(p - 1)}, so the required block sum is ${sumTo(q)}−${sumTo(p - 1)}=${blockSum}.`,
+    `Use Sₙ=n/2[2a+(n−1)d]. S_${q}=${sumTo(q)} and S_${p - 1}=${sumTo(p - 1)}, so the retained block totals ${sumTo(q)}−${sumTo(p - 1)}=${blockSum}.`,
     i + 13,
   ))
 
@@ -77,10 +84,10 @@ for (let i = 0; i < 8; i++) {
   const intercept = m * k - perpGradient * k
   out.push(mc(
     `esat-m2-challenge-coordinate-${variant}`,
-    `Points A(0, 0) and B(${x2}, ${y2}) are endpoints of a line segment. Using both the midpoint and the perpendicular gradient, what is the y-intercept of the perpendicular bisector of AB?`,
+    `In a ${context}, two recorded positions are A(0, 0) and B(${x2}, ${y2}). A boundary must be the perpendicular bisector of AB. Using both its midpoint and perpendicular gradient, what is the boundary's y-intercept?`,
     intercept.toFixed(2),
     [(m * k).toFixed(2), (k / m).toFixed(2), (-m * k).toFixed(2)],
-    `AB has gradient ${m}, so the perpendicular gradient is ${perpGradient.toFixed(3)}. The midpoint is (${k}, ${m * k}). In y=${perpGradient.toFixed(3)}x+c, substituting the midpoint gives c=${m * k}−(${perpGradient.toFixed(3)}×${k})=${intercept.toFixed(2)}.`,
+    `AB has gradient ${m}, so the perpendicular gradient is ${perpGradient.toFixed(3)}. The midpoint is (${k}, ${m * k}). Substitution into y=${perpGradient.toFixed(3)}x+c gives c=${intercept.toFixed(2)}.`,
     i + 27,
   ))
 
@@ -92,10 +99,10 @@ for (let i = 0; i < 8; i++) {
   const area = 0.5 * adjacent * opposite
   out.push(mc(
     `esat-m2-challenge-trigonometry-${variant}`,
-    `A right-angled triangle has an acute angle of ${angle}° and adjacent side ${adjacent} cm. After finding the opposite side using tangent, what is the area of the triangle?`,
+    `A triangular component in a ${context} is right-angled. One acute angle is ${angle}° and its adjacent side is ${adjacent} cm. After determining the opposite side, what is the area of the component?`,
     `${area.toFixed(1)} cm²`,
     [`${(0.5 * adjacent * adjacent).toFixed(1)} cm²`, `${opposite.toFixed(1)} cm²`, `${(adjacent * opposite).toFixed(1)} cm²`],
-    `tan ${angle}°=opposite/${adjacent}, so opposite=${adjacent}tan${angle}°=${opposite.toFixed(2)} cm. Area=½×${adjacent}×${opposite.toFixed(2)}=${area.toFixed(1)} cm².`,
+    `tan ${angle}°=opposite/${adjacent}, so opposite=${opposite.toFixed(2)} cm. Area=½×${adjacent}×${opposite.toFixed(2)}=${area.toFixed(1)} cm².`,
     i + 41,
   ))
 
@@ -108,10 +115,10 @@ for (let i = 0; i < 8; i++) {
   const target = 2 ** exponent
   out.push(mc(
     `esat-m2-challenge-logarithms-${variant}`,
-    `Given that 2^(x + ${expOffset}) = ${target}, first determine x and then evaluate x² + ${extra}. Which value results?`,
+    `A parameter x in a ${context} satisfies 2^(x + ${expOffset}) = ${target}. Once x is obtained from the exponential relation, a second quantity is defined as x² + ${extra}. What is that second quantity?`,
     String(derived),
     [String(x + extra), String(exponent * exponent + extra), String(Math.max(0, x * x - extra))],
-    `${target}=2^${exponent}, so x+${expOffset}=${exponent} and x=${x}. Therefore x²+${extra}=${x}²+${extra}=${derived}.`,
+    `${target}=2^${exponent}, so x+${expOffset}=${exponent} and x=${x}. Therefore x²+${extra}=${derived}.`,
     i + 55,
   ))
 
@@ -125,10 +132,10 @@ for (let i = 0; i < 8; i++) {
   const tangentIntercept = y - gradient * t
   out.push(mc(
     `esat-m2-challenge-differentiation-${variant}`,
-    `For y = ${qa}x² + ${qb}x + ${qc}, the tangent is drawn at x = ${t}. After differentiating to obtain the gradient, what is the y-intercept of that tangent?`,
+    `A ${context} follows y = ${qa}x² + ${qb}x + ${qc}. At x = ${t}, a tangent is used as a local linear model. Differentiate, find the tangent gradient, and hence determine its y-intercept.`,
     String(tangentIntercept),
     [String(gradient), String(y), String(y + gradient * t)],
-    `dy/dx=${2 * qa}x+${qb}, so at x=${t} the gradient is ${gradient}. The point is (${t},${y}). Using y−${y}=${gradient}(x−${t}), the tangent's y-intercept is ${y}−${gradient}×${t}=${tangentIntercept}.`,
+    `dy/dx=${2 * qa}x+${qb}, giving gradient ${gradient} at x=${t}. The point is (${t},${y}), so the tangent intercept is ${y}−${gradient}×${t}=${tangentIntercept}.`,
     i + 69,
   ))
 
@@ -141,10 +148,10 @@ for (let i = 0; i < 8; i++) {
   const average = integral / upper
   out.push(mc(
     `esat-m2-challenge-integration-${variant}`,
-    `The function f(x) = ${ia}x² + ${ib}x + ${ic} is considered on 0 ≤ x ≤ ${upper}. Given that the average value is (1/${upper}) times the definite integral over this interval, what is the average value of f?`,
+    `In a ${context}, f(x) = ${ia}x² + ${ib}x + ${ic} for 0 ≤ x ≤ ${upper}. The required reported value is the mean of f across the interval, equal to the definite integral divided by interval length. What value should be reported?`,
     average.toFixed(2),
     [integral.toFixed(2), `${(ia * upper ** 2 + ib * upper + ic).toFixed(2)}`, `${(integral / (upper + 1)).toFixed(2)}`],
-    `∫₀^${upper}f(x)dx=[${ia}x³/3+${ib}x²/2+${ic}x]₀^${upper}=${integral.toFixed(2)}. Dividing by interval length ${upper} gives average value ${average.toFixed(2)}.`,
+    `The definite integral is ${integral.toFixed(2)}. Dividing by the interval length ${upper} gives the mean value ${average.toFixed(2)}.`,
     i + 83,
   ))
 
@@ -155,10 +162,10 @@ for (let i = 0; i < 8; i++) {
   const finalX = shift - h
   out.push(mc(
     `esat-m2-challenge-graphs-${variant}`,
-    `The graph y = (x − ${h})² + ${v} has vertex (${h}, ${v}). It is reflected in the y-axis and then translated ${shift} units to the right. Where is the final vertex?`,
+    `A graph used in a ${context} is y = (x − ${h})² + ${v}, with vertex (${h}, ${v}). The graph is reflected in the y-axis and then translated ${shift} units to the right. What are the final vertex coordinates?`,
     `(${finalX}, ${v})`,
     [`(${h + shift}, ${v})`, `(${-h - shift}, ${v})`, `(${finalX}, ${-v})`],
-    `Reflection in the y-axis sends (${h},${v}) to (${-h},${v}). Translating ${shift} units right gives (${-h}+${shift},${v})=(${finalX},${v}).`,
+    `Reflection in the y-axis sends (${h},${v}) to (${-h},${v}). Translating ${shift} units right gives (${finalX},${v}).`,
     i + 97,
   ))
 }
