@@ -36,6 +36,7 @@ function loadTs(file) {
 
 const { buildFullPaper } = loadTs(path.join(root, "lib/full-paper-system.ts"))
 const promptSets = []
+const contextSets = []
 
 for (const form of [1, 2]) {
   const paper = buildFullPaper("UCAT", form)
@@ -50,8 +51,8 @@ for (const form of [1, 2]) {
   if (dataStimulus.length !== 36) {
     throw new Error(`UCAT Form ${form} QR should be fully data-stimulus led; found ${dataStimulus.length}/36 chart, graph or table questions.`)
   }
-  if (chartGraph.length < 24) {
-    throw new Error(`UCAT Form ${form} QR should contain a clear majority of chart/graph questions; found ${chartGraph.length}/36.`)
+  if (chartGraph.length < 28) {
+    throw new Error(`UCAT Form ${form} QR should contain a strong chart/graph majority; found ${chartGraph.length}/36.`)
   }
 
   const contexts = new Map()
@@ -61,15 +62,18 @@ for (const form of [1, 2]) {
     const context = match[1]
     contexts.set(context, (contexts.get(context) ?? 0) + 1)
   }
-  if (contexts.size !== 12 || [...contexts.values()].some(count => count !== 3)) {
-    throw new Error(`UCAT Form ${form} QR should contain 12 data sets with three questions each; found ${contexts.size} contexts with counts ${[...contexts.values()].join("/")}.`)
+  if (contexts.size !== 9 || [...contexts.values()].some(count => count !== 4)) {
+    throw new Error(`UCAT Form ${form} QR should contain nine four-item data testlets; found ${contexts.size} contexts with counts ${[...contexts.values()].join("/")}.`)
   }
 
   promptSets.push(new Set(section.questions.map(question => question.prompt.trim().toLowerCase())))
-  console.log(`UCAT QR Form ${form}: data stimuli=${dataStimulus.length}; chart/graph=${chartGraph.length}; data sets=${contexts.size}.`)
+  contextSets.push(new Set(contexts.keys()))
+  console.log(`UCAT QR Form ${form}: data stimuli=${dataStimulus.length}; chart/graph=${chartGraph.length}; testlets=${contexts.size}×4.`)
 }
 
 const overlap = [...promptSets[0]].filter(prompt => promptSets[1].has(prompt))
 if (overlap.length) throw new Error(`UCAT QR Forms 1 and 2 share ${overlap.length} prompt(s); expected zero overlap.`)
+const contextOverlap = [...contextSets[0]].filter(context => contextSets[1].has(context))
+if (contextOverlap.length) throw new Error(`UCAT QR Forms 1 and 2 share ${contextOverlap.length} data testlet(s); expected disjoint testlets.`)
 
-console.log("PASS: both UCAT QR forms preserve 36 questions/26 minutes, use 12 disjoint three-question data sets and maintain a clear chart/graph majority.")
+console.log("PASS: both UCAT QR forms preserve 36 questions/26 minutes, use nine disjoint four-item data testlets and maintain a strong chart/graph majority.")
