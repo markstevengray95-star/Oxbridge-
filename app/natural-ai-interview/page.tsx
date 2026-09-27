@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowLeft, AudioLines, Headphones, Loader2, Mic, MicOff, Sparkles, Volume2 } from "lucide-react"
+import { ArrowLeft, AudioLines, Headphones, Loader2, Mic, MicOff, Save, Sparkles, Volume2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +15,7 @@ type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
 type Capabilities = { gemini?: boolean; voices?: GeminiVoice[]; defaultVoice?: GeminiVoice }
 type AiReply = { reply?: string; provider?: string; configured?: boolean; degraded?: boolean }
 
+const progressKey = "oxbridge-tutor-progress-v2"
 const voiceLabels: Record<GeminiVoice, string> = {
   Gacrux: "Gacrux · mature and academic",
   Sulafat: "Sulafat · warm and conversational",
@@ -95,6 +96,8 @@ export default function NaturalAiInterviewPage() {
     const first = opening
     setQuestion(first)
     setTurns([{ role: "interviewer", text: first }])
+    setAnswer("")
+    setNotice("")
     setStarted(true)
     void speak(first)
   }
@@ -162,11 +165,45 @@ export default function NaturalAiInterviewPage() {
     setListening(false)
   }
 
+  const finishAndSave = () => {
+    const finalTurns = answer.trim() ? [...turns, { role: "candidate" as const, text: answer.trim() }] : turns
+    if (!finalTurns.some(turn => turn.role === "candidate")) {
+      setNotice("Give at least one answer before saving the interview.")
+      return
+    }
+    stopListening()
+    audioRef.current?.pause()
+    window.speechSynthesis?.cancel()
+    try {
+      const saved = JSON.parse(localStorage.getItem(progressKey) || "{}") as Record<string, unknown>
+      const logs = Array.isArray(saved.logs) ? saved.logs as Array<Record<string, unknown>> : []
+      localStorage.setItem(progressKey, JSON.stringify({
+        ...saved,
+        sessions: Number(saved.sessions ?? 0) + 1,
+        logs: [{
+          id: `natural-${Date.now()}`,
+          title: `Natural Voice Interview · ${course}`,
+          score: 0,
+          date: new Date().toISOString(),
+          events: finalTurns.map(turn => `${turn.role === "interviewer" ? "Interviewer" : "Candidate"}: ${turn.text}`),
+          voice,
+        }, ...logs].slice(0, 50),
+      }))
+      setTurns(finalTurns)
+      setAnswer("")
+      setStarted(false)
+      setNotice("Interview saved. You can review the full transcript in My History.")
+    } catch {
+      setNotice("The interview ended, but this browser could not save the transcript locally.")
+      setStarted(false)
+    }
+  }
+
   return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]">
     <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6 lg:px-8 lg:py-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <Button asChild variant="ghost"><Link href="/interviews"><ArrowLeft />Interview Hub</Link></Button>
-        <Badge className="border-0 bg-[#102a43] text-white"><AudioLines className="mr-1 size-3" />Gemini natural voice</Badge>
+        <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/history">My History</Link></Button><Badge className="border-0 bg-[#102a43] text-white"><AudioLines className="mr-1 size-3" />Gemini natural voice</Badge></div>
       </div>
 
       <section className="grid gap-5 lg:grid-cols-[.9fr_1.1fr]">
@@ -190,14 +227,14 @@ export default function NaturalAiInterviewPage() {
           <CardContent className="space-y-4">
             {notice && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div>}
             <div className="max-h-[360px] space-y-3 overflow-y-auto rounded-2xl bg-[#f8fafb] p-4">
-              {!started && <div className="grid min-h-64 place-items-center text-center text-sm text-[#71828a]">Choose your course and Gemini voice, then start the interview.</div>}
+              {!started && !turns.length && <div className="grid min-h-64 place-items-center text-center text-sm text-[#71828a]">Choose your course and Gemini voice, then start the interview.</div>}
               {turns.map((turn, i) => <div key={`${turn.role}-${i}`} className={`rounded-2xl p-4 ${turn.role === "interviewer" ? "bg-white shadow-sm" : "ml-auto max-w-[90%] bg-[#102a43] text-white"}`}><p className={`mb-1 text-[11px] font-bold uppercase tracking-wider ${turn.role === "interviewer" ? "text-[#147d91]" : "text-[#8dd7de]"}`}>{turn.role}</p><p className="text-sm leading-6">{turn.text}</p></div>)}
             </div>
 
             {started && <>
               <Textarea value={answer} onChange={e => setAnswer(e.target.value)} rows={5} placeholder="Type your reasoning, or use the microphone button if your browser supports speech recognition…" />
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex gap-2"><Button variant="outline" onClick={listening ? stopListening : startListening}>{listening ? <MicOff /> : <Mic />}{listening ? "Stop listening" : "Speak answer"}</Button><Button variant="outline" onClick={() => void speak(question)} disabled={speaking}>{speaking ? <Loader2 className="animate-spin" /> : <Volume2 />}Repeat question</Button></div>
+                <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={listening ? stopListening : startListening}>{listening ? <MicOff /> : <Mic />}{listening ? "Stop listening" : "Speak answer"}</Button><Button variant="outline" onClick={() => void speak(question)} disabled={speaking}>{speaking ? <Loader2 className="animate-spin" /> : <Volume2 />}Repeat question</Button><Button variant="outline" onClick={finishAndSave}><Save />Finish & save</Button></div>
                 <Button onClick={submit} disabled={!answer.trim() || thinking}>{thinking ? <><Loader2 className="animate-spin" />Thinking…</> : <><Sparkles />Send answer</>}</Button>
               </div>
             </>}
