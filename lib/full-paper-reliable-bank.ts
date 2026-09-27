@@ -2,6 +2,7 @@ import type { TestQuestion } from "@/lib/oxbridge-data"
 import { uniqueFullPaperQuestionBank } from "@/lib/full-paper-unique-bank"
 import { reliabilityUpgradeQuestionBank } from "@/lib/question-bank-reliability-upgrades"
 import { ucatQrReliabilityUpgradeBank } from "@/lib/ucat-qr-reliability-upgrades"
+import { ucatQrChallengeReserveBank } from "@/lib/ucat-qr-challenge-reserve"
 import { ucatSjtOfficialFormatBank } from "@/lib/ucat-sjt-official-format-bank"
 import { ucatDmChallengeBank } from "@/lib/ucat-dm-challenge-bank"
 import { tmuaChallengeBank } from "@/lib/tmua-challenge-bank"
@@ -62,7 +63,9 @@ function protectUcatSjtStructuredOptions(question: TestQuestion): TestQuestion {
 const originalRepaired = uniqueFullPaperQuestionBank.map(repair)
 const primaryUpgrades = reliabilityUpgradeQuestionBank
   .filter(question => !(question.test === "UCAT" && question.section === "Quantitative Reasoning"))
-const rawUpgrades = [...primaryUpgrades, ...ucatQrReliabilityUpgradeBank]
+// Two independent high-discrimination QR reserves are required because the full
+// paper system deliberately allocates distinct questions to Forms 1 and 2.
+const rawUpgrades = [...primaryUpgrades, ...ucatQrChallengeReserveBank, ...ucatQrReliabilityUpgradeBank]
 const upgradedRepaired = rawUpgrades.map(repair)
 const ucatSjtOfficialRepaired = ucatSjtOfficialFormatBank.map(repair).map(protectUcatSjtStructuredOptions)
 const ucatDmChallengeRepaired = ucatDmChallengeBank.map(repair)
@@ -96,6 +99,7 @@ export const reliableFullPaperQuestionBank = repaired.filter(question =>
 export const reliableFullPaperQuestionBankStats = {
   total: reliableFullPaperQuestionBank.length,
   upgraded: upgradedRepaired.length,
+  ucatQrChallengeReserve: ucatQrChallengeReserveBank.length,
   ucatSjtOfficialFormat: ucatSjtOfficialRepaired.length,
   ucatDmChallenge: ucatDmChallengeRepaired.length,
   tmuaChallenge: tmuaChallengeRepaired.length,
