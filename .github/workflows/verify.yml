@@ -33,6 +33,9 @@ jobs:
       - name: Cloud sync regression checks
         run: node tests/cloud-sync-config.cjs
 
+      - name: Private history persistence checks
+        run: node tests/user-history-persistence.cjs
+
       - name: Tutor command centre integration checks
         run: node tests/tutor-command-centre.cjs
 
