@@ -94,18 +94,18 @@ for (let i = 0; i < 8; i++) {
   ))
 
   // Exponentials and logarithms: solve an exponential relation then use x.
-  const p = 1 + (i % 4)
+  const expOffset = 1 + (i % 4)
   const exponent = 4 + (i % 5)
-  const x = exponent - p
+  const x = exponent - expOffset
   const extra = 2 + (i % 6)
   const derived = x * x + extra
   const target = 2 ** exponent
   out.push(mc(
     `esat-m2-challenge-logarithms-${i}`,
-    `Given that 2^(x + ${p}) = ${target}, first determine x and then evaluate x² + ${extra}. Which value results?`,
+    `Given that 2^(x + ${expOffset}) = ${target}, first determine x and then evaluate x² + ${extra}. Which value results?`,
     String(derived),
     [String(x + extra), String(exponent * exponent + extra), String(Math.max(0, x * x - extra))],
-    `${target}=2^${exponent}, so x+${p}=${exponent} and x=${x}. Therefore x²+${extra}=${x}²+${extra}=${derived}.`,
+    `${target}=2^${exponent}, so x+${expOffset}=${exponent} and x=${x}. Therefore x²+${extra}=${x}²+${extra}=${derived}.`,
     i + 55,
   ))
 
