@@ -3,7 +3,7 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup]
+    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access]
 
 permissions:
   contents: read
@@ -26,6 +26,9 @@ jobs:
 
       - name: Mobile navigation regression checks
         run: node tests/mobile-navigation.cjs
+
+      - name: Non-admin AI access regression checks
+        run: node tests/non-admin-ai-access.cjs
 
       - name: Cloud sync regression checks
         run: node tests/cloud-sync-config.cjs
