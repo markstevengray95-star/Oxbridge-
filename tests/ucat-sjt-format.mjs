@@ -76,6 +76,8 @@ for (const question of ucatSjtOfficialFormatBank) {
 if (sourceGroups.size !== 20) throw new Error(`UCAT official-format SJT bank should contain 20 scenarios; found ${sourceGroups.size}.`)
 if ([...sourceGroups.values()].some(group => group.length !== 5)) throw new Error("Every UCAT official-format SJT source scenario must contain exactly five questions.")
 
+const formScenarioSets = []
+
 for (const form of [1, 2]) {
   const paper = buildFullPaper("UCAT", form)
   const section = paper.sections.find(item => item.id === "sjt")
@@ -120,7 +122,7 @@ for (const form of [1, 2]) {
     }
   }
 
-  if (groups.size !== 16) throw new Error(`UCAT Form ${form} SJT should contain 16 scenario groups; found ${groups.size}.`)
+  if (groups.size !== 22) throw new Error(`UCAT Form ${form} SJT should contain 22 scenario groups; found ${groups.size}.`)
   for (const [key, group] of groups) {
     if (group.length < 3 || group.length > 6) throw new Error(`UCAT Form ${form} SJT scenario ${key} has ${group.length} questions; expected 3–6.`)
   }
@@ -130,7 +132,11 @@ for (const form of [1, 2]) {
   if (importance < 8) throw new Error(`UCAT Form ${form} contains only ${importance} importance ratings; expected at least 8.`)
   if (mostLeast < 4) throw new Error(`UCAT Form ${form} contains only ${mostLeast} most/least items; expected at least 4.`)
 
+  formScenarioSets.push(new Set(groups.keys()))
   console.log(`UCAT SJT Form ${form}: scenarios=${groups.size}; appropriateness=${appropriateness}; direct-speech=${directSpeech}; importance=${importance}; most/least=${mostLeast}.`)
 }
 
-console.log("PASS: both UCAT SJT forms preserve 69 questions/26 minutes and contain a substantial mix of official-style appropriateness, direct-speech, importance and most/least judgements.")
+const overlap = [...formScenarioSets[0]].filter(key => formScenarioSets[1].has(key))
+if (overlap.length) throw new Error(`UCAT SJT Forms 1 and 2 share ${overlap.length} scenario group(s); expected zero overlap.`)
+
+console.log("PASS: both UCAT SJT forms preserve 69 questions/26 minutes across 22 disjoint scenario groups and retain a substantial mix of official-style judgement formats.")
