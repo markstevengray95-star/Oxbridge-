@@ -9,6 +9,7 @@ const mirror = read("components/history-cloud-mirror.tsx")
 const layout = read("app/layout.tsx")
 const history = read("app/history/page.tsx")
 const privacyExport = read("app/api/privacy/export/route.ts")
+const naturalInterview = read("app/natural-ai-interview/page.tsx")
 
 const requiredMigrationSnippets = [
   "create table if not exists public.test_results",
@@ -33,6 +34,9 @@ if (!mirror.includes('.from("test_results")') || !mirror.includes("fullPaperResu
 }
 if (!mirror.includes("/interview|panel/i")) {
   throw new Error("Interview history mirror is not broad enough to capture the app's interview modes.")
+}
+if (!naturalInterview.includes("Finish & save") || !naturalInterview.includes("Natural Voice Interview ·")) {
+  throw new Error("Natural voice interviews do not expose a finish-and-save transcript path.")
 }
 if (!history.includes('.from("interview_sessions")') || !history.includes('.from("test_results")')) {
   throw new Error("Unified history page does not load both interviews and tests.")
