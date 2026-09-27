@@ -5,6 +5,7 @@ import { ucatQrOfficialDataBank } from "@/lib/ucat-qr-official-data-bank"
 import { ucatVrMixedFormatBank } from "@/lib/ucat-vr-mixed-format-bank"
 import { ucatDecisionMakingProductionMcqBank } from "@/lib/ucat-dm-official-production-bank"
 import { ucatSjtOfficialFormatBank } from "@/lib/ucat-sjt-official-format-bank"
+import { ucatDmChallengeBank } from "@/lib/ucat-dm-challenge-bank"
 import { tmuaChallengeBank } from "@/lib/tmua-challenge-bank"
 import { tmuaSpecificationExpansionBank } from "@/lib/tmua-spec-expansion"
 import { esatM1ChallengeBank } from "@/lib/esat-m1-challenge-bank"
@@ -28,8 +29,9 @@ import { repairEsatBiologyAnswerLengthCue } from "@/lib/esat-biology-answer-cue-
 // Keep the original diverse bank as reliable reserve material rather than
 // removing whole sections when an upgraded bank is present. Timed UCAT VR, DM
 // and QR are exceptions: dedicated current-format banks preserve the official
-// response mix, reasoning-family breadth and data-led QR style. Legacy UCAT
-// questions remain elsewhere in the app but are excluded from full-paper assembly.
+// response mix, reasoning-family breadth and data-led QR style. The stronger DM
+// reserve is deliberately retained as extra material because the current family
+// allocator can balance it across the same four single-answer reasoning families.
 const repair = (question: Parameters<typeof repairQuestionReliability>[0]) => {
   const structurallyRepaired = repairQuestionReliability(question)
   const semanticallyRepaired = repairSemanticAnswerCues(structurallyRepaired)
@@ -93,6 +95,7 @@ const rawUpgrades = [...primaryUpgrades]
 const upgradedRepaired = rawUpgrades.map(repair)
 
 const ucatVrMixedFormatRepaired = ucatVrMixedFormatBank.map(repair)
+const ucatDmChallengeRepaired = ucatDmChallengeBank.map(repair)
 const ucatDmOfficialRepaired = ucatDecisionMakingProductionMcqBank.map(repair)
 const ucatQrOfficialRepaired = ucatQrOfficialDataBank.map(repair)
 const ucatSjtOfficialRepaired = ucatSjtOfficialFormatBank.map(repair).map(protectUcatSjtStructuredOptions)
@@ -124,6 +127,7 @@ const repaired = [
   ...taraRelevantSelectionRepaired,
   ...taraSimilarityRepaired,
   ...ucatVrMixedFormatRepaired,
+  ...ucatDmChallengeRepaired,
   ...ucatDmOfficialRepaired,
   ...ucatQrOfficialRepaired,
   ...ucatSjtOfficialRepaired,
@@ -139,6 +143,7 @@ export const reliableFullPaperQuestionBankStats = {
   total: reliableFullPaperQuestionBank.length,
   upgraded: upgradedRepaired.length,
   ucatVrMixedFormat: ucatVrMixedFormatRepaired.length,
+  ucatDmChallenge: ucatDmChallengeRepaired.length,
   ucatDmOfficial: ucatDmOfficialRepaired.length,
   ucatQrOfficialData: ucatQrOfficialRepaired.length,
   ucatSjtOfficialFormat: ucatSjtOfficialRepaired.length,
