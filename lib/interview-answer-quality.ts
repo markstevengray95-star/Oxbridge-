@@ -118,11 +118,29 @@ function quantityClaims(text: string): QuantityClaim[] {
   return claims
 }
 
+function firstQuantity(text: string) {
+  const claims = quantityClaims(text)
+  return claims.length ? claims[0] : null
+}
+
 function explicitClaimQuantities(text: string, question = "") {
-  const marker = /\b(?:answer|result|value|estimate|therefore|hence|so(?:\s+the)?(?:\s+[a-z]+){0,3})\s*(?:is|are|=|gives?|comes?\s+to)\s*([^.!?;]+)/gi
-  const explicit: QuantityClaim[] = []
-  for (const match of text.matchAll(marker)) explicit.push(...quantityClaims(match[1]))
-  if (explicit.length) return explicit
+  const decisivePatterns = [
+    /\bexactly\s+([^.!?;]+)/gi,
+    /\b(?:answer|result|value|estimate|therefore|hence|so(?:\s+the)?(?:\s+[a-z]+){0,3})\s*(?:is|are|=|gives?|comes?\s+to)\s*([^.!?;]+)/gi,
+  ]
+  for (const pattern of decisivePatterns) {
+    for (const match of text.matchAll(pattern)) {
+      const claim = firstQuantity(match[1])
+      if (claim) return [claim]
+    }
+  }
+
+  if (NUMERICAL_QUESTION.test(question)) {
+    for (const match of text.matchAll(/\b(?:but|however|therefore|hence|so)\b([^.!?;]+)/gi)) {
+      const claim = firstQuantity(match[1])
+      if (claim) return [claim]
+    }
+  }
 
   const all = quantityClaims(text)
   if (NUMERICAL_QUESTION.test(question)) {
