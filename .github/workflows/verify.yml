@@ -3,7 +3,7 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main]
+    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup]
 
 permissions:
   contents: read
@@ -23,6 +23,9 @@ jobs:
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
+
+      - name: Mobile navigation regression checks
+        run: node tests/mobile-navigation.cjs
 
       - name: Cloud sync regression checks
         run: node tests/cloud-sync-config.cjs
