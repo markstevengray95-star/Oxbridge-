@@ -35,8 +35,8 @@ function loadTs(file) {
 }
 
 function scenarioKey(question) {
-  const match = question.id.match(/^(?:upgrade|uniq)-ucat-sjt-(\d+)-\d+$/)
-  return match ? match[1] : null
+  const match = question.id.match(/^(upgrade|uniq)-ucat-sjt-(\d+)-\d+$/)
+  return match ? `${match[1]}-${match[2]}` : null
 }
 
 function sameSet(actual, expected) {
