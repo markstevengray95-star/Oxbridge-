@@ -134,6 +134,26 @@ if (revision.classification !== "responsive" || revision.issue !== "none") {
   throw new Error(`Explicit justified revision should remain academically responsive, found ${JSON.stringify(revision)}.`)
 }
 
+const sameTurnRevision = evaluateInterviewAnswerLocally({
+  question: "Milk is added to cup A immediately and cup B later. Which is warmer after ten minutes, and why?",
+  answer: "I first thought cup A would be cooler, but actually it should be warmer because adding the milk early lowers the temperature difference and therefore reduces the rate of heat loss.",
+  concepts: ["temperature difference", "rate", "energy"],
+  referenceAnswer: "Adding milk early lowers the temperature difference, so cup A generally loses less energy and is warmer at the end.",
+})
+if (sameTurnRevision.classification === "incorrect") {
+  throw new Error(`A candidate who corrects themself inside the same answer must be judged on the revised position, found ${JSON.stringify(sameTurnRevision)}.`)
+}
+
+const negatedRelationship = evaluateInterviewAnswerLocally({
+  question: "How does resistance change as cross-sectional area increases for a wire of fixed material and length?",
+  answer: "Resistance decreases as the cross-sectional area increases because the relationship is inverse.",
+  concepts: ["resistance", "cross-sectional area", "inverse"],
+  referenceAnswer: "Resistance does not increase with cross-sectional area; it decreases because resistance is inversely proportional to area.",
+})
+if (negatedRelationship.classification === "incorrect") {
+  throw new Error(`A negated reference phrase must not be treated as an affirmed opposite claim, found ${JSON.stringify(negatedRelationship)}.`)
+}
+
 const buzzwordInput = {
   question: "Why does increasing temperature usually increase the rate of a chemical reaction?",
   answer: "Activation energy, collision theory, kinetic energy, particle distributions, successful collisions and Maxwell-Boltzmann ideas are all relevant concepts that scientists use when discussing reactions in chemistry.",
@@ -229,4 +249,4 @@ for (const marker of [
   if (!liveSource.includes(marker)) throw new Error(`Gemini Live instructions are missing conversation-aware answer-quality gate: ${marker}`)
 }
 
-console.log("PASS: interview modes catch wrong values, units, directions and proportional relationships; tolerate sensible rounding/equivalent forms; reject unsupported fluency; and preserve contradiction/repetition repair behaviour.")
+console.log("PASS: interview modes catch wrong values, units, directions and proportional relationships; tolerate sensible rounding/equivalent forms; respect same-turn self-correction and negation; reject unsupported fluency; and preserve contradiction/repetition repair behaviour.")
