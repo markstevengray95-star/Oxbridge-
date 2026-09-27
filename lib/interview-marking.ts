@@ -45,7 +45,8 @@ const REVISION = /\b(?:actually|on reflection|i would revise|i'd revise|i would 
 const EXPLICIT_CLAIM = /\b(?:my answer is|i would say|my view is|therefore|so the answer|this means|i conclude|it follows|the result is|the stronger explanation is|the most likely explanation is)\b/i
 const QUANTITATIVE = /(?:\d|[=<>≤≥√π²³×÷+−*/%])/
 const SPECIFICITY = /\b(?:specifically|for example|for instance|approximately|proportional|gradient|rate|unit|mechanism|evidence|because|therefore|compared with|relative to)\b/i
-const META_FILLER = /\b(?:as an ai|as a language model|this is a complex question|there are many factors to consider|in today's society|throughout history|it is important to note)\b/i
+const SPECIFIC_RELATION = /\b(?:same temperature|equal temperature|different temperature|faster|slower|more quickly|more slowly|higher|lower|warmer|cooler|increases?|decreases?|causes?|leads? to|results? in|proportional|inversely|directly|because .{0,55}\b(?:than|so|therefore)|if .{0,55}\bthen)\b/i
+const META_FILLER = /\b(?:as an ai|as a language model|this is a complex question|there are many factors to consider|in today's society|throughout history|it is important to note|important scientific ideas|relevant concepts|scientists use|in many situations|experiments are useful|several concepts are relevant)\b/i
 
 const classificationFactor: Record<InterviewAnswerClassification, number> = {
   incorrect: 0.34,
@@ -73,6 +74,12 @@ function conceptHits(answer: string, concepts: string[]) {
     const clean = concept.trim().toLowerCase()
     return clean.length >= 3 && lower.includes(clean)
   }).length
+}
+
+function looksLikeKeywordDump(answer: string, concepts: string[]) {
+  const hits = conceptHits(answer, concepts)
+  const manyConcepts = hits >= Math.min(4, Math.max(3, concepts.length - 1))
+  return wordCount(answer) >= 35 && manyConcepts && (META_FILLER.test(answer) || !SPECIFIC_RELATION.test(answer))
 }
 
 function lexicalSet(text: string) {
@@ -124,7 +131,8 @@ function responsivenessScore(classification: InterviewAnswerClassification, dire
   if (classification === "partial") score += 1
   if (classification === "irrelevant") score -= 4
   if (META_FILLER.test(answer)) score -= 2
-  return clamp(score, 0, 15)
+  const cap = classification === "irrelevant" ? 5 : classification === "vague" ? 9 : classification === "incorrect" ? 8 : classification === "partial" ? 12 : 15
+  return clamp(score, 0, cap)
 }
 
 function evidenceScore(answer: string, classification: InterviewAnswerClassification) {
@@ -136,6 +144,7 @@ function evidenceScore(answer: string, classification: InterviewAnswerClassifica
   if (classification === "responsive") score += 1
   if (classification === "incorrect") score = Math.min(score, 8)
   if (classification === "irrelevant") score = Math.min(score, 6)
+  if (classification === "vague") score = Math.min(score, 8)
   return clamp(score, 0, 15)
 }
 
@@ -148,6 +157,7 @@ function communicationScore(answer: string, classification: InterviewAnswerClass
   if (words <= 2 && !QUANTITATIVE.test(answer)) score -= 2
   if (META_FILLER.test(answer)) score -= 1
   if (classification === "irrelevant") score = Math.min(score, 2)
+  if (classification === "vague") score = Math.min(score, 3)
   return clamp(score, 0, 5)
 }
 
@@ -172,13 +182,19 @@ function buildAssessments(turns: InterviewMarkingTurn[], concepts: string[], ref
       referenceAnswer: candidateIndex === 0 ? referenceAnswer : undefined,
       previousAnswers,
     })
-    const classification = turn.quality ?? local.classification
+    const suppliedClassification = turn.quality ?? local.classification
+    const keywordDump = looksLikeKeywordDump(answer, concepts)
+    const classification: InterviewAnswerClassification = keywordDump && suppliedClassification !== "incorrect" && suppliedClassification !== "irrelevant"
+      ? "vague"
+      : suppliedClassification
+    const issue = keywordDump && local.issue === "none" ? "unsupported" : local.issue
     const notes: string[] = []
     if (classification === "responsive") notes.push("Answered the question sufficiently to justify a deeper academic challenge.")
     if (classification === "partial") notes.push("Contained a usable idea but left an important reasoning step or condition unresolved.")
     if (classification === "incorrect") notes.push("Contained a concrete factual, mathematical or logical claim that needs repair.")
     if (classification === "irrelevant") notes.push("Did not directly answer the question being asked.")
     if (classification === "vague") notes.push("Did not yet expose enough specific reasoning to evaluate securely.")
+    if (keywordDump) notes.push("Relevant terminology was present, but listing concepts did not substitute for applying them to the problem.")
     if (REASONING.test(answer)) notes.push("Made at least part of the reasoning chain explicit.")
     if (ASSUMPTION.test(answer)) notes.push("Identified or tested an assumption.")
     if (ALTERNATIVE.test(answer)) notes.push("Considered an alternative, counterexample or qualification.")
@@ -188,7 +204,7 @@ function buildAssessments(turns: InterviewMarkingTurn[], concepts: string[], ref
       question: currentQuestion,
       answer,
       classification,
-      issue: local.issue,
+      issue,
       directness: local.directness,
       reasoning: reasoningScore(answer, classification, local.directness),
       accuracy: accuracyScore(answer, concepts, classification),
