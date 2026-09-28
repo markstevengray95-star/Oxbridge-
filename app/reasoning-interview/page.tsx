@@ -1,5 +1,5 @@
-import { ReasoningInterviewExperience } from "@/components/reasoning-interview-experience"
+import { ReasoningInterviewExperienceV2 } from "@/components/reasoning-interview-experience-v2"
 
 export default function ReasoningInterviewPage() {
-  return <ReasoningInterviewExperience />
+  return <ReasoningInterviewExperienceV2 />
 }
