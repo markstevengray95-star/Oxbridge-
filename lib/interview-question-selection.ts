@@ -13,7 +13,7 @@ export function selectInterviewQuestion(questions: InterviewQuestion[], course: 
   const oldestAge = Math.max(...pool.map(question => age(question.id)))
   const oldest = pool.filter(question => age(question.id) === oldestAge)
   const tailored = oldest.filter(question => question.courses?.includes(course))
-  const choices = [...tailored, ...oldest.filter(question => !tailored.includes(question))]
+  const choices = tailored.length ? tailored : oldest
   return choices[((offset % choices.length) + choices.length) % choices.length]
 }
 

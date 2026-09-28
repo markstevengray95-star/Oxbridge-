@@ -27,7 +27,8 @@ for (let index = 0; index < 3; index++) {
 }
 assert.deepEqual(chosen, ["physics-a", "physics-b", "physics-a"])
 assert.equal(selectInterviewQuestion(questions, "Chemistry", [])?.id, "chemistry-a")
-assert.equal(selectInterviewQuestion(questions, "Chemistry", [], 1)?.id, "physics-a")
+assert.equal(selectInterviewQuestion(questions, "Chemistry", [], 1)?.id, "chemistry-a")
+assert.equal(selectInterviewQuestion(questions, "Chemistry", ["chemistry-a"])?.id, "physics-a")
 assert.equal(selectInterviewQuestion(questions, "Chemistry", ["physics-b", "physics-a"])?.id, "chemistry-a")
 assert.equal(selectInterviewQuestion(questions, "Physics", ["physics-b", "physics-a"])?.id, "physics-a")
 assert.equal(selectInterviewQuestion([], "Physics", []), undefined)
