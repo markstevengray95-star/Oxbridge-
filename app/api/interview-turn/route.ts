@@ -7,12 +7,15 @@ import {
 } from "@/lib/interview-answer-quality"
 import { interviewQuestions } from "@/lib/oxbridge-data"
 import { interviewStages, type InterviewStageId } from "@/lib/interview-structure"
+import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
+import { offlineInterviewFollowUp } from "@/lib/interview-offline-follow-up"
 
 export const runtime = "nodejs"
 
 type InterviewTurn = { role: "interviewer" | "candidate"; text: string; speaker?: string }
 type InterviewRequest = {
   course?: string
+  questionId?: string
   track?: string
   difficulty?: string
   persona?: string
@@ -28,6 +31,7 @@ type InterviewRequest = {
   stimulus?: string
   referenceAnswer?: string
   expectedAnswer?: { value: number; unit?: string; tolerance?: number; exact?: boolean }
+  checkNumericReference?: boolean
   stage?: InterviewStageId
 }
 
@@ -205,22 +209,39 @@ export async function POST(request: Request) {
   const answer = (body.answer ?? "").trim()
   if (!answer) return NextResponse.json({ error: "Candidate answer is required" }, { status: 400 })
 
-  const canonical = canonicalQuestionFor(body.question)
-  const concepts = body.concepts?.length ? body.concepts : canonical?.concepts
-  const stimulus = body.stimulus?.trim() || canonical?.stimulus
-  const referenceAnswer = body.referenceAnswer?.trim() || canonical?.strongAnswer
+  const canonical = realisticInterviewQuestions.find(item => item.id === body.questionId) ?? canonicalQuestionFor(body.question)
+  const concepts = canonical?.concepts ?? body.concepts
+  const stimulus = canonical?.stimulus ?? body.stimulus?.trim()
+  const referenceAnswer = canonical?.strongAnswer ?? body.referenceAnswer?.trim()
+  const isOpeningQuestion = canonical && normaliseQuestion(body.question ?? "") === normaliseQuestion(canonical.prompt)
+  const expectedAnswer = isOpeningQuestion ? canonical.expectedAnswer : canonical ? undefined : body.expectedAnswer
   const recentTurns = Array.isArray(body.turns) ? body.turns.slice(-18) : []
   const previousAnswers = previousCandidateAnswers(recentTurns, answer)
   const stage = interviewStages.find(item => item.id === body.stage)
 
-  const fallback = localInterviewFollowUp({
+  const localQuality = localInterviewFollowUp({
     question: body.question,
     answer,
     concepts,
     referenceAnswer,
-    expectedAnswer: body.expectedAnswer,
+    expectedAnswer,
+    checkNumericReference: canonical ? Boolean(isOpeningQuestion) : body.checkNumericReference,
     previousAnswers,
   }, body.persona ?? "Socratic")
+  const fallback = canonical?.probes?.length && localQuality.classification === "responsive"
+    ? { ...localQuality, reply: offlineInterviewFollowUp({
+      question: body.question ?? canonical.prompt,
+      answer,
+      concepts: concepts ?? [],
+      referenceAnswer: referenceAnswer ?? "",
+      expectedAnswer,
+      checkNumericReference: canonical ? Boolean(isOpeningQuestion) : body.checkNumericReference,
+      probes: canonical.probes,
+      turns: recentTurns,
+      persona: body.persona ?? "Socratic",
+      stage: stage?.id,
+    }).reply }
+    : localQuality
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     const resolved = localResolved(fallback, "local")
@@ -262,7 +283,7 @@ export async function POST(request: Request) {
     "A fluent answer containing technical vocabulary is not responsive unless it makes a direct claim and uses that material to answer the question.",
     "If the candidate substantially repeats a weak answer, do NOT simply repeat your previous question in different words. Narrow the task to one diagnostic step, one decisive principle, or one explicit comparison.",
     "Escalate repair intelligently: first weak attempt = focused probe; repeated weak attempt = narrower diagnostic; repeated failure after that = one minimal conceptual nudge followed by a smaller question. Never reveal the full solution.",
-    "If the answer is incorrect: do not praise it and do not move to a new topic. Briefly identify the exact suspect step or claim without giving the full solution, then ask one focused question that helps the candidate repair it.",
+    "If the answer is incorrect: do not praise it and do not move to a new topic. Briefly identify the exact suspect step or claim without giving the full solution, then ask one focused question that helps the candidate repair it. For a wrong numerical conclusion, name the candidate's claimed result and ask them to recalculate the decisive step; for a wrong unit, ask them to derive the unit; for a reversed relationship, ask which direction the evidence supports.",
     "If the answer is vague: stay on the same issue and demand specificity — a mechanism, definition, example, calculation, evidence or explicit reasoning step as appropriate.",
     "If the answer is irrelevant: say naturally that it does not answer the question asked, redirect to the precise task, and ask one focused question that gets the candidate back on track.",
     "If the answer is partial: acknowledge only the valid part, very briefly, and probe the missing step. Do not pretend the whole answer is correct.",

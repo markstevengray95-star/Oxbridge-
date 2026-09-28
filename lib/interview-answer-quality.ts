@@ -17,6 +17,7 @@ export type InterviewAnswerInput = {
   referenceAnswer?: string
   previousAnswers?: string[]
   expectedAnswer?: { value: number; unit?: string; tolerance?: number; exact?: boolean }
+  checkNumericReference?: boolean
 }
 
 type QuantityClaim = {
@@ -253,9 +254,9 @@ function contradictsConcreteClaim(answer: string, comparison: string) {
   return false
 }
 
-function referenceConflictReason(answer: string, referenceAnswer: string, question: string, expectedAnswer?: InterviewAnswerInput["expectedAnswer"]) {
+function referenceConflictReason(answer: string, referenceAnswer: string, question: string, expectedAnswer?: InterviewAnswerInput["expectedAnswer"], checkNumericReference = true) {
   const effectiveAnswer = effectiveFinalPosition(answer)
-  const numericConflict = numericReferenceConflict(effectiveAnswer, referenceAnswer, question, expectedAnswer)
+  const numericConflict = checkNumericReference ? numericReferenceConflict(effectiveAnswer, referenceAnswer, question, expectedAnswer) : null
   if (numericConflict) return numericConflict
   if (contradictsConcreteClaim(effectiveAnswer, referenceAnswer)) {
     return "The response appears to reverse a concrete relationship, category or direction stated in the reference reasoning."
@@ -319,7 +320,7 @@ export function evaluateInterviewAnswerLocally(input: InterviewAnswerInput): Int
   const mathematical = containsMath(answer)
 
   if (referenceAnswer || input.expectedAnswer) {
-    const conflictReason = referenceConflictReason(answer, referenceAnswer, question, input.expectedAnswer)
+    const conflictReason = referenceConflictReason(answer, referenceAnswer, question, input.expectedAnswer, input.checkNumericReference)
     if (conflictReason) {
       return result("incorrect", 0.94, conflictReason, "factual-error", directness, Math.max(history.repairDepth, 1) as 1 | 2 | 3)
     }
@@ -384,9 +385,16 @@ export function localInterviewFollowUp(input: InterviewAnswerInput, persona = "S
     return { ...quality, reply: `${open} ${question}` }
   }
   if (quality.classification === "incorrect") {
-    const question = quality.repairDepth >= 2
-      ? "Check one thing only: the sign, direction, unit or numerical step that your conclusion depends on. Which one changes the result?"
-      : "I don't think that conclusion follows from the information we've got. Which exact step, value, unit or relationship would you check first?"
+    const claimed = explicitClaimQuantities(effectiveFinalPosition(answer), input.question)[0]
+    const question = quality.reason.includes("unit")
+      ? "The number may be right, but the unit does not fit. Can you derive the unit from the quantities you used?"
+      : quality.reason.includes("numerical result")
+        ? `${claimed ? `You gave ${claimed.raw.trim()} as the result. ` : "Your final number does not fit the data. "}Which calculation would you check first, and what does it give you?`
+        : quality.reason.includes("relationship")
+          ? "That reverses a relationship the problem depends on. Which way should the effect run, and what observation would check it?"
+          : quality.repairDepth >= 2
+            ? "Let's isolate one step. Which sign, direction, value or assumption makes your conclusion stand or fall?"
+            : "I don't think that conclusion follows from the information we've got. Which exact step would you check first?"
     return { ...quality, reply: `${open} ${question}` }
   }
   if (quality.classification === "irrelevant") {

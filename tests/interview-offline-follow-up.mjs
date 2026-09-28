@@ -17,7 +17,8 @@ function load(relativePath, imports = {}) {
 }
 
 const quality = load("lib/interview-answer-quality.ts")
-const { offlineInterviewFollowUp } = load("lib/interview-offline-follow-up.ts", { "@/lib/interview-answer-quality": quality })
+const structure = load("lib/interview-structure.ts")
+const { offlineInterviewFollowUp } = load("lib/interview-offline-follow-up.ts", { "@/lib/interview-answer-quality": quality, "@/lib/interview-structure": structure })
 const { realisticInterviewQuestions } = load("lib/realistic-interview-bank.ts")
 const scenario = realisticInterviewQuestions.find(question => question.id === "rx-physical-2")
 const shared = {
@@ -42,6 +43,11 @@ const first = offlineInterviewFollowUp({ ...shared, answer, turns: [
 ] })
 assert.equal(first.classification, "responsive")
 assert.equal(first.reply, scenario.probes[0])
+const changedCondition = offlineInterviewFollowUp({ ...shared, stage: "change", answer, turns: [
+  { role: "interviewer", text: scenario.prompt },
+  { role: "candidate", text: answer },
+] })
+assert.equal(changedCondition.reply, scenario.probes[2])
 
 const second = offlineInterviewFollowUp({ ...shared, question: scenario.probes[0], answer, turns: [
   { role: "interviewer", text: scenario.prompt },

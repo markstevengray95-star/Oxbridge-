@@ -224,6 +224,10 @@ const screeningError = evaluateInterviewAnswerLocally({ ...screeningInput, answe
 if (screeningError.classification !== "incorrect") {
   throw new Error(`Confusing sensitivity with the chance after a positive test should be caught: ${JSON.stringify(screeningError)}.`)
 }
+const screeningFollowUp = localInterviewFollowUp({ ...screeningInput, answer: "The answer is 90% because the test catches 90% of people with the condition." })
+if (!screeningFollowUp.reply.includes("90%") || !/calculation/i.test(screeningFollowUp.reply)) {
+  throw new Error(`The interviewer should name and challenge the suspect number: ${screeningFollowUp.reply}`)
+}
 for (const answer of ["The answer is about 8.3% because there are 9 true and 99 false positives.", "The probability is about 0.083 because 9 of 108 positive results are true positives."]) {
   const result = evaluateInterviewAnswerLocally({ ...screeningInput, answer })
   if (result.classification === "incorrect") throw new Error(`Equivalent correct screening probabilities should pass: ${JSON.stringify(result)}.`)

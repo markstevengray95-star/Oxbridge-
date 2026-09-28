@@ -45,6 +45,9 @@ jobs:
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 
+      - name: Interview turn API checks
+        run: node tests/interview-turn-route.mjs
+
       - name: Realistic interview and typed marking checks
         run: node tests/interview-realism-marking-v3.mjs
 

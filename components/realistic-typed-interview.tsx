@@ -202,10 +202,12 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
       answer: candidate,
       concepts: base.concepts,
       referenceAnswer: base.strongAnswer,
-      expectedAnswer: base.expectedAnswer,
+      expectedAnswer: question === base.prompt ? base.expectedAnswer : undefined,
+      checkNumericReference: question === base.prompt,
       probes: base.probes,
       turns: history,
       persona: personaKey,
+      stage: interviewStage.id,
     })
 
     try {
@@ -214,6 +216,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           course,
+          questionId: base.id,
           track,
           difficulty,
           persona: personaKey,
@@ -222,7 +225,8 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
           answer: candidate,
           concepts: base.concepts,
           referenceAnswer: base.strongAnswer,
-          expectedAnswer: base.expectedAnswer,
+          expectedAnswer: question === base.prompt ? base.expectedAnswer : undefined,
+          checkNumericReference: question === base.prompt,
           stimulus: base.stimulus,
           turns: history,
           stage: interviewStage.id,
