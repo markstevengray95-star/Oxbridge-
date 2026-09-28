@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
+import type { InterviewMoveKind, InterviewReveal } from "@/lib/interview-questioning-engine"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
@@ -20,8 +21,20 @@ const PROGRESS_KEY = "oxbridge-tutor-progress-v2"
 
 type Variant = "ai" | "formal"
 type Phase = "lobby" | "live" | "review"
-type Turn = { role: "interviewer" | "candidate"; text: string; quality?: InterviewAnswerClassification }
-type AiReply = { reply?: string; classification?: InterviewAnswerClassification; degraded?: boolean }
+type Turn = {
+  role: "interviewer" | "candidate"
+  text: string
+  quality?: InterviewAnswerClassification
+  moveKind?: InterviewMoveKind
+  reveal?: InterviewReveal
+}
+type AiReply = {
+  reply?: string
+  classification?: InterviewAnswerClassification
+  moveKind?: InterviewMoveKind
+  reveal?: InterviewReveal
+  degraded?: boolean
+}
 type SavedProgress = { sessions?: number; interviewScores?: number[]; logs?: Array<Record<string, unknown>>; misconceptions?: Record<string, number>; [key: string]: unknown }
 
 type Dimension = {
@@ -69,6 +82,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [seed, setSeed] = useState(0)
   const [turns, setTurns] = useState<Turn[]>([])
+  const [moveHistory, setMoveHistory] = useState<InterviewMoveKind[]>([])
   const [question, setQuestion] = useState("")
   const [answer, setAnswer] = useState("")
   const [scratch, setScratch] = useState("")
@@ -105,7 +119,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
   const persona = interviewerPersonas[personaKey]
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const candidateTurns = turns.filter(turn => turn.role === "candidate").length
-  const sessionProgress = Math.min(100, candidateTurns * 20)
+  const sessionProgress = Math.min(100, candidateTurns * 18)
 
   function speak(text: string) {
     if (variant !== "ai" || !("speechSynthesis" in window)) return
@@ -154,6 +168,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
       { role: "interviewer", text: base.prompt },
     ]
     setTurns(first)
+    setMoveHistory([])
     setQuestion(base.prompt)
     setAnswer("")
     setScratch("")
@@ -186,8 +201,11 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
           persona: personaKey,
           mode,
           question,
+          questionId: base.id,
           answer: candidate,
           concepts: base.concepts,
+          probes: base.probes,
+          moveHistory,
           referenceAnswer: base.strongAnswer,
           stimulus: base.stimulus,
           turns: history,
@@ -199,15 +217,17 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
       const classification = data.classification ?? "partial"
       const next = data.reply?.trim() || base.probes[candidateTurns % base.probes.length]
       const classified = history.map((turn, index) => index === history.length - 1 ? { ...turn, quality: classification } : turn)
-      setTurns([...classified, { role: "interviewer", text: next }])
+      const interviewerTurn: Turn = { role: "interviewer", text: next, moveKind: data.moveKind, reveal: data.reveal }
+      setTurns([...classified, interviewerTurn])
+      if (data.moveKind) setMoveHistory(current => [...current, data.moveKind as InterviewMoveKind].slice(-12))
       setQuestion(next)
-      if (data.degraded) setNotice("Cloud evaluation was temporarily unavailable, so the built-in interviewer continued from the same academic problem.")
-      speak(next)
+      if (data.degraded) setNotice("Cloud evaluation was temporarily unavailable, so the built-in adaptive interviewer continued from the same academic problem.")
+      speak(`${data.reveal?.content ? `${data.reveal.content} ` : ""}${next}`)
     } catch {
       const next = base.probes[candidateTurns % base.probes.length] ?? "Which assumption in that answer is doing the most work, and what would happen if it failed?"
       setTurns([...history, { role: "interviewer", text: next }])
       setQuestion(next)
-      setNotice("The live evaluator could not be reached, so the interview continued with a pre-written tutor probe from the same problem.")
+      setNotice("The interview service could not be reached, so the session continued with a pre-written tutor probe from the same problem.")
       speak(next)
     } finally {
       setThinking(false)
@@ -231,7 +251,11 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
       const scores = Array.isArray(saved.interviewScores) ? saved.interviewScores : []
       const misconceptions = saved.misconceptions && typeof saved.misconceptions === "object" ? saved.misconceptions : {}
       const events = [
-        ...finalTurns.map(turn => `${turn.role === "interviewer" ? "Interviewer" : "Candidate"}: ${turn.text}`),
+        ...finalTurns.flatMap(turn => [
+          turn.reveal ? `Interviewer ${turn.reveal.title}: ${turn.reveal.content}` : "",
+          `${turn.role === "interviewer" ? "Interviewer" : "Candidate"}: ${turn.text}`,
+        ].filter(Boolean)),
+        `Questioning moves: ${moveHistory.length ? moveHistory.join(" → ") : "opening problem only"}`,
         `Typed rubric: ${scored.rubricVersion}`,
         `Reasoning: ${scored.reasoning}/25`,
         `Accuracy: ${scored.accuracy}/20`,
@@ -251,6 +275,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
           score: scored.total,
           date: new Date().toISOString(),
           events,
+          questioningMoves: moveHistory,
           rubricVersion: scored.rubricVersion,
           dimensions: { reasoning: scored.reasoning, accuracy: scored.accuracy, responsiveness: scored.responsiveness, adaptability: scored.adaptability, evidence: scored.evidence, communication: scored.communication },
         }, ...logs].slice(0, 50),
@@ -264,6 +289,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
     stopListening()
     setPhase("lobby")
     setTurns([])
+    setMoveHistory([])
     setQuestion("")
     setAnswer("")
     setScratch("")
@@ -279,16 +305,20 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
           <Button asChild variant="ghost"><Link href="/interviews"><ArrowLeft />Interview Hub</Link></Button>
-          <Badge className="border-0 bg-[#102a43] text-white"><GraduationCap className="mr-1 size-3.5" />2026.3 realistic interview</Badge>
+          <Badge className="border-0 bg-[#102a43] text-white"><GraduationCap className="mr-1 size-3.5" />Adaptive interview engine</Badge>
         </div>
 
         <section className="grid overflow-hidden rounded-[2rem] border border-[#dbe5e7] bg-white shadow-[0_28px_80px_rgba(16,42,67,.08)] lg:grid-cols-[1.12fr_.88fr]">
           <div className="p-6 sm:p-9 lg:p-12">
             <div className="flex items-start gap-4">
               <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#102a43] text-[#8dd7de]">{variant === "ai" ? <Sparkles className="size-5" /> : <Brain className="size-5" />}</span>
-              <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">{variant === "ai" ? "Adaptive AI interview" : "Formal interview room"}</p><h1 className="mt-1 font-serif text-3xl font-bold sm:text-4xl">Academic conversations, not rehearsed interview questions.</h1></div>
+              <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">{variant === "ai" ? "Adaptive AI interview" : "Formal interview room"}</p><h1 className="mt-1 font-serif text-3xl font-bold sm:text-4xl">The next question now depends on what you actually said.</h1></div>
             </div>
-            <p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">The upgraded bank uses unfamiliar problems, short stimuli, data, rules and observations. Follow-ups test assumptions, introduce new information and ask you to revise a position—the pattern used to reveal teachability and academic potential rather than memorised knowledge.</p>
+            <p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">The interviewer branches from your reasoning rather than following a fixed script. Strong answers are stress-tested through assumptions, predictions, new evidence and counterexamples; weak answers stay on the same issue until the reasoning is repaired.</p>
+
+            <div className="mt-7 grid gap-3 sm:grid-cols-2">
+              {["Dynamic question trees", "New information mid-problem", "Prediction → reveal → explain", "Generated counterexamples", "Assumption hunting"].map(item => <div key={item} className="rounded-xl border border-[#dbe5e7] bg-[#f8fafb] px-4 py-3 text-sm font-semibold text-[#526a75]">{item}</div>)}
+            </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Subject family</span><NativeSelect value={track} onChange={event => chooseTrack(event.target.value as TrackId)}>{tracks.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.short}</NativeSelectOption>)}</NativeSelect></label>
@@ -360,9 +390,13 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
           <CardHeader><CardTitle className="font-serif text-2xl">Academic interview</CardTitle><CardDescription>Think aloud. It is acceptable to pause, make a provisional claim, test it and revise it.</CardDescription><Progress value={sessionProgress} className="mt-2" /></CardHeader>
           <CardContent className="space-y-4">
             {base?.stimulus ? <div className="rounded-2xl border border-[#cfe1e4] bg-[#edf7f8] p-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Stimulus</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{base.stimulus}</p></div> : null}
-            <div className="max-h-[390px] space-y-3 overflow-y-auto rounded-2xl bg-[#f8fafb] p-4">
-              {turns.map((turn, index) => <div key={`${turn.role}-${index}`} className={`rounded-2xl p-4 ${turn.role === "candidate" ? "ml-auto max-w-[92%] bg-[#102a43] text-white" : "bg-white shadow-sm"}`}><div className="flex items-center justify-between gap-2"><p className={`text-[11px] font-bold uppercase tracking-wider ${turn.role === "candidate" ? "text-[#8dd7de]" : "text-[#147d91]"}`}>{turn.role === "candidate" ? "You" : "Interviewer"}</p>{turn.role === "candidate" && turn.quality ? <span className="text-[10px] font-semibold text-white/65">{qualityLabel(turn.quality)}</span> : null}</div><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{turn.text}</p></div>)}
-              {thinking ? <div className="flex items-center gap-2 rounded-xl bg-white p-3 text-sm text-slate-500"><Loader2 className="size-4 animate-spin" />The interviewer is considering your reasoning…</div> : null}
+            <div className="max-h-[430px] space-y-3 overflow-y-auto rounded-2xl bg-[#f8fafb] p-4">
+              {turns.map((turn, index) => <div key={`${turn.role}-${index}`} className={`rounded-2xl p-4 ${turn.role === "candidate" ? "ml-auto max-w-[92%] bg-[#102a43] text-white" : "bg-white shadow-sm"}`}>
+                <div className="flex items-center justify-between gap-2"><p className={`text-[11px] font-bold uppercase tracking-wider ${turn.role === "candidate" ? "text-[#8dd7de]" : "text-[#147d91]"}`}>{turn.role === "candidate" ? "You" : "Interviewer"}</p>{turn.role === "candidate" && turn.quality ? <span className="text-[10px] font-semibold text-white/65">{qualityLabel(turn.quality)}</span> : null}</div>
+                {turn.reveal ? <div className={`mt-2 rounded-xl border p-3 ${turn.reveal.kind === "counterexample" ? "border-amber-200 bg-amber-50" : "border-cyan-200 bg-cyan-50"}`}><p className={`text-[10px] font-bold uppercase tracking-[.14em] ${turn.reveal.kind === "counterexample" ? "text-amber-800" : "text-cyan-800"}`}>{turn.reveal.title}</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-800">{turn.reveal.content}</p></div> : null}
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{turn.text}</p>
+              </div>)}
+              {thinking ? <div className="flex items-center gap-2 rounded-xl bg-white p-3 text-sm text-slate-500"><Loader2 className="size-4 animate-spin" />The interviewer is deciding how to challenge your reasoning next…</div> : null}
             </div>
 
             {notice ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div> : null}
@@ -372,8 +406,8 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
         </Card>
 
         <aside className="space-y-4">
-          <Card><CardHeader><CardTitle className="text-lg">Your working</CardTitle><CardDescription>Private scratchpad. It is not marked.</CardDescription></CardHeader><CardContent><Textarea value={scratch} onChange={event => setScratch(event.target.value)} rows={12} placeholder="Calculations, structure, possible counterexamples…" /></CardContent></Card>
-          <Card className="border-[#cfe1e4] bg-[#edf7f8]"><CardHeader><Target className="size-5 text-[#147d91]" /><CardTitle className="text-lg">What the interviewer is testing</CardTitle></CardHeader><CardContent className="space-y-2 text-sm leading-6 text-[#526a75]"><p>• Can you make a reasoned first move without needing the whole method in advance?</p><p>• Can you use hints and new information productively?</p><p>• Can you detect when an assumption fails?</p><p>• Can you revise rather than defend a weak answer?</p><p>• Can you test your own conclusion?</p></CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-lg">Your working</CardTitle><CardDescription>Private scratchpad. It is not marked.</CardDescription></CardHeader><CardContent><Textarea value={scratch} onChange={event => setScratch(event.target.value)} rows={10} placeholder="Calculations, structure, possible counterexamples…" /></CardContent></Card>
+          <Card className="border-[#cfe1e4] bg-[#edf7f8]"><CardHeader><Target className="size-5 text-[#147d91]" /><CardTitle className="text-lg">Adaptive questioning</CardTitle><CardDescription>The engine does not follow the same sequence if your reasoning changes.</CardDescription></CardHeader><CardContent className="space-y-2 text-sm leading-6 text-[#526a75]"><p>• Weak reasoning is repaired before the interview moves on.</p><p>• Strong reasoning triggers a specific assumption challenge.</p><p>• You may be asked to predict before seeing new evidence.</p><p>• New information can force you to revise the model.</p><p>• A concrete counterexample may stress-test your rule.</p></CardContent></Card>
         </aside>
       </div>
     </div>
