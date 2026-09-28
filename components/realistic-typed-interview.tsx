@@ -9,9 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
+import { InterviewWhiteboard } from "@/components/interview-whiteboard"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
-import type { InterviewMoveKind, InterviewReveal } from "@/lib/interview-questioning-engine"
+import type { InterviewMoveKind, InterviewReveal, InterviewWhiteboardTask } from "@/lib/interview-questioning-engine"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
@@ -27,12 +28,17 @@ type Turn = {
   quality?: InterviewAnswerClassification
   moveKind?: InterviewMoveKind
   reveal?: InterviewReveal
+  whiteboardTask?: InterviewWhiteboardTask
+  hintLevel?: 1 | 2 | 3 | 4
 }
 type AiReply = {
   reply?: string
   classification?: InterviewAnswerClassification
   moveKind?: InterviewMoveKind
   reveal?: InterviewReveal
+  whiteboardTask?: InterviewWhiteboardTask
+  hintLevel?: 1 | 2 | 3 | 4
+  adaptiveLevel?: number
   degraded?: boolean
 }
 type SavedProgress = { sessions?: number; interviewScores?: number[]; logs?: Array<Record<string, unknown>>; misconceptions?: Record<string, number>; [key: string]: unknown }
@@ -57,6 +63,12 @@ function formatTime(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
 }
 
+function startingAdaptiveLevel(difficulty: "Foundation" | "Stretch" | "Challenge") {
+  if (difficulty === "Foundation") return -1
+  if (difficulty === "Challenge") return 1
+  return 0
+}
+
 function qualityLabel(value?: InterviewAnswerClassification) {
   if (value === "responsive") return "Responsive"
   if (value === "partial") return "Partly developed"
@@ -73,6 +85,12 @@ function qualityClass(value?: InterviewAnswerClassification) {
   return "border-slate-200 bg-slate-50 text-slate-700"
 }
 
+function revealClasses(kind: InterviewReveal["kind"]) {
+  if (kind === "counterexample") return { box: "border-amber-200 bg-amber-50", label: "text-amber-800" }
+  if (kind === "worked-error") return { box: "border-rose-200 bg-rose-50", label: "text-rose-800" }
+  return { box: "border-cyan-200 bg-cyan-50", label: "text-cyan-800" }
+}
+
 export function RealisticTypedInterview({ variant }: { variant: Variant }) {
   const [phase, setPhase] = useState<Phase>("lobby")
   const [track, setTrack] = useState<TrackId>("physical")
@@ -83,6 +101,9 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
   const [seed, setSeed] = useState(0)
   const [turns, setTurns] = useState<Turn[]>([])
   const [moveHistory, setMoveHistory] = useState<InterviewMoveKind[]>([])
+  const [adaptiveLevel, setAdaptiveLevel] = useState(0)
+  const [whiteboardTask, setWhiteboardTask] = useState<InterviewWhiteboardTask | null>(null)
+  const [whiteboardUsed, setWhiteboardUsed] = useState(false)
   const [question, setQuestion] = useState("")
   const [answer, setAnswer] = useState("")
   const [scratch, setScratch] = useState("")
@@ -119,7 +140,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
   const persona = interviewerPersonas[personaKey]
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const candidateTurns = turns.filter(turn => turn.role === "candidate").length
-  const sessionProgress = Math.min(100, candidateTurns * 18)
+  const sessionProgress = Math.min(100, candidateTurns * 14)
 
   function speak(text: string) {
     if (variant !== "ai" || !("speechSynthesis" in window)) return
@@ -169,6 +190,9 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
     ]
     setTurns(first)
     setMoveHistory([])
+    setAdaptiveLevel(startingAdaptiveLevel(difficulty))
+    setWhiteboardTask(null)
+    setWhiteboardUsed(false)
     setQuestion(base.prompt)
     setAnswer("")
     setScratch("")
@@ -206,6 +230,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
           concepts: base.concepts,
           probes: base.probes,
           moveHistory,
+          adaptiveLevel,
           referenceAnswer: base.strongAnswer,
           stimulus: base.stimulus,
           turns: history,
@@ -217,9 +242,18 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
       const classification = data.classification ?? "partial"
       const next = data.reply?.trim() || base.probes[candidateTurns % base.probes.length]
       const classified = history.map((turn, index) => index === history.length - 1 ? { ...turn, quality: classification } : turn)
-      const interviewerTurn: Turn = { role: "interviewer", text: next, moveKind: data.moveKind, reveal: data.reveal }
+      const interviewerTurn: Turn = {
+        role: "interviewer",
+        text: next,
+        moveKind: data.moveKind,
+        reveal: data.reveal,
+        whiteboardTask: data.whiteboardTask,
+        hintLevel: data.hintLevel,
+      }
       setTurns([...classified, interviewerTurn])
-      if (data.moveKind) setMoveHistory(current => [...current, data.moveKind as InterviewMoveKind].slice(-12))
+      if (data.moveKind) setMoveHistory(current => [...current, data.moveKind as InterviewMoveKind].slice(-18))
+      if (typeof data.adaptiveLevel === "number") setAdaptiveLevel(data.adaptiveLevel)
+      if (data.whiteboardTask) setWhiteboardTask(data.whiteboardTask)
       setQuestion(next)
       if (data.degraded) setNotice("Cloud evaluation was temporarily unavailable, so the built-in adaptive interviewer continued from the same academic problem.")
       speak(`${data.reveal?.content ? `${data.reveal.content} ` : ""}${next}`)
@@ -253,6 +287,8 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
       const events = [
         ...finalTurns.flatMap(turn => [
           turn.reveal ? `Interviewer ${turn.reveal.title}: ${turn.reveal.content}` : "",
+          turn.whiteboardTask ? `Whiteboard task: ${turn.whiteboardTask.prompt}` : "",
+          turn.hintLevel ? `Progressive hint stage ${turn.hintLevel}` : "",
           `${turn.role === "interviewer" ? "Interviewer" : "Candidate"}: ${turn.text}`,
         ].filter(Boolean)),
         `Questioning moves: ${moveHistory.length ? moveHistory.join(" → ") : "opening problem only"}`,
@@ -276,6 +312,8 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
           date: new Date().toISOString(),
           events,
           questioningMoves: moveHistory,
+          whiteboardUsed,
+          adaptiveDifficultyFinal: adaptiveLevel,
           rubricVersion: scored.rubricVersion,
           dimensions: { reasoning: scored.reasoning, accuracy: scored.accuracy, responsiveness: scored.responsiveness, adaptability: scored.adaptability, evidence: scored.evidence, communication: scored.communication },
         }, ...logs].slice(0, 50),
@@ -290,6 +328,9 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
     setPhase("lobby")
     setTurns([])
     setMoveHistory([])
+    setAdaptiveLevel(0)
+    setWhiteboardTask(null)
+    setWhiteboardUsed(false)
     setQuestion("")
     setAnswer("")
     setScratch("")
@@ -301,6 +342,19 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
   }
 
   if (phase === "lobby") {
+    const features = [
+      "Dynamic question trees",
+      "New information mid-problem",
+      "Prediction → reveal → explain",
+      "Generated counterexamples",
+      "Assumption hunting",
+      "Progressive four-step hints",
+      "Interactive whiteboard tasks",
+      "Representation switching",
+      "Error-diagnosis problems",
+      "Invisible difficulty adaptation",
+    ]
+
     return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
@@ -312,18 +366,18 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
           <div className="p-6 sm:p-9 lg:p-12">
             <div className="flex items-start gap-4">
               <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#102a43] text-[#8dd7de]">{variant === "ai" ? <Sparkles className="size-5" /> : <Brain className="size-5" />}</span>
-              <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">{variant === "ai" ? "Adaptive AI interview" : "Formal interview room"}</p><h1 className="mt-1 font-serif text-3xl font-bold sm:text-4xl">The next question now depends on what you actually said.</h1></div>
+              <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">{variant === "ai" ? "Adaptive AI interview" : "Formal interview room"}</p><h1 className="mt-1 font-serif text-3xl font-bold sm:text-4xl">The next question depends on how you reason.</h1></div>
             </div>
-            <p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">The interviewer branches from your reasoning rather than following a fixed script. Strong answers are stress-tested through assumptions, predictions, new evidence and counterexamples; weak answers stay on the same issue until the reasoning is repaired.</p>
+            <p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">The interviewer now changes both the kind and depth of challenge. It can narrow a problem with progressive hints, ask you to draw or change representation, diagnose someone else's reasoning, or quietly remove scaffolding when you are coping well.</p>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
-              {["Dynamic question trees", "New information mid-problem", "Prediction → reveal → explain", "Generated counterexamples", "Assumption hunting"].map(item => <div key={item} className="rounded-xl border border-[#dbe5e7] bg-[#f8fafb] px-4 py-3 text-sm font-semibold text-[#526a75]">{item}</div>)}
+              {features.map(item => <div key={item} className="rounded-xl border border-[#dbe5e7] bg-[#f8fafb] px-4 py-3 text-sm font-semibold text-[#526a75]">{item}</div>)}
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Subject family</span><NativeSelect value={track} onChange={event => chooseTrack(event.target.value as TrackId)}>{tracks.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.short}</NativeSelectOption>)}</NativeSelect></label>
               <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Course</span><NativeSelect value={course} onChange={event => setCourse(event.target.value)}>{courses.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
-              <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Difficulty</span><NativeSelect value={difficulty} onChange={event => { setDifficulty(event.target.value as typeof difficulty); setSeed(0) }}>{["Foundation", "Stretch", "Challenge"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
+              <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Starting challenge</span><NativeSelect value={difficulty} onChange={event => { setDifficulty(event.target.value as typeof difficulty); setSeed(0) }}>{["Foundation", "Stretch", "Challenge"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interview mode</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Realistic", "Tutor", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label className="space-y-1.5 sm:col-span-2"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interviewer style</span><NativeSelect value={personaKey} onChange={event => setPersonaKey(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
             </div>
@@ -391,11 +445,15 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
           <CardContent className="space-y-4">
             {base?.stimulus ? <div className="rounded-2xl border border-[#cfe1e4] bg-[#edf7f8] p-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Stimulus</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{base.stimulus}</p></div> : null}
             <div className="max-h-[430px] space-y-3 overflow-y-auto rounded-2xl bg-[#f8fafb] p-4">
-              {turns.map((turn, index) => <div key={`${turn.role}-${index}`} className={`rounded-2xl p-4 ${turn.role === "candidate" ? "ml-auto max-w-[92%] bg-[#102a43] text-white" : "bg-white shadow-sm"}`}>
-                <div className="flex items-center justify-between gap-2"><p className={`text-[11px] font-bold uppercase tracking-wider ${turn.role === "candidate" ? "text-[#8dd7de]" : "text-[#147d91]"}`}>{turn.role === "candidate" ? "You" : "Interviewer"}</p>{turn.role === "candidate" && turn.quality ? <span className="text-[10px] font-semibold text-white/65">{qualityLabel(turn.quality)}</span> : null}</div>
-                {turn.reveal ? <div className={`mt-2 rounded-xl border p-3 ${turn.reveal.kind === "counterexample" ? "border-amber-200 bg-amber-50" : "border-cyan-200 bg-cyan-50"}`}><p className={`text-[10px] font-bold uppercase tracking-[.14em] ${turn.reveal.kind === "counterexample" ? "text-amber-800" : "text-cyan-800"}`}>{turn.reveal.title}</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-800">{turn.reveal.content}</p></div> : null}
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{turn.text}</p>
-              </div>)}
+              {turns.map((turn, index) => {
+                const revealStyle = turn.reveal ? revealClasses(turn.reveal.kind) : null
+                return <div key={`${turn.role}-${index}`} className={`rounded-2xl p-4 ${turn.role === "candidate" ? "ml-auto max-w-[92%] bg-[#102a43] text-white" : "bg-white shadow-sm"}`}>
+                  <div className="flex items-center justify-between gap-2"><p className={`text-[11px] font-bold uppercase tracking-wider ${turn.role === "candidate" ? "text-[#8dd7de]" : "text-[#147d91]"}`}>{turn.role === "candidate" ? "You" : "Interviewer"}</p>{turn.role === "candidate" && turn.quality ? <span className="text-[10px] font-semibold text-white/65">{qualityLabel(turn.quality)}</span> : null}</div>
+                  {turn.reveal && revealStyle ? <div className={`mt-2 rounded-xl border p-3 ${revealStyle.box}`}><p className={`text-[10px] font-bold uppercase tracking-[.14em] ${revealStyle.label}`}>{turn.reveal.title}</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-800">{turn.reveal.content}</p></div> : null}
+                  {turn.whiteboardTask ? <div className="mt-2 rounded-xl border border-violet-200 bg-violet-50 p-3"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-violet-800">Whiteboard task</p><p className="mt-1 text-sm leading-6 text-slate-800">{turn.whiteboardTask.prompt}</p></div> : null}
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{turn.text}</p>
+                </div>
+              })}
               {thinking ? <div className="flex items-center gap-2 rounded-xl bg-white p-3 text-sm text-slate-500"><Loader2 className="size-4 animate-spin" />The interviewer is deciding how to challenge your reasoning next…</div> : null}
             </div>
 
@@ -406,8 +464,9 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
         </Card>
 
         <aside className="space-y-4">
-          <Card><CardHeader><CardTitle className="text-lg">Your working</CardTitle><CardDescription>Private scratchpad. It is not marked.</CardDescription></CardHeader><CardContent><Textarea value={scratch} onChange={event => setScratch(event.target.value)} rows={10} placeholder="Calculations, structure, possible counterexamples…" /></CardContent></Card>
-          <Card className="border-[#cfe1e4] bg-[#edf7f8]"><CardHeader><Target className="size-5 text-[#147d91]" /><CardTitle className="text-lg">Adaptive questioning</CardTitle><CardDescription>The engine does not follow the same sequence if your reasoning changes.</CardDescription></CardHeader><CardContent className="space-y-2 text-sm leading-6 text-[#526a75]"><p>• Weak reasoning is repaired before the interview moves on.</p><p>• Strong reasoning triggers a specific assumption challenge.</p><p>• You may be asked to predict before seeing new evidence.</p><p>• New information can force you to revise the model.</p><p>• A concrete counterexample may stress-test your rule.</p></CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-lg">Whiteboard</CardTitle><CardDescription>Use it whenever the interviewer asks for a graph, diagram, working or argument map.</CardDescription></CardHeader><CardContent><InterviewWhiteboard task={whiteboardTask} onUse={() => setWhiteboardUsed(true)} /></CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-lg">Your written working</CardTitle><CardDescription>Private scratchpad. It is not marked.</CardDescription></CardHeader><CardContent><Textarea value={scratch} onChange={event => setScratch(event.target.value)} rows={6} placeholder="Calculations, structure, possible counterexamples…" /></CardContent></Card>
+          <Card className="border-[#cfe1e4] bg-[#edf7f8]"><CardHeader><Target className="size-5 text-[#147d91]" /><CardTitle className="text-lg">Adaptive questioning</CardTitle><CardDescription>The engine changes challenge without showing you a difficulty meter.</CardDescription></CardHeader><CardContent className="space-y-2 text-sm leading-6 text-[#526a75]"><p>• Repeated difficulty unlocks progressively more focused hints.</p><p>• Strong answers lose scaffolding rather than receiving generic praise.</p><p>• You may have to switch between words, equations, graphs or diagrams.</p><p>• Plausible flawed working can be introduced for you to diagnose.</p><p>• Whiteboard tasks test whether your reasoning is visible, not whether your drawing is neat.</p></CardContent></Card>
         </aside>
       </div>
     </div>
