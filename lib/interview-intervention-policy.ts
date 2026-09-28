@@ -28,7 +28,9 @@ export function selectInterviewerIntervention(input: {
     return { kind: "clarification", label: "Clarify before helping", instruction: "Ask for a direct provisional claim. Do not supply content or a method yet.", rationale: "The problem is not lack of knowledge yet; the response is too unclear to diagnose securely.", supportLevel: 0 }
   }
   if (input.classification === "incorrect" || input.issue === "factual-error") {
-    if (repairDepth >= 2 || previous.slice(-2).every(item => item === "clarification" || item === "challenge")) return { kind: "hint", label: "Narrow hint", instruction: "Give one directional hint that identifies what type of relationship, definition or check to use without giving the answer.", rationale: "Repeated repair attempts have not resolved a concrete error, so a small amount of scaffolding is justified.", supportLevel: 2 }
+    const recent = previous.slice(-2)
+    const repeatedNonHintRepair = recent.length === 2 && recent.every(item => item === "clarification" || item === "challenge")
+    if (repairDepth >= 2 || repeatedNonHintRepair) return { kind: "hint", label: "Narrow hint", instruction: "Give one directional hint that identifies what type of relationship, definition or check to use without giving the answer.", rationale: "Repeated repair attempts have not resolved a concrete error, so a small amount of scaffolding is justified.", supportLevel: 2 }
     return { kind: "challenge", label: "Challenge the claim", instruction: "Question the decisive claim and ask the candidate to verify it independently before continuing.", rationale: "A concrete error should first be challenged, not immediately rescued with a hint.", supportLevel: 1 }
   }
   if (input.classification === "partial" || input.issue === "missing-reasoning" || input.issue === "unsupported") {
