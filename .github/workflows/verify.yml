@@ -48,6 +48,9 @@ jobs:
       - name: Realistic interview and typed marking checks
         run: node tests/interview-realism-marking-v3.mjs
 
+      - name: Adaptive interview questioning checks
+        run: node tests/interview-questioning-engine.mjs
+
       - name: Offline topic-alignment regression checks
         run: node tests/offline-topic-alignment.cjs
 
