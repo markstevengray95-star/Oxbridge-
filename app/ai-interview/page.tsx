@@ -1,5 +1,5 @@
-import { RealisticTypedInterview } from "@/components/realistic-typed-interview"
+import { AdvancedInterviewExperience } from "@/components/advanced-interview-experience"
 
 export default function AiInterviewPage() {
-  return <RealisticTypedInterview variant="ai" />
+  return <AdvancedInterviewExperience variant="ai" />
 }
