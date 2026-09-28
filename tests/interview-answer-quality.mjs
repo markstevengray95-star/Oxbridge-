@@ -214,6 +214,29 @@ if (correctEquivalent.classification === "incorrect") {
   throw new Error(`Equivalent fractional and decimal answers should not be treated as a numerical conflict, found ${JSON.stringify(correctEquivalent)}.`)
 }
 
+const screeningInput = {
+  question: "A person tests positive. Roughly how likely is it that they have the condition? Explain the result in counts a patient could follow.",
+  concepts: ["prevalence", "sensitivity", "false positive", "conditional probability"],
+  referenceAnswer: "About 10 of 1,000 have the condition; 9 true positives and 99 false positives make the answer about 8.3%.",
+  expectedAnswer: { value: 8.3, unit: "%", tolerance: 0.5 },
+}
+const screeningError = evaluateInterviewAnswerLocally({ ...screeningInput, answer: "The answer is 90% because the test catches 90% of people with the condition." })
+if (screeningError.classification !== "incorrect") {
+  throw new Error(`Confusing sensitivity with the chance after a positive test should be caught: ${JSON.stringify(screeningError)}.`)
+}
+for (const answer of ["The answer is about 8.3% because there are 9 true and 99 false positives.", "The probability is about 0.083 because 9 of 108 positive results are true positives."]) {
+  const result = evaluateInterviewAnswerLocally({ ...screeningInput, answer })
+  if (result.classification === "incorrect") throw new Error(`Equivalent correct screening probabilities should pass: ${JSON.stringify(result)}.`)
+}
+
+const wrongCount = evaluateInterviewAnswerLocally({
+  question: "How many handshakes happen? Show a reliable way to count.",
+  answer: "There are 15 handshakes because six people can each meet five others.",
+  referenceAnswer: "There are 14 handshakes after excluding one pair.",
+  expectedAnswer: { value: 14, exact: true },
+})
+if (wrongCount.classification !== "incorrect") throw new Error(`The missing pair must change the answer: ${JSON.stringify(wrongCount)}.`)
+
 const strong = evaluateInterviewAnswerLocally(cases.find(item => item.name === "responsive reasoned answer").input)
 if (strong.directness < 60) throw new Error(`A direct reasoned answer should receive a useful directness score; found ${strong.directness}.`)
 

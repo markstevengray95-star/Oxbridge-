@@ -16,6 +16,7 @@ export type InterviewAnswerInput = {
   concepts?: string[]
   referenceAnswer?: string
   previousAnswers?: string[]
+  expectedAnswer?: { value: number; unit?: string; tolerance?: number; exact?: boolean }
 }
 
 type QuantityClaim = {
@@ -34,7 +35,7 @@ const REVISION_LANGUAGE = /\b(?:i(?:'d| would)\s+(?:revise|change|correct)|i\s+(
 const REASONING_LANGUAGE = /\b(?:because|therefore|since|so that|hence|implies?|means that|if|given|assuming|as a result|which means|this leads to|so the)\b/i
 const EXPLANATION_QUESTION = /\b(?:why|explain|justify|reason|talk through|show|prove|develop|evaluate|how would|what happens|what would|estimate|interpret|compare|argue|defend)\b/i
 const DIRECT_ANSWER_LANGUAGE = /\b(?:my answer is|i would say|therefore|so the answer|the result is|this means|i conclude|it is|it would|it increases|it decreases|it stays|yes,|no,)\b/i
-const NUMERICAL_QUESTION = /\b(?:how many|calculate|estimate|determine|work out|what (?:is|are).*?(?:value|number|ratio|mass|time|speed|velocity|acceleration|force|energy|power|pressure|current|voltage|resistance|temperature|distance|length|frequency|wavelength|momentum|density|percentage|probability))\b/i
+const NUMERICAL_QUESTION = /\b(?:how many|how likely|fewest questions|minimum number|calculate|estimate|determine|work out|what (?:is|are).*?(?:value|number|ratio|mass|time|speed|velocity|acceleration|force|energy|power|pressure|current|voltage|resistance|temperature|distance|length|frequency|wavelength|momentum|density|percentage|probability))\b/i
 const SAME_TURN_REVISION = /\b(?:but\s+actually|however\s*,?\s+actually|actually|on reflection|thinking again|let me correct(?: that)?|instead)\b/gi
 
 const CONTRAST_PAIRS: Array<[string, string]> = [
@@ -163,19 +164,27 @@ function integerCountQuestion(question: string) {
   return /\b(?:how many|number of|count)\b/i.test(question)
 }
 
-function numericReferenceConflict(answer: string, referenceAnswer: string, question: string) {
-  if (!NUMERICAL_QUESTION.test(question)) return null
-  const expected = explicitClaimQuantities(referenceAnswer, question)
+function numericReferenceConflict(answer: string, referenceAnswer: string, question: string, expectedAnswer?: InterviewAnswerInput["expectedAnswer"]) {
+  if (!NUMERICAL_QUESTION.test(question) && !expectedAnswer) return null
+  const expected = expectedAnswer
+    ? [{ raw: String(expectedAnswer.value), value: expectedAnswer.value, unit: normaliseUnit(expectedAnswer.unit ?? "") }]
+    : explicitClaimQuantities(referenceAnswer, question)
   const claimed = explicitClaimQuantities(answer, question)
   if (!expected.length || !claimed.length) return null
 
-  const exact = integerCountQuestion(question)
-  const matchingValue = claimed.some(candidate => expected.some(target => nearlyEqual(candidate.value, target.value, exact)))
+  const exact = expectedAnswer?.exact ?? integerCountQuestion(question)
+  const valueMatches = (candidate: QuantityClaim, target: QuantityClaim) => {
+    const candidateValue = target.unit === "%" && !candidate.unit && Math.abs(candidate.value) <= 1 ? candidate.value * 100 : candidate.value
+    return expectedAnswer?.tolerance !== undefined
+      ? Math.abs(candidateValue - target.value) <= expectedAnswer.tolerance
+      : nearlyEqual(candidateValue, target.value, exact)
+  }
+  const matchingValue = claimed.some(candidate => expected.some(target => valueMatches(candidate, target)))
   if (!matchingValue) return "The candidate's claimed numerical result conflicts with the reference result."
 
   for (const candidate of claimed) {
     for (const target of expected) {
-      if (!nearlyEqual(candidate.value, target.value, exact)) continue
+      if (!valueMatches(candidate, target)) continue
       if (candidate.unit && target.unit && candidate.unit !== target.unit) {
         return `The numerical value matches the reference, but the stated unit (${candidate.unit}) conflicts with the expected unit (${target.unit}).`
       }
@@ -244,9 +253,9 @@ function contradictsConcreteClaim(answer: string, comparison: string) {
   return false
 }
 
-function referenceConflictReason(answer: string, referenceAnswer: string, question: string) {
+function referenceConflictReason(answer: string, referenceAnswer: string, question: string, expectedAnswer?: InterviewAnswerInput["expectedAnswer"]) {
   const effectiveAnswer = effectiveFinalPosition(answer)
-  const numericConflict = numericReferenceConflict(effectiveAnswer, referenceAnswer, question)
+  const numericConflict = numericReferenceConflict(effectiveAnswer, referenceAnswer, question, expectedAnswer)
   if (numericConflict) return numericConflict
   if (contradictsConcreteClaim(effectiveAnswer, referenceAnswer)) {
     return "The response appears to reverse a concrete relationship, category or direction stated in the reference reasoning."
@@ -309,8 +318,8 @@ export function evaluateInterviewAnswerLocally(input: InterviewAnswerInput): Int
   const topicalSignal = conceptHits + lexicalHits
   const mathematical = containsMath(answer)
 
-  if (referenceAnswer) {
-    const conflictReason = referenceConflictReason(answer, referenceAnswer, question)
+  if (referenceAnswer || input.expectedAnswer) {
+    const conflictReason = referenceConflictReason(answer, referenceAnswer, question, input.expectedAnswer)
     if (conflictReason) {
       return result("incorrect", 0.94, conflictReason, "factual-error", directness, Math.max(history.repairDepth, 1) as 1 | 2 | 3)
     }

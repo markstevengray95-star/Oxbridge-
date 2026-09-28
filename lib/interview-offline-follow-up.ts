@@ -7,6 +7,7 @@ type OfflineFollowUpInput = {
   answer: string
   concepts: string[]
   referenceAnswer: string
+  expectedAnswer?: { value: number; unit?: string; tolerance?: number; exact?: boolean }
   probes: string[]
   turns: Turn[]
   persona: string
@@ -19,6 +20,7 @@ export function offlineInterviewFollowUp(input: OfflineFollowUpInput) {
     answer: input.answer,
     concepts: input.concepts,
     referenceAnswer: input.referenceAnswer,
+    expectedAnswer: input.expectedAnswer,
     previousAnswers: candidateAnswers.slice(0, -1),
   }, input.persona)
 

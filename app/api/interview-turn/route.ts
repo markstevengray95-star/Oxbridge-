@@ -27,6 +27,7 @@ type InterviewRequest = {
   delivery?: string
   stimulus?: string
   referenceAnswer?: string
+  expectedAnswer?: { value: number; unit?: string; tolerance?: number; exact?: boolean }
   stage?: InterviewStageId
 }
 
@@ -217,6 +218,7 @@ export async function POST(request: Request) {
     answer,
     concepts,
     referenceAnswer,
+    expectedAnswer: body.expectedAnswer,
     previousAnswers,
   }, body.persona ?? "Socratic")
   const apiKey = process.env.GEMINI_API_KEY

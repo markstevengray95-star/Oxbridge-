@@ -362,6 +362,7 @@ export const realisticInterviewQuestions: InterviewQuestion[] = [
   },
   {
     id: "rx-maths-5", track: "maths", title: "The missing handshake", difficulty: "Foundation", time: 8,
+    expectedAnswer: { value: 14, exact: true },
     stimulus: "Six students meet. Every pair shakes hands except one pair who have already met. No one shakes their own hand.",
     prompt: "How many handshakes happen? Show me a way to count that you would trust if the group were much larger.",
     probes: [
@@ -570,6 +571,7 @@ export const realisticInterviewQuestions: InterviewQuestion[] = [
   },
   {
     id: "rx-med-1", track: "life", courses: ["Medicine", "Biomedical Sciences"], title: "A positive screening result", difficulty: "Stretch", time: 9,
+    expectedAnswer: { value: 8.3, unit: "%", tolerance: 0.5 },
     stimulus: "In a group of 1,000 people, about 1% have a condition. A screening test detects 90% of people who have it and returns a false positive for 10% of people who do not.",
     prompt: "A person tests positive. Roughly how likely is it that they have the condition? Explain the result in counts a patient could follow.",
     probes: [
@@ -635,6 +637,7 @@ export const realisticInterviewQuestions: InterviewQuestion[] = [
   },
   {
     id: "rx-cs-2", track: "maths", courses: ["Computer Science", "Mathematics and Computer Science"], title: "One hundred hidden numbers", difficulty: "Challenge", time: 9,
+    expectedAnswer: { value: 7, exact: true },
     stimulus: "A computer secretly chooses one whole number from 1 to 100. You may ask only yes/no questions of the form 'Is the number greater than k?' for a whole number k.",
     prompt: "What is the fewest questions you need to guarantee finding the number? Give a strategy and a reason no strategy can do better.",
     probes: [

@@ -13,6 +13,7 @@ export type InterviewQuestion = {
   probes: string[]
   concepts: string[]
   strongAnswer: string
+  expectedAnswer?: { value: number; unit?: string; tolerance?: number; exact?: boolean }
 }
 
 export type TestQuestion = {
