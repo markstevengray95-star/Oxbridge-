@@ -132,8 +132,19 @@ for (const [label, source] of [["AI Interview", aiPage], ["Interview Room", room
 }
 
 const routeSource = fs.readFileSync(path.join(root, "app/api/interview-turn/route.ts"), "utf8")
-for (const marker of ["panelMode", "interviewerRole", "otherInterviewer", "Behave like a genuinely different academic"]) {
-  if (!routeSource.includes(marker)) throw new Error(`Interview API is missing panel integration marker: ${marker}`)
+for (const marker of [
+  "panelMode",
+  "interviewerRole",
+  "otherInterviewer",
+  "Behave like a genuinely different academic",
+  "courseInterviewProfile",
+  "deepChainInstruction",
+  "deepChainStage",
+  "panelInterviewer",
+  "courseProfile",
+  "responseMetadata",
+]) {
+  if (!routeSource.includes(marker)) throw new Error(`Interview API is missing server-side depth marker: ${marker}`)
 }
 
-console.log("PASS: deep interview chains, personal-statement launches, two-academic panels, course-specific engines and hint-aware intellectual recovery diagnostics are integrated into both typed interview routes.")
+console.log("PASS: deep interview chains, personal-statement launches, two-academic panels, course-specific engines and hint-aware intellectual recovery diagnostics are integrated into both typed interview routes, with server-side depth enforcement.")
