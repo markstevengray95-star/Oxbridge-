@@ -15,6 +15,13 @@ type GeneratedQuestion = ExamQuestionLike & {
   independentCheck?: string
 }
 
+type ValidatedGeneratedQuestion = GeneratedQuestion & {
+  prompt: string
+  options: string[]
+  answer: number
+  explanation: string
+}
+
 type SolverResult = { answer?: number; reasoning?: string; ambiguous?: boolean; ambiguityReason?: string; missingInformation?: boolean }
 
 function extractText(data: unknown) {
@@ -51,22 +58,26 @@ async function ask(key: string, model: string, prompt: string, temperature = 0.2
   return extractText(await response.json() as unknown)
 }
 
-function validateGenerated(value: GeneratedQuestion | null, source: ExamQuestionLike) {
+function validateGenerated(value: GeneratedQuestion | null, source: ExamQuestionLike): ValidatedGeneratedQuestion | null {
   if (!value?.prompt?.trim() || !Array.isArray(value.options) || value.options.length < 4 || typeof value.answer !== "number") return null
   if (value.answer < 0 || value.answer >= value.options.length) return null
   if (!value.explanation?.trim()) return null
-  const question: GeneratedQuestion = {
+  const question: ValidatedGeneratedQuestion = {
     ...value,
     id: value.id?.trim() || `mutated-${source.id}-${Date.now()}`,
     test: source.test,
     section: source.section,
     difficulty: value.difficulty || source.difficulty,
+    prompt: value.prompt.trim(),
+    options: value.options,
+    answer: value.answer,
+    explanation: value.explanation.trim(),
   }
   const blocking = auditQuestionQuality(question).filter(item => item.severity === "block")
   return blocking.length ? null : question
 }
 
-async function independentSolve(key: string, model: string, generated: GeneratedQuestion, role: "formal" | "adversarial") {
+async function independentSolve(key: string, model: string, generated: ValidatedGeneratedQuestion, role: "formal" | "adversarial") {
   const verificationPrompt = [
     "Solve this multiple-choice question independently. Do NOT assume the supplied marked answer is correct.",
     role === "formal"
