@@ -1,9 +1,9 @@
-import FullPaperCentre from "@/components/full-paper-centre"
+import AdmissionsTestSimulator from "@/components/admissions-test-simulator"
 import { UcatBasicCalculator } from "@/components/ucat-basic-calculator"
 
 export default function TestPlayerPage() {
   return <>
-    <FullPaperCentre />
+    <AdmissionsTestSimulator />
     <UcatBasicCalculator autoDetect />
   </>
 }
