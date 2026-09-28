@@ -51,6 +51,9 @@ jobs:
       - name: Adaptive interview questioning checks
         run: node tests/interview-questioning-engine.mjs
 
+      - name: Deep interview behaviour checks
+        run: node tests/interview-depth-features.mjs
+
       - name: Offline topic-alignment regression checks
         run: node tests/offline-topic-alignment.cjs
 
