@@ -7,6 +7,7 @@ const userTables:ExportTable[]=[
   {name:"student_intelligence",ownerColumn:"user_id"},
   {name:"interview_sessions",ownerColumn:"user_id"},
   {name:"interview_turns",ownerColumn:"user_id"},
+  {name:"test_results",ownerColumn:"user_id"},
   {name:"memory_items",ownerColumn:"user_id"},
   {name:"practice_attempts",ownerColumn:"user_id"},
   {name:"topic_progress",ownerColumn:"user_id"},

@@ -4,6 +4,7 @@ import { GlobalFocusNav } from "@/components/global-focus-nav";
 import { CommandPalette } from "@/components/command-palette";
 import { CloudProgressSync } from "@/components/cloud-progress-sync";
 import { AccountDataMirror } from "@/components/account-data-mirror";
+import { HistoryCloudMirror } from "@/components/history-cloud-mirror";
 import { PrivacyConsentBanner } from "@/components/privacy-consent-banner";
 import "./globals.css";
 import "./mobile.css";
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="antialiased">
         <CloudProgressSync />
         <AccountDataMirror />
+        <HistoryCloudMirror />
         <GlobalFocusNav />
         {children}
         <CommandPalette />
@@ -33,6 +35,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <div><span className="font-semibold text-[#102a43]">ScholarBridge</span><p className="mt-1 max-w-xl text-xs leading-relaxed text-slate-500">AI-powered university admissions preparation. Practice feedback is not an official admissions decision. Official university and test-provider guidance remains the source of truth for live requirements.</p></div>
             <nav aria-label="Legal, privacy and account links" className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs font-semibold">
               <Link href="/student-home" className="text-[#102a43] hover:underline">Student Home</Link>
+              <Link href="/history" className="text-[#147d91] hover:underline">My history</Link>
               <Link href="/privacy-centre" className="text-[#147d91] hover:underline">Privacy Centre</Link>
               <Link href="/safeguarding" className="text-[#147d91] hover:underline">Safeguarding</Link>
               <Link href="/privacy" className="text-[#147d91] hover:underline">Privacy</Link>
