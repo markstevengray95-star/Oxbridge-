@@ -2,12 +2,13 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { ArrowLeft, ArrowRight, Brain, Target, TrendingDown, TrendingUp } from "lucide-react"
+import { ArrowLeft, ArrowRight, Brain, RotateCcw, Target, TrendingDown, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { PROFILE_KEY, PROGRESS_KEY, buildStudentIntelligence } from "@/lib/personal-tutor"
+import { buildMistakeReplayGroups } from "@/lib/mistake-replay"
 
 function read(key: string) { try { return JSON.parse(localStorage.getItem(key) || "{}") as Record<string, unknown> } catch { return {} } }
 
@@ -16,12 +17,15 @@ export default function MistakeDnaPage() {
   const [progressData, setProgressData] = useState<Record<string, unknown>>({})
   useEffect(() => { setProfile(read(PROFILE_KEY)); setProgressData(read(PROGRESS_KEY)) }, [])
   const intelligence = useMemo(() => buildStudentIntelligence(profile, progressData), [profile, progressData])
+  const replayGroups = useMemo(() => buildMistakeReplayGroups(progressData), [progressData])
   const evidencedSkills = intelligence.skills.filter(item => item.evidenceCount > 0).sort((a, b) => a.score - b.score)
 
   return <main className="min-h-screen bg-[#f5f7f7] text-[#172b3a]">
     <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4"><Button asChild variant="ghost"><Link href="/tutor"><ArrowLeft />Personal Tutor</Link></Button><Badge variant="outline"><Brain className="size-3.5" />Mistake DNA</Badge></div></header>
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
       <section><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Cross-tool diagnosis</p><h1 className="mt-2 font-serif text-4xl font-bold">Why you lose marks or weaken an argument.</h1><p className="mt-3 max-w-3xl text-slate-600">Mistake DNA combines repeated patterns from interviews, full papers, interventions and essay feedback. It focuses on behaviours that can be changed, not fixed labels about ability.</p></section>
+
+      {replayGroups.length > 0 && <Card className="border-[#cfe1e4] bg-[#edf7f8] shadow-none"><CardHeader><div className="flex items-center gap-2"><RotateCcw className="size-5 text-[#147d91]"/><CardTitle className="font-serif text-2xl">Mistake Replay is ready</CardTitle></div><CardDescription>{replayGroups.reduce((sum,group)=>sum+group.count,0)} incomplete paper item{replayGroups.reduce((sum,group)=>sum+group.count,0)===1?"":"s"} grouped into {replayGroups.length} underlying skill{replayGroups.length===1?"":"s"}. Reattempt them without seeing the old answer first.</CardDescription></CardHeader><CardContent className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-2">{replayGroups.slice(0,4).map(group=><Badge key={group.id} variant="outline">{group.skill} · {group.count}</Badge>)}</div><Button asChild><Link href="/mistake-replay">Open replay packs <ArrowRight/></Link></Button></CardContent></Card>}
 
       <section className="grid gap-4 lg:grid-cols-3">{intelligence.mistakes.length ? intelligence.mistakes.slice(0, 6).map((item, index) => <Card key={item.id} className={item.priority === "high" ? "border-rose-200 bg-rose-50 shadow-none" : item.priority === "medium" ? "border-amber-200 bg-amber-50 shadow-none" : "shadow-none"}><CardHeader><div className="flex items-center justify-between"><Badge variant="outline">Pattern {index + 1}</Badge><Badge>{item.priority}</Badge></div><CardTitle className="font-serif text-xl">{item.label}</CardTitle><CardDescription>{item.domain}</CardDescription></CardHeader><CardContent className="space-y-3"><p className="text-sm leading-6">{item.evidence}</p><div className="rounded-xl bg-white/70 p-3 text-sm leading-6"><strong>Intervention:</strong> {item.action}</div><Button asChild variant="outline" className="w-full"><Link href={item.href}>Work on this <ArrowRight /></Link></Button></CardContent></Card>) : <Card className="lg:col-span-3 shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Not enough evidence yet</CardTitle><CardDescription>Complete at least one formal interview and one full paper. The tutor will then start separating one-off errors from recurring patterns.</CardDescription></CardHeader><CardContent><div className="flex gap-2"><Button asChild><Link href="/interview-room">Interview baseline</Link></Button><Button asChild variant="outline"><Link href="/full-papers">Full paper baseline</Link></Button></div></CardContent></Card>}</section>
 
