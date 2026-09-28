@@ -22,7 +22,8 @@ async function inflateRaw(bytes: Uint8Array) {
   if (typeof DecompressionStream === "undefined") {
     throw new Error("DOCX extraction is not supported by this browser. Try Chrome, Edge or upload a PDF instead.")
   }
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw" as CompressionFormat))
+  const copy = bytes.slice().buffer
+  const stream = new Blob([copy]).stream().pipeThrough(new DecompressionStream("deflate-raw" as never))
   return new Uint8Array(await new Response(stream).arrayBuffer())
 }
 
