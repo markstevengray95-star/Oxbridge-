@@ -223,10 +223,10 @@ const liveSource = fs.readFileSync(path.join(root, "lib/gemini/live-session-secu
 
 for (const marker of [
   "incorrect, vague, irrelevant, partial, responsive",
-  "If the answer is incorrect: do not praise it and do not move to a new topic",
+  "REPAIR move: stay on the current flaw",
   "Earlier candidate answers available for consistency checking",
   "repairDepth",
-  "technical vocabulary is not responsive",
+  "Do not accept a vocabulary list when the relationship between ideas is backwards or unsupported",
   "claim-level checking process",
   "suspectClaim",
   "deterministic-override",
