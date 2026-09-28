@@ -32,6 +32,10 @@ assert.equal(selectInterviewQuestion(questions, "Chemistry", ["physics-b", "phys
 assert.equal(selectInterviewQuestion(questions, "Physics", ["physics-b", "physics-a"])?.id, "physics-a")
 assert.equal(selectInterviewQuestion([], "Physics", []), undefined)
 assert.deepEqual(recordInterviewQuestion(["a", "b", "c"], "b"), ["b", "a", "c"])
+const exhausted = ["physics-a", "physics-b"]
+const initialAfterExhaustion = selectInterviewQuestion(questions, "Physics", exhausted)
+const skippedHistory = recordInterviewQuestion(exhausted, initialAfterExhaustion.id)
+assert.notEqual(selectInterviewQuestion(questions, "Physics", skippedHistory)?.id, initialAfterExhaustion.id)
 for (const [track, course] of [["maths", "Computer Science"], ["physical", "Chemistry"], ["life", "Medicine"], ["humanities", "Geography"], ["languages", "Linguistics"]]) {
   const pool = bankExports.realisticInterviewQuestions.filter(question => question.track === track)
   const eligible = pool.filter(question => !question.courses || question.courses.includes(course))

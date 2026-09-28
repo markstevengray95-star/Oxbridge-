@@ -72,6 +72,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [seed, setSeed] = useState(0)
   const [seenQuestionIds, setSeenQuestionIds] = useState<string[]>([])
+  const [previewSkippedIds, setPreviewSkippedIds] = useState<string[]>([])
   const [activeQuestion, setActiveQuestion] = useState<InterviewQuestion | null>(null)
   const [turns, setTurns] = useState<Turn[]>([])
   const [question, setQuestion] = useState("")
@@ -115,7 +116,8 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
     return exact.length ? exact : realisticInterviewQuestions.filter(item => item.track === track)
   }, [track, difficulty])
 
-  const previewQuestion = selectInterviewQuestion(questionsForTrack, course, seenQuestionIds, seed)
+  const previewHistory = [...previewSkippedIds, ...seenQuestionIds.filter(id => !previewSkippedIds.includes(id))]
+  const previewQuestion = selectInterviewQuestion(questionsForTrack, course, previewHistory, seed)
   const base = activeQuestion ?? previewQuestion
   const persona = interviewerPersonas[personaKey]
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
@@ -160,6 +162,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
     const firstCourse = tracks.find(item => item.id === next)?.courses[0]
     if (firstCourse) setCourse(firstCourse)
     setSeed(0)
+    setPreviewSkippedIds([])
   }
 
   function startInterview() {
@@ -304,6 +307,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
     setThinking(false)
     setNotice("")
     setActiveQuestion(null)
+    setPreviewSkippedIds([])
     setSeed(value => value + 1)
   }
 
@@ -325,14 +329,14 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Subject family</span><NativeSelect value={track} onChange={event => chooseTrack(event.target.value as TrackId)}>{tracks.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.short}</NativeSelectOption>)}</NativeSelect></label>
-              <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Course</span><NativeSelect value={course} onChange={event => setCourse(event.target.value)}>{courses.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
-              <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Difficulty</span><NativeSelect value={difficulty} onChange={event => { setDifficulty(event.target.value as typeof difficulty); setSeed(0) }}>{["Foundation", "Stretch", "Challenge"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
+              <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Course</span><NativeSelect value={course} onChange={event => { setCourse(event.target.value); setPreviewSkippedIds([]) }}>{courses.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
+              <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Difficulty</span><NativeSelect value={difficulty} onChange={event => { setDifficulty(event.target.value as typeof difficulty); setSeed(0); setPreviewSkippedIds([]) }}>{["Foundation", "Stretch", "Challenge"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interview mode</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Realistic", "Tutor", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label className="space-y-1.5 sm:col-span-2"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interviewer style</span><NativeSelect value={personaKey} onChange={event => setPersonaKey(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
             </div>
 
             {previewQuestion ? <p className="mt-6 text-sm text-[#526a75]">Next problem: <strong>{previewQuestion.title}</strong></p> : null}
-            <div className="mt-4 flex flex-wrap gap-3"><Button onClick={startInterview} disabled={!base}><Brain />Start interview</Button><Button variant="outline" onClick={() => setSeed(value => value + 1)}><RefreshCw />Different problem</Button></div>
+            <div className="mt-4 flex flex-wrap gap-3"><Button onClick={startInterview} disabled={!base}><Brain />Start interview</Button><Button variant="outline" onClick={() => { if (previewQuestion) setPreviewSkippedIds(ids => recordInterviewQuestion(ids, previewQuestion.id)); setSeed(value => value + 1) }}><RefreshCw />Different problem</Button></div>
           </div>
 
           <aside className="bg-[#102a43] p-6 text-white sm:p-8 lg:p-10">
