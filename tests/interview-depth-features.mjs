@@ -47,6 +47,14 @@ if (!launch?.prompt.includes("scientific models") || !launch.followUpRule.toLowe
   throw new Error(`Application launch did not use saved academic context and push beyond rehearsed material: ${JSON.stringify(launch)}`)
 }
 
+const statementLaunch = applicationLaunchQuestion({
+  personalStatement: "I became interested in scientific modelling because idealised models can produce accurate predictions despite assumptions that are visibly unrealistic. However, I think their value depends on knowing which approximation is doing the explanatory work.",
+  books: "This fallback book should not be selected when a substantive personal statement is available.",
+}, "Physics")
+if (statementLaunch?.source !== "personal statement" || !statementLaunch.prompt.includes("scientific modelling")) {
+  throw new Error(`Personal-statement launch should take priority and select an academic claim: ${JSON.stringify(statementLaunch)}`)
+}
+
 const physics = courseInterviewProfile("Physics", "physical")
 const law = courseInterviewProfile("Law", "law")
 if (physics.family === law.family) throw new Error("Course-specific engines must differ across subject families")
@@ -65,10 +73,24 @@ if (a.label !== "Interviewer A" || b.label !== "Interviewer B" || a.role === b.r
 const flat = recoverySignal(["responsive", "responsive"])
 const recovered = recoverySignal(["incorrect", "responsive"])
 const partialRecovery = recoverySignal(["vague", "partial", "responsive"])
+const lightHintRecovery = recoverySignal([
+  { classification: "incorrect" },
+  { classification: "responsive", hintLevel: 1 },
+])
+const heavyHintRecovery = recoverySignal([
+  { classification: "incorrect" },
+  { classification: "responsive", hintLevel: 4 },
+])
 if (recovered.strongRecoveries !== 1 || recovered.score <= flat.score) {
   throw new Error(`Strong recovery should produce positive recovery evidence without erasing the earlier miss: ${JSON.stringify({ flat, recovered })}`)
 }
 if (partialRecovery.recoveries < 1) throw new Error("Partial-to-responsive recovery was not detected")
+if (lightHintRecovery.independentRecoveries !== 1 || lightHintRecovery.score <= heavyHintRecovery.score) {
+  throw new Error(`Recovery after light prompting should carry more independence evidence than recovery after a stage-4 hint: ${JSON.stringify({ lightHintRecovery, heavyHintRecovery })}`)
+}
+if (heavyHintRecovery.supportedRecoveries !== 1 || heavyHintRecovery.score <= flat.score) {
+  throw new Error(`Recovery after substantial support should still count as positive recovery evidence: ${JSON.stringify({ flat, heavyHintRecovery })}`)
+}
 
 for (const expected of [
   "deep-follow-up-chains",
@@ -98,6 +120,11 @@ for (const marker of [
   if (!componentSource.includes(marker)) throw new Error(`Advanced interview UI is missing integration marker: ${marker}`)
 }
 
+const statementSource = fs.readFileSync(path.join(root, "app/personal-statement-defence/page.tsx"), "utf8")
+for (const marker of ["PERSONAL_STATEMENT_KEY", "APPLICATION_KEY", "personalStatement:text"]) {
+  if (!statementSource.includes(marker)) throw new Error(`Personal statement defence is not feeding interview launch context: ${marker}`)
+}
+
 const aiPage = fs.readFileSync(path.join(root, "app/ai-interview/page.tsx"), "utf8")
 const roomPage = fs.readFileSync(path.join(root, "app/interview-room/page.tsx"), "utf8")
 for (const [label, source] of [["AI Interview", aiPage], ["Interview Room", roomPage]]) {
@@ -109,4 +136,4 @@ for (const marker of ["panelMode", "interviewerRole", "otherInterviewer", "Behav
   if (!routeSource.includes(marker)) throw new Error(`Interview API is missing panel integration marker: ${marker}`)
 }
 
-console.log("PASS: deep interview chains, application launches, two-academic panels, course-specific engines and intellectual recovery diagnostics are integrated into both typed interview routes.")
+console.log("PASS: deep interview chains, personal-statement launches, two-academic panels, course-specific engines and hint-aware intellectual recovery diagnostics are integrated into both typed interview routes.")
