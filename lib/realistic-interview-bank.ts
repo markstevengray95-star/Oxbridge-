@@ -15,15 +15,15 @@ export const realisticInterviewQuestions: InterviewQuestion[] = [
   },
   {
     id: "rx-maths-2", track: "maths", title: "Lights around a circle", difficulty: "Stretch", time: 9,
-    prompt: "Six lights are arranged in a circle, all initially off. A move changes the state of one light and its two neighbours. Is it possible to finish with exactly one light on? I am more interested in your method than a lucky sequence of moves.",
+    prompt: "Six lights are arranged in a circle, all initially off. Pressing one switch changes that light and its two neighbours. Can you leave exactly one light on? You may sketch the circle; tell me what your experiments suggest before trying to prove it.",
     probes: [
-      "What information about the configuration might stay unchanged after every move?",
-      "Try the problem with three lights and four lights. Does that suggest an invariant or a warning?",
-      "Suppose I let a move affect only a light and the neighbour clockwise from it. What changes?",
-      "Can you explain your conclusion without listing every possible sequence?",
+      "Try pressing two different switches. Which features of the lit pattern change in the same way each time?",
+      "Pair each light with the one opposite it. What happens to the parity of each pair after a press?",
+      "Starting from all off, can the three opposite-pair parities ever differ? What would one lit light require?",
+      "Two opposite lights on passes that parity check. Does passing a necessary check prove reachability, or can you find actual presses?",
     ],
-    concepts: ["invariant", "parity", "binary", "state", "proof", "counterexample"],
-    strongAnswer: "A systematic route represents on/off states mod 2 and studies what each move changes. The key is to search for a parity or linear invariant rather than brute-force sequences. A good answer tests small cases, identifies a conserved combination, then uses it to prove possibility or impossibility and notices that changing the move rule changes the invariant structure.",
+    concepts: ["invariant", "opposite pairs", "parity", "binary", "state", "proof"],
+    strongAnswer: "It is impossible to leave exactly one light on. Number the circle 1 to 6 and track the parity of opposite pairs (1,4), (2,5) and (3,6). Any press toggles exactly one light in each pair, so all three pair parities change together. They start equal and must stay equal; a single lit light would make one parity odd and the other two even. This is a necessary condition, not a complete test for every target. For instance two opposite lights are reachable by pressing switches 2 and 3.",
   },
   {
     id: "rx-maths-3", track: "maths", title: "Three envelopes", difficulty: "Stretch", time: 8,
@@ -36,19 +36,19 @@ export const realisticInterviewQuestions: InterviewQuestion[] = [
       "What if the switching fee is unknown: can you derive a threshold fee?",
     ],
     concepts: ["expected value", "conditional", "probability", "information", "threshold", "decision"],
-    strongAnswer: "Before any new information, switching to a randomly chosen other envelope has the same expected value as keeping the first, so paying a positive fee is not worthwhile. Once partial information is revealed, the conditional distributions change and a threshold fee can be calculated from the difference in conditional expected values.",
+    strongAnswer: "Without opening the chosen envelope, keeping and switching to a random other envelope each have expected value £70/3, so paying £3 to switch loses £3 in expectation. Learning only that the chosen envelope is not £40 leaves £10 and £20 equally likely: keeping is worth £15, while a random other envelope is worth £27.50 before the fee. The gain from switching is £12.50 before fees; pay only if the fee is below £12.50. The decision changes because of information, not because merely choosing an envelope changes its value.",
   },
   {
     id: "rx-maths-4", track: "maths", title: "A proof that looks plausible", difficulty: "Challenge", time: 9,
     prompt: "A student claims: ‘Every polynomial with integer coefficients that takes an even value at x=0 and an odd value at x=1 must have an integer root somewhere.’ Do you believe the claim? Do not rush to calculate; decide what kind of evidence would settle it.",
     probes: [
-      "What does the change from even to odd actually tell you?",
-      "Can continuity help, and if so what does it fail to guarantee?",
-      "Try constructing a simple quadratic rather than searching for a proof immediately.",
-      "How would you rewrite the claim so that a nearby true statement emerges?",
+      "What does the parity change establish about the values at 0 and 1? Does it establish their signs?",
+      "Try a quadratic that stays positive for every real x. Can it meet both parity conditions?",
+      "What are the values at 0 and 1 of x² + 2x + 2, and can that polynomial have any real root?",
+      "What stronger condition at 0 and 1 would let continuity guarantee a real root between them? Would it guarantee an integer root?",
     ],
     concepts: ["counterexample", "polynomial", "integer", "continuity", "root", "parity"],
-    strongAnswer: "Parity information alone does not force an integer root. A strong candidate distinguishes a sign change from a parity change, tests simple examples, and looks for a counterexample. Continuity can guarantee a real root only under a sign change, not from even/odd function values by itself. The claim should therefore be tested rather than assumed true from a superficial analogy.",
+    strongAnswer: "The claim is false: p(x)=x²+2x+2 has p(0)=2 (even) and p(1)=5 (odd), but p(x)=(x+1)²+1 is positive for every real x and so has no integer root. Parity change says nothing about a sign change. Opposite signs at 0 and 1 would guarantee a real root in (0,1) by continuity, but still would not give an integer root.",
   },
 
   {

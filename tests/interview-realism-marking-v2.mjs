@@ -116,11 +116,11 @@ if (revised.flexibility <= noRevision.flexibility) {
 const component = fs.readFileSync(path.join(root, "components/realistic-typed-interview.tsx"), "utf8")
 for (const marker of [
   "markTypedInterviewTranscript",
-  "No length bonus.",
-  "Typed-answer breakdown",
+  "Reasoning matters more than polished prose",
+  "Typed-answer marking, turn by turn",
   "referenceAnswer: base.strongAnswer",
-  "Scratchpad text is not marked",
-  "does not award marks simply for writing more",
+  "Private scratchpad. It is not marked.",
+  "receive no bonus for being long",
 ]) {
   if (!component.includes(marker)) throw new Error(`Typed interview UI is missing regression marker: ${marker}`)
 }
