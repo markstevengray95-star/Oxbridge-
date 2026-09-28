@@ -13,7 +13,7 @@ import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } fro
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
 import { offlineInterviewFollowUp } from "@/lib/interview-offline-follow-up"
 import { recordInterviewQuestion, selectInterviewQuestion } from "@/lib/interview-question-selection"
-import { interviewStageForTurns } from "@/lib/interview-structure"
+import { interviewStageForTurns, interviewStages } from "@/lib/interview-structure"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { tracks, type InterviewQuestion, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
@@ -402,7 +402,14 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
         <Card className="min-h-[680px] border-[#dbe5e7]">
-          <CardHeader><CardTitle className="font-serif text-2xl">Academic interview</CardTitle><CardDescription>{interviewStage.label}: {interviewStage.focus} Think aloud; a mistake is a chance to repair the reasoning.</CardDescription><Progress value={interviewStage.progress} className="mt-2" /></CardHeader>
+          <CardHeader>
+            <CardTitle className="font-serif text-2xl">Academic interview</CardTitle>
+            <CardDescription>{interviewStage.focus} Think aloud; a mistake is a chance to repair the reasoning.</CardDescription>
+            <div className="grid grid-cols-2 gap-2 pt-2 sm:grid-cols-4" aria-label="Interview stages">
+              {interviewStages.map((stage, index) => <div key={stage.id} aria-current={stage.id === interviewStage.id ? "step" : undefined} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${stage.id === interviewStage.id ? "border-[#147d91] bg-[#edf7f8] text-[#0b5967]" : index < interviewStage.index ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-500"}`}>{index + 1}. {stage.label}</div>)}
+            </div>
+            <Progress value={interviewStage.progress} className="mt-2" />
+          </CardHeader>
           <CardContent className="space-y-4">
             {base?.stimulus ? <div className="rounded-2xl border border-[#cfe1e4] bg-[#edf7f8] p-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Stimulus</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{base.stimulus}</p></div> : null}
             <div className="max-h-[390px] space-y-3 overflow-y-auto rounded-2xl bg-[#f8fafb] p-4">
