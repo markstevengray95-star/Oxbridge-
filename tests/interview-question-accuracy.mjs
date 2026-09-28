@@ -38,4 +38,27 @@ const values = [10, 20, 40]
 const conditionalKeep = (values[0] + values[1]) / 2
 const conditionalSwitch = ((values[1] + values[2]) / 2 + (values[0] + values[2]) / 2) / 2
 assert.equal(conditionalSwitch - conditionalKeep, 12.5)
-console.log("PASS: interview reference answers agree with reachable light states, the polynomial counterexample and conditional envelope values")
+
+const tracks = ["maths", "physical", "life", "law", "humanities", "economics", "languages"]
+assert.equal(new Set(questions.map(question => question.id)).size, questions.length)
+for (const track of tracks) {
+  const trackQuestions = questions.filter(question => question.track === track)
+  assert.ok(trackQuestions.length >= 5, `${track} should offer at least five scenarios`)
+  assert.ok(trackQuestions.filter(question => question.difficulty === "Foundation").length >= 2, `${track} should offer at least two entry points`)
+  for (const question of trackQuestions) {
+    assert.ok(question.probes.length >= 4, `${question.id} needs staged probes`)
+    assert.ok(question.strongAnswer.length > 100, `${question.id} needs reference reasoning`)
+  }
+}
+
+const handshake = find("rx-maths-5")
+assert.match(handshake.strongAnswer, /14 handshakes/)
+assert.equal(6 * 5 / 2 - 1, 14)
+assert.equal((2 * 14) % 6, 4)
+
+const cafe = find("rx-econ-5")
+assert.match(cafe.strongAnswer, /167 coffees/)
+assert.equal(100 * (4 - 1.5), 250)
+assert.equal(130 * (3 - 1.5), 195)
+assert.equal(Math.floor(250 / (3 - 1.5)) + 1, 167)
+console.log("PASS: all seven tracks offer two entry points; quantitative interview answers and staged probes agree with their scenarios")
