@@ -16,6 +16,12 @@ import {
   type InterviewReveal,
   type InterviewWhiteboardTask,
 } from "@/lib/interview-questioning-engine"
+import {
+  courseInterviewProfile,
+  deepChainInstruction,
+  deepChainStage,
+  panelInterviewer,
+} from "@/lib/interview-depth-features"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { interviewQuestions } from "@/lib/oxbridge-data"
 
@@ -28,6 +34,7 @@ type InterviewTurn = {
   quality?: InterviewAnswerClassification
   moveKind?: InterviewMoveKind
   reveal?: InterviewReveal
+  hintLevel?: 1 | 2 | 3 | 4
 }
 
 type InterviewRequest = {
@@ -337,6 +344,18 @@ export async function POST(request: Request) {
   const adaptiveLevel = validAdaptiveLevel(body.adaptiveLevel)
   const recentTurns = Array.isArray(body.turns) ? body.turns.slice(-20) : []
   const previousAnswers = previousCandidateAnswers(recentTurns, answer)
+  const candidateTurnCount = Math.max(1, recentTurns.filter(turn => turn.role === "candidate").length)
+  const chainStage = deepChainStage(candidateTurnCount)
+  const chainInstruction = deepChainInstruction(candidateTurnCount)
+  const courseProfile = courseInterviewProfile(body.course ?? "", body.track)
+  const derivedPanel = panelInterviewer(Math.max(0, candidateTurnCount - 1), courseProfile)
+  const activeInterviewerRole = `${derivedPanel.label}: ${derivedPanel.role}`
+  const otherInterviewer = derivedPanel.colleague
+  const responseMetadata = {
+    chainStage,
+    courseFamily: courseProfile.family,
+    interviewerRole: body.panelMode ? activeInterviewerRole : undefined,
+  }
 
   const fallback = localInterviewFollowUp({
     question: body.question,
@@ -350,20 +369,28 @@ export async function POST(request: Request) {
   if (!apiKey) {
     const resolved = localResolved(fallback, "local")
     const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel })
-    return NextResponse.json({ ...moved, provider: "local", configured: false })
+    return NextResponse.json({ ...moved, ...responseMetadata, provider: "local", configured: false })
   }
 
   const responsiveTarget = chooseInterviewMove({ classification: "responsive", issue: "none", moveHistory, adaptiveLevel, track: body.track })
   const predictedHintLevel = hintLevelFor({ moveHistory, repairDepth: fallback.repairDepth })
+  const courseInstructions = [
+    `Use the ${courseProfile.family} interview engine.`,
+    `Prioritise these academic habits: ${courseProfile.priorities.join(", ")}.`,
+    `Prefer subject-authentic moves such as: ${courseProfile.preferredMoves.join(", ")}.`,
+    `Deep-chain stage: ${chainStage}. ${chainInstruction}`,
+    "Keep the current problem as the anchor. Do not jump to an unrelated fresh question before the transfer or synthesis stage unless the candidate's answer makes the original problem unusable.",
+  ]
   const panelInstructions = body.panelMode ? [
-    `You are ${body.interviewerRole ?? "one member of a two-person academic interview panel"}.`,
-    `The other interviewer is ${body.otherInterviewer ?? "another academic"}.`,
+    `You are ${activeInterviewerRole}.`,
+    `The other interviewer is ${otherInterviewer}.`,
     "Behave like a genuinely different academic with your own angle. Continue the same conversation; do not reset the topic or repeat the other interviewer.",
     "You can briefly refer to something the candidate said to the other interviewer and test it from a new direction.",
     "The two interviewers should feel like colleagues in the same room, not two chatbot personas taking turns mechanically.",
   ] : []
 
   const branchingInstructions = [
+    `Deep-chain stage ${chainStage}: ${chainInstruction}`,
     `If your classification is responsive, the required next academic move is ${responsiveTarget}. If the classification is anything else, the required moveKind is repair.`,
     `The hidden challenge setting is: ${adaptiveChallengeDescriptor(adaptiveLevel)} Never tell the candidate that a difficulty level changed or name an adaptive level.`,
     `If repair is required, this is approximately hint stage ${predictedHintLevel} of 4. Stage 1 clarifies the flaw; stage 2 isolates one diagnostic step; stage 3 points toward a relevant principle without solving; stage 4 gives one minimal conceptual nudge and a smaller question. Never reveal the full solution.`,
@@ -383,6 +410,7 @@ export async function POST(request: Request) {
   const systemPrompt = [
     STUDENT_AI_SAFETY_POLICY,
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
+    ...courseInstructions,
     ...panelInstructions,
     "Before deciding the next question, silently evaluate the candidate's LATEST answer against the CURRENT question and the recent conversation. Classify it as exactly one of: incorrect, vague, irrelevant, partial, responsive.",
     "Use a claim-level checking process internally: identify what the question asks; separate the answer into concrete claims; test material claims against the stimulus, hidden reference reasoning and earlier claims; then check whether the conclusion follows.",
@@ -416,6 +444,8 @@ export async function POST(request: Request) {
     referenceAnswer ? `Hidden reference reasoning for correctness checking only: ${referenceAnswer}` : "Hidden reference reasoning: unavailable. Be conservative about declaring factual error.",
     probes.length ? `Prepared tutor probes you may adapt:\n${probes.map((probe, index) => `${index + 1}. ${probe}`).join("\n")}` : "",
     `Questioning moves already used: ${moveHistory.length ? moveHistory.join(" → ") : "none"}.`,
+    `Deep-chain stage: ${chainStage}. ${chainInstruction}`,
+    `Course engine: ${courseProfile.family}. Priorities: ${courseProfile.priorities.join(", ")}.`,
     `Hidden adaptive challenge state: ${adaptiveLevel}. Do not mention this number to the candidate.`,
     `If this answer is responsive, your required next move is ${responsiveTarget}.`,
     `Earlier candidate answers available for consistency checking:\n${previousAnswers.length ? previousAnswers.map((item, index) => `${index + 1}. ${item}`).join("\n") : "None."}`,
@@ -444,7 +474,7 @@ export async function POST(request: Request) {
       console.error("Gemini interview request failed", response.status, detail.slice(0, 500))
       const resolved = localResolved(fallback, "local")
       const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel })
-      return NextResponse.json({ ...moved, provider: "local", configured: true, degraded: true })
+      return NextResponse.json({ ...moved, ...responseMetadata, provider: "local", configured: true, degraded: true })
     }
 
     const data = await response.json() as unknown
@@ -453,16 +483,16 @@ export async function POST(request: Request) {
     if (!evaluated?.reply || !evaluated.classification) {
       const resolved = localResolved(fallback, "local")
       const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel })
-      return NextResponse.json({ ...moved, provider: "local", configured: true, degraded: true })
+      return NextResponse.json({ ...moved, ...responseMetadata, provider: "local", configured: true, degraded: true })
     }
 
     const resolved = resolveEvaluation(fallback, evaluated, Boolean(referenceAnswer || stimulus))
     const moved = attachQuestioningMove({ resolved, evaluated, moveHistory, probes, track: body.track, adaptiveLevel })
-    return NextResponse.json({ ...moved, provider: "gemini", configured: true })
+    return NextResponse.json({ ...moved, ...responseMetadata, provider: "gemini", configured: true })
   } catch (error) {
     console.error("Gemini interview request error", error)
     const resolved = localResolved(fallback, "local")
     const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel })
-    return NextResponse.json({ ...moved, provider: "local", configured: true, degraded: true })
+    return NextResponse.json({ ...moved, ...responseMetadata, provider: "local", configured: true, degraded: true })
   }
 }
