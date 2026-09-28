@@ -11,13 +11,20 @@ const PRO_ROUTES = [
   "/full-papers","/advanced-practice","/adaptive-paper","/admissions-test-courses","/preparation-report","/weekly-programme","/research-project","/knowledge-graph",
 ]
 const SCHOOL_ROUTES = ["/school-dashboard","/school-overview","/school-reports","/human-review","/teacher-coach","/teacher-live-console","/human-interviewer"]
-const PUBLIC_PAGE_ROUTES = ["/login", "/reset-password", "/auth/confirm", "/admin/login"]
+const PUBLIC_PAGE_ROUTES = ["/login", "/practice-login", "/reset-password", "/auth/confirm", "/admin/login"]
 const PUBLIC_ASSET_ROUTES = ["/manifest.webmanifest", "/sw.js", "/robots.txt", "/sitemap.xml"]
 const PLAN_GATE_ROUTES = ["/premium", "/post-login"]
 
 function matchesAny(pathname: string, routes: string[]) { return routes.some(route => pathname === route || pathname.startsWith(`${route}/`)) }
 function effectiveTier(tier: unknown, status: unknown) { const active=status==="active"||status==="trialing"; if(active&&tier==="school")return "school" as const;if(active&&tier==="pro")return "pro" as const;return "free" as const }
 function redirectTo(request: NextRequest, pathname: string, next?: string) { const url=request.nextUrl.clone();url.pathname=pathname;url.search="";if(next)url.searchParams.set("next",next);return NextResponse.redirect(url) }
+function hasPracticeAccess(user: unknown) {
+  if (!user || typeof user !== "object") return false
+  const appMetadata = (user as { app_metadata?: unknown }).app_metadata
+  if (!appMetadata || typeof appMetadata !== "object") return false
+  const metadata = appMetadata as Record<string, unknown>
+  return metadata.account_type === "practice" && metadata.practice_access === "unlimited"
+}
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
@@ -41,11 +48,12 @@ export async function updateSession(request: NextRequest) {
   }
 
   if(!userId) return response
-  if(pathname==="/login") return redirectTo(request,"/post-login")
+  if(pathname==="/login"||pathname==="/practice-login") return redirectTo(request,"/post-login")
 
   const requiresPro=matchesAny(pathname,PRO_ROUTES)
   const requiresSchool=matchesAny(pathname,SCHOOL_ROUTES)
   const isAdmin=isConfiguredAdminEmail(userEmail)
+  const isPractice=hasPracticeAccess(user)
 
   if(adminLogin&&isAdmin) return redirectTo(request,"/admin")
   if(requiresAdmin&&!isAdmin){const url=request.nextUrl.clone();url.pathname="/admin/login";url.search="";url.searchParams.set("error","not-authorized");return NextResponse.redirect(url)}
@@ -59,9 +67,9 @@ export async function updateSession(request: NextRequest) {
     const paidTier=effectiveTier(subscription?.tier,subscription?.status)
     const tier=seat?.active?"school":paidTier
     const cookieFreePlan=request.cookies.get(FREE_PLAN_COOKIE)?.value===userId
-    const hasChosenPlan=tier==="pro"||tier==="school"||cookieFreePlan||onboardingCompleted(onboarding?.state_value)
+    const hasChosenPlan=isPractice||tier==="pro"||tier==="school"||cookieFreePlan||onboardingCompleted(onboarding?.state_value)
     if(!hasChosenPlan){const url=request.nextUrl.clone();url.pathname="/premium";url.search="";url.searchParams.set("onboarding","required");return NextResponse.redirect(url)}
-    const hasPro=tier==="pro"||tier==="school", hasSchool=tier==="school"
+    const hasPro=isPractice||tier==="pro"||tier==="school", hasSchool=tier==="school"
     if((requiresSchool&&!hasSchool)||(requiresPro&&!hasPro)){const url=request.nextUrl.clone();url.pathname="/premium";url.search="";url.searchParams.set("feature",pathname);url.searchParams.set("required",requiresSchool?"school":"pro");return NextResponse.redirect(url)}
   }
 
