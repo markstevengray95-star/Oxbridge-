@@ -43,8 +43,9 @@ const tracks = ["maths", "physical", "life", "law", "humanities", "economics", "
 assert.equal(new Set(questions.map(question => question.id)).size, questions.length)
 for (const track of tracks) {
   const trackQuestions = questions.filter(question => question.track === track)
-  assert.ok(trackQuestions.length >= 5, `${track} should offer at least five scenarios`)
+  assert.ok(trackQuestions.length >= 6, `${track} should offer at least six scenarios`)
   assert.ok(trackQuestions.filter(question => question.difficulty === "Foundation").length >= 2, `${track} should offer at least two entry points`)
+  assert.ok(trackQuestions.filter(question => question.difficulty === "Challenge").length >= 2, `${track} should offer at least two challenge scenarios`)
   for (const question of trackQuestions) {
     assert.ok(question.probes.length >= 4, `${question.id} needs staged probes`)
     assert.ok(question.strongAnswer.length > 100, `${question.id} needs reference reasoning`)
@@ -61,4 +62,15 @@ assert.match(cafe.strongAnswer, /167 coffees/)
 assert.equal(100 * (4 - 1.5), 250)
 assert.equal(130 * (3 - 1.5), 195)
 assert.equal(Math.floor(250 / (3 - 1.5)) + 1, 167)
-console.log("PASS: all seven tracks offer two entry points; quantitative interview answers and staged probes agree with their scenarios")
+
+const counters = find("rx-maths-6")
+assert.match(counters.strongAnswer, /take two, leaving 18/)
+for (let remaining = 3; remaining <= 21; remaining += 3) {
+  assert.ok([1, 2].every(take => (remaining - take) % 3 !== 0))
+}
+
+const carts = find("rx-physical-6")
+assert.match(carts.strongAnswer, /1 m\/s/)
+assert.equal(1 * 2 / 2, 1)
+assert.equal(0.5 * 1 * 2 ** 2 - 0.5 * 2 * 1 ** 2, 1)
+console.log("PASS: all seven tracks offer foundation and challenge variety; quantitative answers and staged probes agree with their scenarios")
