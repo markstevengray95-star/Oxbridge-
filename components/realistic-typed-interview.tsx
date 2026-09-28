@@ -12,12 +12,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
 import { offlineInterviewFollowUp } from "@/lib/interview-offline-follow-up"
+import { recordInterviewQuestion, selectInterviewQuestion } from "@/lib/interview-question-selection"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
-import { tracks, type TrackId } from "@/lib/oxbridge-data"
+import { tracks, type InterviewQuestion, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
 
 const PROFILE_KEY = "oxbridge-tutor-profile-v2"
 const PROGRESS_KEY = "oxbridge-tutor-progress-v2"
+const SEEN_QUESTIONS_KEY = "oxbridge-interview-seen-questions-v1"
 
 type Variant = "ai" | "formal"
 type Phase = "lobby" | "live" | "review"
@@ -69,6 +71,8 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
   const [personaKey, setPersonaKey] = useState<InterviewPersonaKey>("Socratic")
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [seed, setSeed] = useState(0)
+  const [seenQuestionIds, setSeenQuestionIds] = useState<string[]>([])
+  const [activeQuestion, setActiveQuestion] = useState<InterviewQuestion | null>(null)
   const [turns, setTurns] = useState<Turn[]>([])
   const [question, setQuestion] = useState("")
   const [answer, setAnswer] = useState("")
@@ -92,6 +96,15 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
   }, [])
 
   useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SEEN_QUESTIONS_KEY) || "[]") as unknown
+      if (Array.isArray(saved)) setSeenQuestionIds(saved.filter((id): id is string => typeof id === "string").slice(0, 100))
+    } catch {
+      // Interview selection still works for this visit if storage is unavailable.
+    }
+  }, [])
+
+  useEffect(() => {
     if (!running || seconds <= 0) return
     const timer = window.setInterval(() => setSeconds(value => Math.max(0, value - 1)), 1000)
     return () => window.clearInterval(timer)
@@ -102,7 +115,8 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
     return exact.length ? exact : realisticInterviewQuestions.filter(item => item.track === track)
   }, [track, difficulty])
 
-  const base = questionsForTrack[seed % Math.max(1, questionsForTrack.length)]
+  const previewQuestion = selectInterviewQuestion(questionsForTrack, course, seenQuestionIds, seed)
+  const base = activeQuestion ?? previewQuestion
   const persona = interviewerPersonas[personaKey]
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const candidateTurns = turns.filter(turn => turn.role === "candidate").length
@@ -150,6 +164,10 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
 
   function startInterview() {
     if (!base) return
+    setActiveQuestion(base)
+    const updatedHistory = recordInterviewQuestion(seenQuestionIds, base.id)
+    setSeenQuestionIds(updatedHistory)
+    try { localStorage.setItem(SEEN_QUESTIONS_KEY, JSON.stringify(updatedHistory)) } catch { /* Continue without persistence. */ }
     const first: Turn[] = [
       { role: "interviewer", text: persona.opening },
       { role: "interviewer", text: base.prompt },
@@ -285,6 +303,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
     setRunning(false)
     setThinking(false)
     setNotice("")
+    setActiveQuestion(null)
     setSeed(value => value + 1)
   }
 
@@ -312,7 +331,8 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
               <label className="space-y-1.5 sm:col-span-2"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interviewer style</span><NativeSelect value={personaKey} onChange={event => setPersonaKey(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-3"><Button onClick={startInterview} disabled={!base}><Brain />Start interview</Button><Button variant="outline" onClick={() => setSeed(value => value + 1)}><RefreshCw />Different problem</Button></div>
+            {previewQuestion ? <p className="mt-6 text-sm text-[#526a75]">Next problem: <strong>{previewQuestion.title}</strong></p> : null}
+            <div className="mt-4 flex flex-wrap gap-3"><Button onClick={startInterview} disabled={!base}><Brain />Start interview</Button><Button variant="outline" onClick={() => setSeed(value => value + 1)}><RefreshCw />Different problem</Button></div>
           </div>
 
           <aside className="bg-[#102a43] p-6 text-white sm:p-8 lg:p-10">

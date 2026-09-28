@@ -51,6 +51,9 @@ jobs:
       - name: Interview question accuracy checks
         run: node tests/interview-question-accuracy.mjs
 
+      - name: Interview question selection checks
+        run: node tests/interview-question-selection.mjs
+
       - name: Offline interview follow-up checks
         run: node tests/interview-offline-follow-up.mjs
 

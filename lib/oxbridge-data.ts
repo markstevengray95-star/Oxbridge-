@@ -4,6 +4,7 @@ export type University = "Oxford" | "Cambridge" | "Both" | "Undecided"
 export type InterviewQuestion = {
   id: string
   track: TrackId
+  courses?: string[]
   title: string
   prompt: string
   stimulus?: string
