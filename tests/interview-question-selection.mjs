@@ -7,6 +7,10 @@ const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKi
 const exports = {}
 new Function("exports", code)(exports)
 const { selectInterviewQuestion, recordInterviewQuestion } = exports
+const bankSource = fs.readFileSync(new URL("../lib/realistic-interview-bank.ts", import.meta.url), "utf8")
+const bankCode = ts.transpileModule(bankSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
+const bankExports = {}
+new Function("exports", bankCode)(bankExports)
 
 const questions = [
   { id: "physics-a" },
@@ -28,4 +32,16 @@ assert.equal(selectInterviewQuestion(questions, "Chemistry", ["physics-b", "phys
 assert.equal(selectInterviewQuestion(questions, "Physics", ["physics-b", "physics-a"])?.id, "physics-a")
 assert.equal(selectInterviewQuestion([], "Physics", []), undefined)
 assert.deepEqual(recordInterviewQuestion(["a", "b", "c"], "b"), ["b", "a", "c"])
+for (const [track, course] of [["maths", "Computer Science"], ["physical", "Chemistry"], ["life", "Medicine"], ["humanities", "Geography"], ["languages", "Linguistics"]]) {
+  const pool = bankExports.realisticInterviewQuestions.filter(question => question.track === track)
+  const eligible = pool.filter(question => !question.courses || question.courses.includes(course))
+  let history = []
+  const selected = []
+  for (let index = 0; index < eligible.length; index++) {
+    const question = selectInterviewQuestion(pool, course, history)
+    selected.push(question.id)
+    history = recordInterviewQuestion(history, question.id)
+  }
+  assert.equal(new Set(selected).size, eligible.length, `${course} repeated a question before using its eligible pool`)
+}
 console.log("PASS: interview selection avoids repeats until eligible questions are exhausted and excludes other-course prompts")
