@@ -29,24 +29,26 @@ function assertUsageQuery(result: SupabaseResult, label: string) {
   throw new Error(`Gemini usage lookup failed for ${label}${code}: ${result.error.message || "unknown database error"}`)
 }
 
+function unlimitedState(reservationMinutes: number, isAdmin: boolean): UsageState {
+  return {
+    tier: "school",
+    status: "active",
+    usedMinutes: 0,
+    limitMinutes: 0,
+    baseRemainingMinutes: 0,
+    creditMinutes: 0,
+    remainingMinutes: 0,
+    reservationMinutes,
+    enforced: false,
+    isAdmin,
+    unlimited: true,
+  }
+}
+
 export async function getGeminiUsageState(userId: string, email?: string | null): Promise<UsageState> {
   const reservationMinutes = geminiReservationMinutes()
   const adminAccess = await getAppAdminAccess(userId, email)
-  if (adminAccess.isAdmin) {
-    return {
-      tier: "school",
-      status: "active",
-      usedMinutes: 0,
-      limitMinutes: 0,
-      baseRemainingMinutes: 0,
-      creditMinutes: 0,
-      remainingMinutes: 0,
-      reservationMinutes,
-      enforced: false,
-      isAdmin: true,
-      unlimited: true,
-    }
-  }
+  if (adminAccess.isAdmin) return unlimitedState(reservationMinutes, true)
 
   if (!hasSupabaseAdminConfig()) {
     const limit = monthlyGeminiMinutes("free")
@@ -66,6 +68,17 @@ export async function getGeminiUsageState(userId: string, email?: string | null)
   }
 
   const admin = createAdminClient()
+  const practiceResult = await admin
+    .from("practice_access_accounts")
+    .select("active,unlimited_usage")
+    .eq("user_id", userId)
+    .maybeSingle()
+
+  assertUsageQuery(practiceResult, "practice access")
+  if (practiceResult.data?.active && practiceResult.data?.unlimited_usage) {
+    return unlimitedState(reservationMinutes, false)
+  }
+
   const [subscriptionResult, seatResult, baseEventsResult, creditPurchasesResult, creditUsesResult] = await Promise.all([
     admin.from("subscriptions").select("tier,status").eq("user_id", userId).maybeSingle(),
     admin.from("school_seat_entitlements").select("active").eq("user_id", userId).maybeSingle(),
