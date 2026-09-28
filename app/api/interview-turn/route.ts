@@ -6,6 +6,7 @@ import {
   type InterviewAnswerIssue,
 } from "@/lib/interview-answer-quality"
 import { interviewQuestions } from "@/lib/oxbridge-data"
+import { interviewStages, type InterviewStageId } from "@/lib/interview-structure"
 
 export const runtime = "nodejs"
 
@@ -26,6 +27,7 @@ type InterviewRequest = {
   delivery?: string
   stimulus?: string
   referenceAnswer?: string
+  stage?: InterviewStageId
 }
 
 type ModelEvaluation = {
@@ -208,6 +210,7 @@ export async function POST(request: Request) {
   const referenceAnswer = body.referenceAnswer?.trim() || canonical?.strongAnswer
   const recentTurns = Array.isArray(body.turns) ? body.turns.slice(-18) : []
   const previousAnswers = previousCandidateAnswers(recentTurns, answer)
+  const stage = interviewStages.find(item => item.id === body.stage)
 
   const fallback = localInterviewFollowUp({
     question: body.question,
@@ -233,6 +236,8 @@ export async function POST(request: Request) {
   const systemPrompt = [
     STUDENT_AI_SAFETY_POLICY,
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
+    "Give the interview a clear academic arc: first establish the candidate's approach, then test a decisive step, introduce a changed condition, and finally ask for a synthesis. Stay on the current step when a claim needs repair; never advance just because another turn has passed.",
+    stage ? `Current interview stage: ${stage.label}. Aim: ${stage.focus}` : "",
     ...panelInstructions,
     "Before deciding the next question, silently evaluate the candidate's LATEST answer against the CURRENT question and the recent conversation. Classify it as exactly one of: incorrect, vague, irrelevant, partial, responsive.",
     "Use a claim-level checking process internally before classifying: (1) identify exactly what proposition, calculation, comparison or interpretation the question asks for; (2) separate the candidate's answer into its concrete claims; (3) test each material claim against the stimulus, hidden reference reasoning when supplied, and the candidate's own previous claims; (4) check whether the conclusion actually follows.",

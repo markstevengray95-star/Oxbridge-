@@ -13,6 +13,7 @@ import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } fro
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
 import { offlineInterviewFollowUp } from "@/lib/interview-offline-follow-up"
 import { recordInterviewQuestion, selectInterviewQuestion } from "@/lib/interview-question-selection"
+import { interviewStageForTurns } from "@/lib/interview-structure"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { tracks, type InterviewQuestion, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
@@ -121,8 +122,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
   const base = activeQuestion ?? previewQuestion
   const persona = interviewerPersonas[personaKey]
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
-  const candidateTurns = turns.filter(turn => turn.role === "candidate").length
-  const sessionProgress = Math.min(100, candidateTurns * 20)
+  const interviewStage = interviewStageForTurns(turns)
 
   function speak(text: string) {
     if (variant !== "ai" || !("speechSynthesis" in window)) return
@@ -223,6 +223,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
           referenceAnswer: base.strongAnswer,
           stimulus: base.stimulus,
           turns: history,
+          stage: interviewStage.id,
           delivery: "natural",
         }),
       })
@@ -395,7 +396,7 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
         <Card className="min-h-[680px] border-[#dbe5e7]">
-          <CardHeader><CardTitle className="font-serif text-2xl">Academic interview</CardTitle><CardDescription>Think aloud. It is acceptable to pause, make a provisional claim, test it and revise it.</CardDescription><Progress value={sessionProgress} className="mt-2" /></CardHeader>
+          <CardHeader><CardTitle className="font-serif text-2xl">Academic interview</CardTitle><CardDescription>{interviewStage.label}: {interviewStage.focus} Think aloud; a mistake is a chance to repair the reasoning.</CardDescription><Progress value={interviewStage.progress} className="mt-2" /></CardHeader>
           <CardContent className="space-y-4">
             {base?.stimulus ? <div className="rounded-2xl border border-[#cfe1e4] bg-[#edf7f8] p-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Stimulus</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{base.stimulus}</p></div> : null}
             <div className="max-h-[390px] space-y-3 overflow-y-auto rounded-2xl bg-[#f8fafb] p-4">

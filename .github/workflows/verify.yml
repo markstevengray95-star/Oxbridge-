@@ -54,6 +54,9 @@ jobs:
       - name: Interview question selection checks
         run: node tests/interview-question-selection.mjs
 
+      - name: Interview structure checks
+        run: node tests/interview-structure.mjs
+
       - name: Offline interview follow-up checks
         run: node tests/interview-offline-follow-up.mjs
 
