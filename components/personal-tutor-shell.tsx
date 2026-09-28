@@ -43,7 +43,7 @@ export function PersonalTutorShell() {
         <Link href="/tutor" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><Brain className="size-4 text-[#147d91]" />Tutor</Link>
         <Link href="/gemini-live-interview" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><Mic2 className="size-4 text-[#147d91]" />Interview</Link>
         <Link href="/test-player" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><TimerReset className="size-4 text-[#147d91]" />Test</Link>
-        <a href="#tutor-completed-work" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><History className="size-4 text-[#147d91]" />Completed</a>
+        <a href="#tutor-completed-work" aria-label="Jump to completed work" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><History className="size-4 text-[#147d91]" />Completed</a>
         <Link href="/reading-room" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><BookOpenCheck className="size-4 text-[#147d91]" />Read</Link>
       </nav>
     </TutorIntelligenceProvider>
