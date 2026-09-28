@@ -16,11 +16,16 @@ export default async function PostLoginPage({ searchParams }: PageProps) {
   const email = typeof data?.claims?.email === "string" ? data.claims.email : null
   if (!userId) redirect("/login?next=/post-login")
 
+  let isPracticeAccount = false
+
   // Copy versioned signup acknowledgement from auth metadata into a first-class audit row.
   // This is deliberately best-effort so a temporarily missing migration never blocks login.
   try {
     const { data: userData } = await supabase.auth.getUser()
-    const metadata = userData.user?.user_metadata ?? {}
+    const user = userData.user
+    const metadata = user?.user_metadata ?? {}
+    const appMetadata = user?.app_metadata ?? {}
+    isPracticeAccount = appMetadata.account_type === "practice" && appMetadata.practice_access === "unlimited"
     const ageBand = metadata.age_band
     const termsVersion = metadata.terms_version
     const privacyVersion = metadata.privacy_version
@@ -40,7 +45,7 @@ export default async function PostLoginPage({ searchParams }: PageProps) {
   }
 
   const isAdmin = isConfiguredAdminEmail(email)
-  if (isAdmin) redirect("/student-home")
+  if (isAdmin || isPracticeAccount) redirect("/student-home")
 
   const cookieStore = await cookies()
   const cookieFreePlan = cookieStore.get(FREE_PLAN_COOKIE)?.value === userId
