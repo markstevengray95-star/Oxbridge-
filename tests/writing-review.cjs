@@ -5,9 +5,32 @@ const ts = require('typescript')
 const path = require('node:path')
 let fetchResult, hasKey = true, sent, failure = false
 const mocks = {'next/server':{NextResponse:{json:(body,options)=>({body,status:options?.status ?? 200})}},'@/lib/gemini/api-key':{getGeminiApiKeyCandidates:()=>hasKey?[{value:'not-a-real-key'}]:[]}}
-function load(file){if(file.endsWith('lib/writing/offline-review.ts'))file=file.replace('offline-review.ts','offline-review-v4.ts');const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{exports,process:{env:{}},AbortSignal,fetch:async(url,options)=>{sent=JSON.parse(options.body);if(failure)throw new Error('timeout');return {ok:true,json:async()=>fetchResult}},require:name=>mocks[name]??(name.startsWith('@/')?load(path.resolve(name.slice(2)+'.ts')):name.startsWith('.')?load(path.resolve(path.dirname(file),name+'.ts')):require(name))});return exports}
+const cache = new Map()
+function load(file) {
+  const absolute = path.resolve(file)
+  if (cache.has(absolute)) return cache.get(absolute)
+  const exports = {}
+  cache.set(absolute, exports)
+  const code = ts.transpileModule(fs.readFileSync(absolute, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+  }).outputText
+  vm.runInNewContext(code, {
+    exports, process: { env: {} }, AbortSignal,
+    fetch: async (_url, options) => { sent = JSON.parse(options.body); if (failure) throw new Error('timeout'); return { ok: true, json: async () => fetchResult } },
+    require: name => {
+      if (mocks[name]) return mocks[name]
+      // The production alias only applies to the @/ import, not relative imports
+      // from earlier review versions back to the original base implementation.
+      if (name === '@/lib/writing/offline-review') return load('lib/writing/offline-review-v4.ts')
+      if (name.startsWith('@/')) return load(name.slice(2) + '.ts')
+      if (name.startsWith('.')) return load(path.resolve(path.dirname(absolute), name + '.ts'))
+      return require(name)
+    },
+  }, { filename: absolute })
+  return exports
+}
 const {RUBRICS,validateReport,inputSchema,mechanics} = load('lib/writing/review.ts')
-const {buildOfflineWritingReport} = load('lib/writing/offline-review.ts')
+const {buildOfflineWritingReport} = load('lib/writing/offline-review-v4.ts')
 const source = 'Libraries improve access to learning because books can be borrowed.\n\nHowever, opening hours may limit that access.'
 const evidence = {paragraph:0,quote:'Libraries improve access to learning'}
 const report = {summary:'The argument supports libraries while recognising a practical limit.',criteria:RUBRICS.essay.map(label=>({label,level:2,judgement:'A claim is linked to a reason but not fully tested.',evidence,action:'Explain who gains access.'})),paragraphs:[0,1].map(index=>({index,purpose:'Develop argument',strength:'Identifies an issue',limitation:'Needs explanation',action:'Explain the mechanism'})),annotations:[{evidence,kind:'reasoning',explanation:'Identifies the claimed benefit.',revision:'Specify the access barrier.'}],priorities:[{title:'Explain access',evidence,why:'The mechanism is incomplete',action:'State who benefits',successCheck:'The reader can identify who and why'}],questions:[{evidence,question:'Whose access improves?',purpose:'Test scope'}],limitations:['Factual claims have not been independently verified.']}
