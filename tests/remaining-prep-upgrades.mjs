@@ -65,8 +65,7 @@ for (const marker of ["Straight line", "x–y axes", "Equation / reasoning notes
 }
 
 const simulator = fs.readFileSync(path.join(root, "components/admissions-test-simulator.tsx"), "utf8")
-for (const marker of ["Review before submit", "Question navigator", "Alt+N", "Alt+P", "Alt+F", "MISTAKE", "fullPaperResults"]) {
-  if (marker === "MISTAKE") continue
+for (const marker of ["Review before submit", "Question navigator", "Alt+N", "Alt+P", "Alt+F", "fullPaperResults", "/mistake-replay"]) {
   if (!simulator.includes(marker)) throw new Error(`Admissions simulator is missing ${marker}`)
 }
 const player = fs.readFileSync(path.join(root, "app/test-player/page.tsx"), "utf8")
