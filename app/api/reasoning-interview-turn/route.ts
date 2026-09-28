@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
 import { evaluateInterviewAnswerLocally, type InterviewAnswerClassification, type InterviewAnswerIssue } from "@/lib/interview-answer-quality"
+import { selectInterviewerIntervention, type InterviewInterventionKind } from "@/lib/interview-intervention-policy"
 import { selectInterviewTreeNode, type InterviewTreeNodeId } from "@/lib/interview-question-tree"
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
@@ -22,6 +23,7 @@ type RequestBody = {
   probes?: string[]
   turns?: Turn[]
   previousNodeIds?: InterviewTreeNodeId[]
+  previousInterventions?: InterviewInterventionKind[]
 }
 
 type GeminiReply = {
@@ -86,6 +88,9 @@ async function cloudFollowUp(key: string, input: {
   branchLabel: string
   branchIntent: string
   branchPrompt: string
+  interventionLabel: string
+  interventionInstruction: string
+  supportLevel: number
   recentTurns: Turn[]
 }) {
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
@@ -98,6 +103,8 @@ async function cloudFollowUp(key: string, input: {
     "Ask exactly ONE follow-up question. Do not answer the problem for the candidate.",
     "Do not praise automatically. Do not use generic coaching filler. Do not reveal a full solution.",
     "The selected branch is binding: preserve its intellectual purpose, but rewrite naturally so it fits the candidate's actual answer and subject.",
+    `Intervention policy: ${input.interventionLabel}. ${input.interventionInstruction}`,
+    `Support level: ${input.supportLevel}/3. A level of 0 means preserve independence and do not scaffold content.`,
     `Course: ${input.course || "unspecified"}. Track: ${input.track || "unspecified"}. Starting difficulty: ${input.difficulty || "Stretch"}.`,
     `Original problem: ${input.originalQuestion}`,
     `Current interviewer question: ${input.currentQuestion}`,
@@ -159,8 +166,18 @@ export async function POST(request: Request) {
     previousNodeIds: Array.isArray(body.previousNodeIds) ? body.previousNodeIds.slice(-30) : [],
     probes,
   })
+  const intervention = selectInterviewerIntervention({
+    classification: local.classification,
+    issue: local.issue,
+    repairDepth: local.repairDepth,
+    candidateTurnCount,
+    node,
+    previous: Array.isArray(body.previousInterventions) ? body.previousInterventions.slice(-20) : [],
+  })
 
   let reply = node.prompt
+  if (intervention.kind === "silence") reply = "Take a moment. Keep thinking aloud: what would you test or establish next before I intervene?"
+  if (intervention.kind === "move-on") reply = "Give me your final synthesis of this problem: conclusion, decisive step, key assumption, strongest challenge and what you would carry into a new problem."
   let provider: "local" | "gemini" = "local"
   const keys = getGeminiApiKeyCandidates()
   for (const key of keys) {
@@ -176,7 +193,10 @@ export async function POST(request: Request) {
         issue: local.issue,
         branchLabel: node.label,
         branchIntent: node.intent,
-        branchPrompt: node.prompt,
+        branchPrompt: reply,
+        interventionLabel: intervention.label,
+        interventionInstruction: intervention.instruction,
+        supportLevel: intervention.supportLevel,
         recentTurns: turns,
       })
       if (cloud) {
@@ -196,6 +216,7 @@ export async function POST(request: Request) {
     directness: local.directness,
     repairDepth: local.repairDepth,
     branch: node,
+    intervention,
     provider,
     branchCount: 22,
   }, { headers: { "Cache-Control": "no-store" } })
