@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
+import { offlineInterviewFollowUp } from "@/lib/interview-offline-follow-up"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
@@ -175,6 +176,16 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
     setThinking(true)
     setNotice("")
 
+    const offlineReply = () => offlineInterviewFollowUp({
+      question,
+      answer: candidate,
+      concepts: base.concepts,
+      referenceAnswer: base.strongAnswer,
+      probes: base.probes,
+      turns: history,
+      persona: personaKey,
+    })
+
     try {
       const response = await fetch("/api/interview-turn", {
         method: "POST",
@@ -196,18 +207,21 @@ export function RealisticTypedInterview({ variant }: { variant: Variant }) {
       })
       if (!response.ok) throw new Error("interview-turn")
       const data = await response.json() as AiReply
-      const classification = data.classification ?? "partial"
-      const next = data.reply?.trim() || base.probes[candidateTurns % base.probes.length]
+      const fallback = data.reply?.trim() ? null : offlineReply()
+      const classification = data.classification ?? fallback?.classification ?? "partial"
+      const next = data.reply?.trim() || fallback?.reply || "Which assumption matters most here?"
       const classified = history.map((turn, index) => index === history.length - 1 ? { ...turn, quality: classification } : turn)
       setTurns([...classified, { role: "interviewer", text: next }])
       setQuestion(next)
       if (data.degraded) setNotice("Cloud evaluation was temporarily unavailable, so the built-in interviewer continued from the same academic problem.")
       speak(next)
     } catch {
-      const next = base.probes[candidateTurns % base.probes.length] ?? "Which assumption in that answer is doing the most work, and what would happen if it failed?"
-      setTurns([...history, { role: "interviewer", text: next }])
+      const fallback = offlineReply()
+      const next = fallback.reply
+      const classified = history.map((turn, index) => index === history.length - 1 ? { ...turn, quality: fallback.classification } : turn)
+      setTurns([...classified, { role: "interviewer", text: next }])
       setQuestion(next)
-      setNotice("The live evaluator could not be reached, so the interview continued with a pre-written tutor probe from the same problem.")
+      setNotice("The live evaluator could not be reached, so the built-in interviewer continued from your answer.")
       speak(next)
     } finally {
       setThinking(false)
