@@ -152,7 +152,7 @@ export function InterviewWhiteboard({ task, onUse, onUsed }: Props) {
         ref={canvasRef}
         width={900}
         height={360}
-        aria-label="Interview maths and science working canvas"
+        aria-label="Interview whiteboard maths and science working canvas"
         className="relative z-10 h-[260px] w-full touch-none bg-transparent sm:h-[320px]"
         onPointerDown={pointerDown}
         onPointerMove={pointerMove}
