@@ -10,9 +10,10 @@ type Point = { x: number; y: number }
 type Props = {
   task?: InterviewWhiteboardTask | null
   onUse?: () => void
+  onUsed?: () => void
 }
 
-export function InterviewWhiteboard({ task, onUse }: Props) {
+export function InterviewWhiteboard({ task, onUse, onUsed }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const strokesRef = useRef<Point[][]>([])
   const activeRef = useRef<Point[] | null>(null)
@@ -60,7 +61,10 @@ export function InterviewWhiteboard({ task, onUse }: Props) {
     if (!point) return
     event.currentTarget.setPointerCapture(event.pointerId)
     activeRef.current = [point]
-    if (!erasing) onUse?.()
+    if (!erasing) {
+      onUse?.()
+      onUsed?.()
+    }
   }
 
   function pointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
