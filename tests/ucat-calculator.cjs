@@ -24,7 +24,9 @@ assert(/MutationObserver/.test(calculator), "UCAT calculator must react when the
 for (const [route, source] of [["full-papers", fullPapers], ["test-player", testPlayer]]) {
   assert(/UcatBasicCalculator/.test(source), `${route} does not import the UCAT calculator.`)
   assert(/<UcatBasicCalculator autoDetect\s*\/>/.test(source), `${route} does not mount the section-aware UCAT calculator.`)
-  assert(/<FullPaperCentre\s*\/>/.test(source), `${route} no longer mounts the shared Full Paper Centre.`)
 }
+
+assert(/<FullPaperCentre\s*\/>/.test(fullPapers), "full-papers no longer mounts the shared Full Paper Centre.")
+assert(/<AdmissionsTestSimulator\s*\/>/.test(testPlayer), "test-player no longer mounts the admissions test simulator.")
 
 console.log("PASS: UCAT basic calculator is available on both mock routes and restricted to active Decision Making / Quantitative Reasoning sections.")
