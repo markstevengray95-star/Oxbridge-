@@ -1,6 +1,7 @@
 export type ApplicationInterviewContext = {
   university?: string
   course?: string
+  personalStatement?: string
   epq?: string
   books?: string
   projects?: string
@@ -18,10 +19,40 @@ export type CourseInterviewProfile = {
   preferredMoves: string[]
 }
 
+export type RecoveryObservation = {
+  classification?: string
+  hintLevel?: 1 | 2 | 3 | 4 | number
+}
+
 export type DeepChainStage = "establish" | "probe" | "destabilise" | "transfer" | "synthesise"
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : ""
+}
+
+function academicClaimScore(sentence: string) {
+  const lower = sentence.toLowerCase()
+  let score = Math.min(5, Math.floor(sentence.length / 80))
+  if (/because|therefore|however|although|whereas|suggest|argu|evidence|conclusion|assumption|limitation|model|theory|hypothesis|caus|mechanism|interpret/.test(lower)) score += 5
+  if (/read|book|paper|article|lecture|project|research|experiment|essay|competition|study|investigat/.test(lower)) score += 3
+  if (/i (think|found|argue|believe|concluded|questioned|disagreed|learnt|learned|noticed)/.test(lower)) score += 2
+  return score
+}
+
+function selectAcademicExcerpt(value: string) {
+  const cleaned = clean(value)
+  if (!cleaned) return ""
+  const sentences = cleaned
+    .split(/(?<=[.!?])\s+/)
+    .map(item => item.trim())
+    .filter(item => item.length >= 35)
+  const ranked = [...sentences].sort((a, b) => academicClaimScore(b) - academicClaimScore(a))
+  const best = ranked[0] || cleaned
+  const index = sentences.indexOf(best)
+  const combined = index >= 0 && sentences[index + 1]
+    ? `${best} ${sentences[index + 1]}`
+    : best
+  return combined.slice(0, 520)
 }
 
 export function deepChainStage(candidateTurns: number): DeepChainStage {
@@ -44,6 +75,7 @@ export function deepChainInstruction(candidateTurns: number) {
 export function applicationLaunchQuestion(context: ApplicationInterviewContext | undefined, course: string) {
   if (!context) return null
   const candidates: Array<[string, string]> = [
+    ["personal statement", clean(context.personalStatement)],
     ["written work", clean(context.writtenWork)],
     ["EPQ or independent research", clean(context.epq)],
     ["book/article/lecture", clean(context.books)],
@@ -55,7 +87,7 @@ export function applicationLaunchQuestion(context: ApplicationInterviewContext |
   const first = candidates.find(([, value]) => value.length >= 8)
   if (!first) return null
   const [source, value] = first
-  const excerpt = value.slice(0, 520)
+  const excerpt = selectAcademicExcerpt(value)
   return {
     source,
     excerpt,
@@ -119,21 +151,62 @@ export function panelInterviewer(candidateTurns: number, profile: CourseIntervie
   }
 }
 
-export function recoverySignal(classifications: string[]) {
+function normaliseRecoveryObservations(input: Array<string | RecoveryObservation>) {
+  return input.map(item => typeof item === "string"
+    ? { classification: item, hintLevel: undefined }
+    : { classification: item.classification || "", hintLevel: item.hintLevel })
+}
+
+export function recoverySignal(input: string[] | RecoveryObservation[]) {
+  const observations = normaliseRecoveryObservations(input)
   let recoveries = 0
   let strongRecoveries = 0
-  for (let i = 1; i < classifications.length; i += 1) {
-    const before = classifications[i - 1]
-    const after = classifications[i]
-    if (["incorrect", "vague", "partial"].includes(before) && ["partial", "responsive"].includes(after)) recoveries += 1
-    if (["incorrect", "vague"].includes(before) && after === "responsive") strongRecoveries += 1
+  let independentRecoveries = 0
+  let supportedRecoveries = 0
+  let hintAdjustment = 0
+  let highestHintLevel = 0
+
+  for (const observation of observations) {
+    const hint = Number(observation.hintLevel || 0)
+    if (hint > highestHintLevel) highestHintLevel = hint
   }
-  const score = Math.min(20, 8 + recoveries * 3 + strongRecoveries * 3)
+
+  for (let i = 1; i < observations.length; i += 1) {
+    const before = observations[i - 1].classification || ""
+    const after = observations[i].classification || ""
+    const hintLevel = Number(observations[i].hintLevel || 0)
+    const recovered = ["incorrect", "vague", "partial"].includes(before) && ["partial", "responsive"].includes(after)
+    const strong = ["incorrect", "vague"].includes(before) && after === "responsive"
+
+    if (recovered) {
+      recoveries += 1
+      if (hintLevel > 0) supportedRecoveries += 1
+      if (hintLevel === 0 || hintLevel === 1) independentRecoveries += 1
+      if (hintLevel === 1) hintAdjustment += 2
+      if (hintLevel === 2) hintAdjustment += 1
+      if (hintLevel >= 4) hintAdjustment -= 1
+    }
+    if (strong) strongRecoveries += 1
+  }
+
+  const score = Math.max(0, Math.min(20, 8 + recoveries * 3 + strongRecoveries * 3 + hintAdjustment))
+  const label = strongRecoveries >= 2
+    ? "Strong intellectual recovery"
+    : recoveries >= 1 && independentRecoveries >= 1
+      ? "Constructive independent recovery"
+      : recoveries >= 1
+        ? "Constructive supported recovery"
+        : "Limited recovery evidence"
+
   return {
     recoveries,
     strongRecoveries,
+    independentRecoveries,
+    supportedRecoveries,
+    highestHintLevel,
+    hintAdjustment,
     score,
-    label: strongRecoveries >= 2 ? "Strong intellectual recovery" : recoveries >= 1 ? "Constructive recovery" : "Limited recovery evidence",
+    label,
   }
 }
 
