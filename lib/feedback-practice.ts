@@ -42,6 +42,10 @@ export type TargetedPracticeAttempt = {
   classification: "needs-repair" | "developing" | "secure"
   feedback: string
   nextStep: string
+  skill?: string
+  source?: PracticeSource
+  round?: number
+  contextShift?: string
   createdAt: string
 }
 

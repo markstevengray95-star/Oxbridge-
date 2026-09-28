@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { BarChart3, BookOpenCheck, Brain, CalendarCheck2, Compass, History, Lightbulb, Mic2, TimerReset, Wrench } from "lucide-react"
+import { BarChart3, BookOpenCheck, Brain, CalendarCheck2, Compass, History, Lightbulb, Mic2, TimerReset, TrendingUp, Wrench } from "lucide-react"
 import { PersonalTutorDashboard } from "@/components/personal-tutor-dashboard"
 import { TutorDeepInsightLoader } from "@/components/tutor-deep-insight-loader"
 import { TutorExecutionLoopLoader } from "@/components/tutor-execution-loop-loader"
@@ -27,6 +27,7 @@ export function PersonalTutorShell() {
             const Icon = item.icon
             return <a key={item.href} href={item.href} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-slate-600 transition hover:bg-[#edf7f8] hover:text-[#102a43] sm:text-sm"><Icon className="size-4 text-[#147d91]" />{item.label}</a>
           })}
+          <Link href="/learning-trajectory" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#edf7f8] px-3 text-xs font-semibold text-[#102a43] transition hover:bg-[#dff1f3] sm:text-sm"><TrendingUp className="size-4 text-[#147d91]"/>Trajectory</Link>
         </div>
       </nav>
 
@@ -40,6 +41,7 @@ export function PersonalTutorShell() {
         <Link href="/tutor" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><Brain className="size-4 text-[#147d91]" />Tutor</Link>
         <Link href="/gemini-live-interview" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><Mic2 className="size-4 text-[#147d91]" />Interview</Link>
         <Link href="/test-player" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><TimerReset className="size-4 text-[#147d91]" />Test</Link>
+        <Link href="/learning-trajectory" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><TrendingUp className="size-4 text-[#147d91]" />Trajectory</Link>
         <Link href="/history" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><History className="size-4 text-[#147d91]" />History</Link>
         <Link href="/reading-room" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold text-[#172b3a]"><BookOpenCheck className="size-4 text-[#147d91]" />Read</Link>
       </nav>

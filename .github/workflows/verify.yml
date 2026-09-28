@@ -57,6 +57,12 @@ jobs:
       - name: Deep interview behaviour checks
         run: node tests/interview-depth-features.mjs
 
+      - name: Complete exam and interview intelligence checks
+        run: node tests/complete-exam-interview-intelligence.mjs
+
+      - name: Learning trajectory and progression checks
+        run: node tests/learning-trajectory-progression.mjs
+
       - name: Offline topic-alignment regression checks
         run: node tests/offline-topic-alignment.cjs
 

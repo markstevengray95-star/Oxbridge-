@@ -64,10 +64,10 @@ const hold = intervention.selectInterviewerIntervention({ classification:"respon
 if (hold.kind !== "silence") throw new Error(`Expected early hold-back intervention, got ${hold.kind}`)
 
 const markers = [
-  ["app/api/question-mutate/route.ts", ["independently", "auditQuestionQuality", "mutationInstruction", "verified"]],
-  ["app/api/question-verify/route.ts", ["WITHOUT being told", "agreesWithStoredKey", "ambiguous"]],
+  ["app/api/question-mutate/route.ts", ["independently", "auditQuestionQuality", "mutationInstruction", "consensus"]],
+  ["app/api/question-verify/route.ts", ["WITHOUT being told", "agreesWithStoredKey", "independentAnswers", "consensus"]],
   ["components/exam-intelligence-lab.tsx", ["Confidence before marking", "Error DNA", "Observed difficulty calibration", "/api/question-mutate"]],
-  ["components/question-quality-lab.tsx", ["Independent key check", "Structural audit", "Generate + verify"]],
+  ["components/question-quality-lab.tsx", ["Dual independent key check", "Structural audit", "Generate + dual verify", "solver disagreement"]],
   ["components/lnat-passage-intelligence.tsx", ["Passage-level practice", "confidence", "lnatPassageDiagnostic"]],
   ["components/reasoning-interview-experience-v2.tsx", ["Recovery 2.0", "Working-method analysis", "Intervention path", "Transfer after correction"]],
   ["app/api/reasoning-interview-turn/route.ts", ["selectInterviewerIntervention", "previousInterventions", "supportLevel"]],
@@ -77,4 +77,4 @@ for (const [relative, required] of markers) {
   for (const marker of required) if (!source.includes(marker)) throw new Error(`${relative} missing ${marker}`)
 }
 
-console.log("PASS: adaptive mutation, process marking, confidence calibration, error DNA, dynamic interventions, recovery 2.0, working analysis, independent key checks, question auditing, difficulty calibration, post-exam diagnostics and LNAT passage intelligence are integrated.")
+console.log("PASS: adaptive mutation, process marking, confidence calibration, error DNA, dynamic interventions, recovery 2.0, working analysis, dual independent key checks, question auditing, difficulty calibration, post-exam diagnostics and LNAT passage intelligence are integrated.")

@@ -21,10 +21,12 @@ assert(/applyOperation/.test(calculator) && /left \+ right/.test(calculator) && 
 assert(!/Math\.(?:sin|cos|tan|log|sqrt|pow)/.test(calculator), "UCAT calculator should remain a basic, non-scientific calculator.")
 assert(/MutationObserver/.test(calculator), "UCAT calculator must react when the timed mock moves between sections.")
 
-for (const [route, source] of [["full-papers", fullPapers], ["test-player", testPlayer]]) {
-  assert(/UcatBasicCalculator/.test(source), `${route} does not import the UCAT calculator.`)
-  assert(/<UcatBasicCalculator autoDetect\s*\/>/.test(source), `${route} does not mount the section-aware UCAT calculator.`)
-  assert(/<FullPaperCentre\s*\/>/.test(source), `${route} no longer mounts the shared Full Paper Centre.`)
-}
+assert(/UcatBasicCalculator/.test(fullPapers), "full-papers does not import the UCAT calculator.")
+assert(/<UcatBasicCalculator autoDetect\s*\/>/.test(fullPapers), "full-papers does not mount the section-aware UCAT calculator.")
+assert(/<FullPaperCentre\s*\/>/.test(fullPapers), "full-papers no longer mounts the comprehensive Full Paper Centre.")
 
-console.log("PASS: UCAT basic calculator is available on both mock routes and restricted to active Decision Making / Quantitative Reasoning sections.")
+assert(/UcatBasicCalculator/.test(testPlayer), "test-player does not import the UCAT calculator.")
+assert(/<UcatBasicCalculator autoDetect\s*\/>/.test(testPlayer), "test-player does not mount the section-aware UCAT calculator.")
+assert(/<AdmissionsTestSimulator\s*\/>/.test(testPlayer), "test-player no longer mounts the focused admissions-test simulator.")
+
+console.log("PASS: UCAT basic calculator is available on both mock routes, with Full Paper Centre on /full-papers and the focused simulator on /test-player, and remains restricted to active Decision Making / Quantitative Reasoning sections.")
