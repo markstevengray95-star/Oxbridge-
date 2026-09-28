@@ -49,9 +49,11 @@ function selectAcademicExcerpt(value: string) {
   const ranked = [...sentences].sort((a, b) => academicClaimScore(b) - academicClaimScore(a))
   const best = ranked[0] || cleaned
   const index = sentences.indexOf(best)
-  const combined = index >= 0 && sentences[index + 1]
-    ? `${best} ${sentences[index + 1]}`
-    : best
+  const combined = index > 0 && sentences[index - 1]
+    ? `${sentences[index - 1]} ${best}`
+    : index >= 0 && sentences[index + 1]
+      ? `${best} ${sentences[index + 1]}`
+      : best
   return combined.slice(0, 520)
 }
 

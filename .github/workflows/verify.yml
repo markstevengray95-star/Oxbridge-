@@ -3,7 +3,7 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access]
+    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard]
 
 permissions:
   contents: read
@@ -35,6 +35,9 @@ jobs:
 
       - name: Private history persistence checks
         run: node tests/user-history-persistence.cjs
+
+      - name: Managed practice tracking checks
+        run: node tests/admin-practice-tracking.cjs
 
       - name: Tutor command centre integration checks
         run: node tests/tutor-command-centre.cjs
