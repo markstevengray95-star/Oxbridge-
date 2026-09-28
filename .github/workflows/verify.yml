@@ -72,6 +72,9 @@ jobs:
       - name: Strict essay grading regression checks
         run: node tests/strict-essay-score.cjs
 
+      - name: Essay AI availability regression checks
+        run: node tests/essay-ai-availability.cjs
+
       - name: Full paper uniqueness checks
         run: node tests/full-paper-uniqueness.mjs
 
