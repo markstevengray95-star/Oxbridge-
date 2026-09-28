@@ -102,6 +102,17 @@ export async function POST(request: Request) {
     })
     if (createError || !created.user) return NextResponse.json({ error: createError?.message || "Could not create practice account." }, { status: 500 })
 
+    const { error: profileError } = await admin.from("profiles").upsert({
+      id: created.user.id,
+      display_name: displayName,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "id" })
+
+    if (profileError) {
+      await admin.auth.admin.deleteUser(created.user.id)
+      return NextResponse.json({ error: `Could not create learner profile: ${profileError.message}` }, { status: 500 })
+    }
+
     const { error: insertError } = await admin.from("practice_access_accounts").insert({
       user_id: created.user.id,
       username,
