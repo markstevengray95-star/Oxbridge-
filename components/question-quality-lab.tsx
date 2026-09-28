@@ -2,26 +2,28 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { ArrowLeft, Beaker, CheckCircle2, Loader2, RefreshCw, ShieldCheck, TriangleAlert, WandSparkles } from "lucide-react"
+import { ArrowLeft, Beaker, CheckCircle2, Loader2, ShieldCheck, TriangleAlert, WandSparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { buildFullPaper, paperCatalog, type FullPaperTest, type PaperForm } from "@/lib/full-paper-system"
-import { isYesNoStatementQuestion, type FullPaperQuestion } from "@/lib/full-paper-question"
+import { isYesNoStatementQuestion } from "@/lib/full-paper-question"
 import { auditQuestionQuality, type ExamQuestionLike, type QuestionQualityFinding } from "@/lib/exam-intelligence"
 
 type VerifyResult = {
   configured?: boolean
   verified?: boolean | null
+  consensus?: boolean
   agreesWithStoredKey?: boolean
-  independentAnswer?: number
+  independentAnswers?: number[]
   storedAnswer?: number
   ambiguous?: boolean
   missingInformation?: boolean
-  reasoning?: string
+  reasoning?: string[]
   ambiguityReason?: string
   structural?: QuestionQualityFinding[]
+  verificationNote?: string
   message?: string
   error?: string
 }
@@ -29,6 +31,7 @@ type VerifyResult = {
 type MutationResult = {
   configured?: boolean
   verified?: boolean
+  consensus?: boolean
   question?: ExamQuestionLike & { independentCheck?: string; changeSummary?: string }
   qualityFindings?: QuestionQualityFinding[]
   error?: string
@@ -87,7 +90,7 @@ export function QuestionQualityLab() {
 
   return <main className="min-h-screen bg-[#f3f6f6] text-[#172b3a]"><div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
     <div className="flex flex-wrap items-center justify-between gap-3"><Button asChild variant="ghost"><Link href="/test-player"><ArrowLeft/>Test tools</Link></Button><Badge className="border-0 bg-[#102a43] text-white"><Beaker className="mr-1 size-3.5"/>Question Quality Lab</Badge></div>
-    <section><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Authoring safety net</p><h1 className="mt-2 font-serif text-4xl font-bold">Audit the question before a student sees it.</h1><p className="mt-3 max-w-3xl leading-7 text-slate-600">The lab checks structural giveaways locally, then can solve the item independently without seeing the stored key. New adaptive variants must pass both the structural audit and an independent solution check before they are returned.</p></section>
+    <section><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Authoring safety net</p><h1 className="mt-2 font-serif text-4xl font-bold">Audit the question before a student sees it.</h1><p className="mt-3 max-w-3xl leading-7 text-slate-600">The lab checks structural giveaways locally, then uses two independent solver roles without revealing the stored key. Generated variants are accepted only when both solvers agree, neither detects ambiguity or missing information, and the structural audit has no blocking fault.</p></section>
 
     <Card><CardContent className="grid gap-4 p-5 sm:grid-cols-3"><label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Test</span><NativeSelect value={test} onChange={event=>selectTest(event.target.value as FullPaperTest)}>{paperCatalog.map(item=><NativeSelectOption key={item.test} value={item.test}>{item.test}</NativeSelectOption>)}</NativeSelect></label><label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Form</span><NativeSelect value={String(form)} onChange={event=>{setForm(Number(event.target.value) as PaperForm);setQuestionIndex(0);setVerify(null);setMutation(null)}}><NativeSelectOption value="1">Form 1</NativeSelectOption><NativeSelectOption value="2">Form 2</NativeSelectOption></NativeSelect></label><label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Question</span><NativeSelect value={String(questionIndex)} onChange={event=>{setQuestionIndex(Number(event.target.value));setVerify(null);setMutation(null)}}>{questions.map((item,index)=><NativeSelectOption key={item.id} value={String(index)}>{index+1}. {item.section}</NativeSelectOption>)}</NativeSelect></label></CardContent></Card>
 
@@ -95,9 +98,9 @@ export function QuestionQualityLab() {
 
       <aside className="space-y-5"><Card><CardHeader><CardTitle>Structural audit</CardTitle><CardDescription>Fast checks for clues and reliability problems that do not require AI.</CardDescription></CardHeader><CardContent className="space-y-2">{findings.map(item=><div key={`${item.code}-${item.message}`} className={`rounded-xl border p-3 text-sm ${severityClass(item.severity)}`}><div className="flex items-center gap-2 font-semibold">{item.severity==="block"?<TriangleAlert className="size-4"/>:item.severity==="warn"?<TriangleAlert className="size-4"/>:<CheckCircle2 className="size-4"/>}{item.code}</div><p className="mt-1 leading-5">{item.message}</p></div>)}</CardContent></Card>
 
-        <Card><CardHeader><ShieldCheck className="size-5 text-[#147d91]"/><CardTitle>Independent key check</CardTitle><CardDescription>The solver is shown the prompt and options but not the stored answer.</CardDescription></CardHeader><CardContent className="space-y-3"><Button onClick={independentVerify} disabled={busy!==""} className="w-full">{busy==="verify"?<Loader2 className="size-4 animate-spin"/>:<ShieldCheck/>}Solve independently</Button>{verify?<div className={`rounded-xl border p-4 text-sm ${verify.verified?"border-emerald-200 bg-emerald-50":"border-amber-200 bg-amber-50"}`}><p className="font-semibold">{verify.verified?"Independent solver agrees and found no ambiguity":"Check required"}</p>{typeof verify.independentAnswer==="number"?<p className="mt-1">Independent answer: {String.fromCharCode(65+verify.independentAnswer)} · Stored answer: {String.fromCharCode(65+(verify.storedAnswer??question.answer))}</p>:null}{verify.reasoning?<p className="mt-2 leading-6">{verify.reasoning}</p>:null}{verify.ambiguityReason?<p className="mt-2 leading-6">{verify.ambiguityReason}</p>:null}{verify.message?<p className="mt-2">{verify.message}</p>:null}{verify.error?<p className="mt-2">{verify.error}</p>:null}</div>:null}</CardContent></Card>
+        <Card><CardHeader><ShieldCheck className="size-5 text-[#147d91]"/><CardTitle>Dual independent key check</CardTitle><CardDescription>A formal solver and a sceptical second marker see only the prompt and options—not the stored answer.</CardDescription></CardHeader><CardContent className="space-y-3"><Button onClick={independentVerify} disabled={busy!==""} className="w-full">{busy==="verify"?<Loader2 className="size-4 animate-spin"/>:<ShieldCheck/>}Run two-solver check</Button>{verify?<div className={`rounded-xl border p-4 text-sm ${verify.verified?"border-emerald-200 bg-emerald-50":"border-amber-200 bg-amber-50"}`}><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{verify.verified?"Verified by solver consensus":"Check required"}</p>{typeof verify.consensus==="boolean"?<Badge variant="outline">{verify.consensus?"solver consensus":"solver disagreement"}</Badge>:null}</div>{verify.independentAnswers?.length?<p className="mt-2">Independent answers: {verify.independentAnswers.map(answer=>String.fromCharCode(65+answer)).join(" / ")} · Stored: {String.fromCharCode(65+(verify.storedAnswer??question.answer))}</p>:null}{verify.reasoning?.map((reason,index)=><p key={`${index}-${reason}`} className="mt-2 rounded-lg bg-white/70 p-2 leading-6"><strong>Solver {index+1}:</strong> {reason}</p>)}{verify.verificationNote?<p className="mt-2 font-medium">{verify.verificationNote}</p>:null}{verify.ambiguityReason?<p className="mt-2 leading-6">{verify.ambiguityReason}</p>:null}{verify.message?<p className="mt-2">{verify.message}</p>:null}{verify.error?<p className="mt-2">{verify.error}</p>:null}</div>:null}</CardContent></Card>
 
-        <Card><CardHeader><WandSparkles className="size-5 text-[#147d91]"/><CardTitle>Verified mutation</CardTitle><CardDescription>Create a fresh question testing the same underlying skill, then solve it independently before use.</CardDescription></CardHeader><CardContent className="space-y-3"><NativeSelect value={target} onChange={event=>setTarget(event.target.value as typeof target)}><NativeSelectOption value="same">Same skill, new surface</NativeSelectOption><NativeSelectOption value="harder">Harder chain</NativeSelectOption><NativeSelectOption value="far-transfer">Far transfer</NativeSelectOption></NativeSelect><Button className="w-full" onClick={generateMutation} disabled={busy!==""}>{busy==="mutate"?<Loader2 className="size-4 animate-spin"/>:<WandSparkles/>}Generate + verify</Button>{mutation?.question?<div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4"><p className="font-semibold">Verified variant</p><p className="mt-2 text-sm leading-6">{mutation.question.prompt}</p><div className="mt-3 space-y-1">{mutation.question.options?.map((option,index)=><p key={`${index}-${option}`} className="text-sm"><strong>{String.fromCharCode(65+index)}.</strong> {option}</p>)}</div><p className="mt-3 text-xs leading-5 text-slate-600">{mutation.question.changeSummary}</p><p className="mt-2 text-xs leading-5 text-slate-600"><strong>Independent check:</strong> {mutation.question.independentCheck}</p></div>:mutation?.error?<p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{mutation.error}</p>:null}</CardContent></Card>
+        <Card><CardHeader><WandSparkles className="size-5 text-[#147d91]"/><CardTitle>Consensus-verified mutation</CardTitle><CardDescription>Create a fresh question testing the same underlying skill. Both independent solver roles must agree before the variant is returned.</CardDescription></CardHeader><CardContent className="space-y-3"><NativeSelect value={target} onChange={event=>setTarget(event.target.value as typeof target)}><NativeSelectOption value="same">Same skill, new surface</NativeSelectOption><NativeSelectOption value="harder">Harder chain</NativeSelectOption><NativeSelectOption value="far-transfer">Far transfer</NativeSelectOption></NativeSelect><Button className="w-full" onClick={generateMutation} disabled={busy!==""}>{busy==="mutate"?<Loader2 className="size-4 animate-spin"/>:<WandSparkles/>}Generate + dual verify</Button>{mutation?.question?<div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4"><div className="flex items-center gap-2"><p className="font-semibold">Verified variant</p><Badge variant="outline">two-solver consensus</Badge></div><p className="mt-2 text-sm leading-6">{mutation.question.prompt}</p><div className="mt-3 space-y-1">{mutation.question.options?.map((option,index)=><p key={`${index}-${option}`} className="text-sm"><strong>{String.fromCharCode(65+index)}.</strong> {option}</p>)}</div><p className="mt-3 text-xs leading-5 text-slate-600">{mutation.question.changeSummary}</p><p className="mt-2 text-xs leading-5 text-slate-600"><strong>Independent checks:</strong> {mutation.question.independentCheck}</p></div>:mutation?.error?<p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{mutation.error}</p>:null}</CardContent></Card>
       </aside></div>:null}
   </div></main>
 }
