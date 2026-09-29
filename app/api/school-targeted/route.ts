@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { effectiveTier, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
@@ -22,6 +23,18 @@ async function currentUserId() {
   return typeof data?.claims?.sub === "string" ? data.claims.sub : null
 }
 
+async function hasSchoolAccess(admin: ReturnType<typeof createAdminClient>, userId: string) {
+  const [{ data: subscription }, { data: seat }] = await Promise.all([
+    admin.from("subscriptions").select("tier,status").eq("user_id", userId).maybeSingle(),
+    admin.from("school_seat_entitlements").select("active").eq("user_id", userId).maybeSingle(),
+  ])
+  const paidTier = effectiveTier(
+    (subscription?.tier ?? "free") as SubscriptionTier,
+    (subscription?.status ?? "inactive") as SubscriptionStatus,
+  )
+  return seat?.active === true || paidTier === "school"
+}
+
 function safeHref(value?: string) {
   const href = (value || "/tutor").trim()
   return href.startsWith("/") && !href.startsWith("//") ? href.slice(0, 300) : "/tutor"
@@ -33,6 +46,8 @@ export async function GET() {
   if (!hasSupabaseAdminConfig()) return NextResponse.json({ error: "School cloud workspace is not configured" }, { status: 503 })
 
   const admin = createAdminClient()
+  if (!(await hasSchoolAccess(admin, userId))) return NextResponse.json({ error: "School plan required" }, { status: 403 })
+
   const { data: memberships, error: membershipError } = await admin
     .from("school_memberships")
     .select("cohort_id,role,joined_at")
@@ -76,6 +91,8 @@ export async function POST(request: Request) {
   if (!cohortId || !targetUserId || !title) return NextResponse.json({ error: "Cohort, student and title are required" }, { status: 400 })
 
   const admin = createAdminClient()
+  if (!(await hasSchoolAccess(admin, userId))) return NextResponse.json({ error: "School plan required" }, { status: 403 })
+
   const [{ data: cohort }, { data: membership }] = await Promise.all([
     admin.from("school_cohorts").select("owner_user_id").eq("id", cohortId).maybeSingle(),
     admin.from("school_memberships").select("role").eq("cohort_id", cohortId).eq("user_id", targetUserId).maybeSingle(),
