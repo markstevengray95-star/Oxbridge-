@@ -8,6 +8,8 @@ import { liveCreditPackMinutes, tierFromStripePrice, type SubscriptionStatus, ty
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+type WebhookClaim = { claimed?: boolean; state?: string }
+
 function statusFromStripe(status: Stripe.Subscription.Status): SubscriptionStatus {
   if (status === "active") return "active"
   if (status === "trialing") return "trialing"
@@ -137,6 +139,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 async function syncPaidAddonCheckout(session: Stripe.Checkout.Session) {
   const kind = session.metadata?.kind || ""
   if (kind !== "live_credit_pack" && kind !== "human_interview_review") return false
+  if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") return true
   const userId = session.metadata?.supabase_user_id || session.client_reference_id || ""
   if (!userId) throw new Error(`Paid add-on ${session.id} has no Supabase user`)
   const admin = createAdminClient()
@@ -145,11 +148,12 @@ async function syncPaidAddonCheckout(session: Stripe.Checkout.Session) {
     const packs = Math.min(5, Math.max(1, Number(session.metadata?.pack_count || 1)))
     const minutesPerPack = Math.max(5, Number(session.metadata?.minutes_per_pack || liveCreditPackMinutes()))
     const minutes = Math.floor(packs * minutesPerPack)
-    const { error } = await admin.from("usage_events").insert({
-      user_id: userId,
-      event_type: "gemini_live_credit_minutes",
-      quantity: minutes,
-      metadata: { source: "stripe", kind, checkout_session_id: session.id, pack_count: packs, minutes_per_pack: minutesPerPack },
+    const { error } = await admin.rpc("oxbridge_fulfill_live_credit_pack", {
+      p_checkout_session_id: session.id,
+      p_user_id: userId,
+      p_minutes: minutes,
+      p_pack_count: packs,
+      p_minutes_per_pack: minutesPerPack,
     })
     if (error) throw new Error(error.message)
     return true
@@ -164,7 +168,7 @@ async function syncPaidAddonCheckout(session: Stripe.Checkout.Session) {
     notes: (session.metadata?.notes || "").slice(0, 450),
     metadata: { payment_status: session.payment_status, customer_id: typeof session.customer === "string" ? session.customer : session.customer?.id || null },
     updated_at: new Date().toISOString(),
-  }, { onConflict: "stripe_checkout_session_id" })
+  }, { onConflict: "stripe_checkout_session_id", ignoreDuplicates: true })
   if (error) throw new Error(error.message)
   return true
 }
@@ -198,13 +202,21 @@ export async function POST(request: Request) {
   try { event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret) }
   catch (error) { console.error("Stripe webhook signature verification failed", error); return NextResponse.json({ error: "Invalid Stripe signature." }, { status: 400 }) }
 
+  const admin = createAdminClient()
   try {
-    const admin = createAdminClient()
-    const { data: alreadyProcessed } = await admin.from("stripe_webhook_events").select("event_id").eq("event_id", event.id).maybeSingle()
-    if (alreadyProcessed) return NextResponse.json({ received: true, duplicate: true })
+    const { data: claimData, error: claimError } = await admin.rpc("oxbridge_claim_stripe_webhook_event", {
+      p_event_id: event.id,
+      p_event_type: event.type,
+    }).maybeSingle()
+    if (claimError) throw new Error(claimError.message)
+    const claim = (claimData ?? {}) as WebhookClaim
+    if (!claim.claimed) {
+      return NextResponse.json({ received: true, duplicate: claim.state === "completed", processing: claim.state === "processing" })
+    }
 
     switch (event.type) {
       case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded":
         await syncCheckoutSession(event.data.object as Stripe.Checkout.Session)
         break
       case "customer.subscription.created":
@@ -219,10 +231,22 @@ export async function POST(request: Request) {
         break
     }
 
-    const { error: ledgerError } = await admin.from("stripe_webhook_events").insert({ event_id: event.id, event_type: event.type })
-    if (ledgerError && ledgerError.code !== "23505") throw new Error(ledgerError.message)
+    const { error: finishError } = await admin.rpc("oxbridge_finish_stripe_webhook_event", {
+      p_event_id: event.id,
+      p_success: true,
+      p_error: null,
+    })
+    if (finishError) throw new Error(finishError.message)
     return NextResponse.json({ received: true })
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    try {
+      await admin.rpc("oxbridge_finish_stripe_webhook_event", {
+        p_event_id: event.id,
+        p_success: false,
+        p_error: message,
+      })
+    } catch {}
     console.error("Stripe webhook processing failed", event.id, event.type, error)
     return NextResponse.json({ error: "Webhook processing failed." }, { status: 500 })
   }
