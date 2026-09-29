@@ -26,9 +26,11 @@ jobs:
       - name: Generate localhost-only E2E credentials
         shell: bash
         run: |
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
           echo "E2E_TEST_MODE=1" >> "$GITHUB_ENV"
           echo "E2E_TEST_USERNAME=ci-e2e" >> "$GITHUB_ENV"
-          echo "E2E_TEST_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "E2E_TEST_PASSWORD=$password" >> "$GITHUB_ENV"
 
       - name: Install app dependencies
         run: npm install --legacy-peer-deps
