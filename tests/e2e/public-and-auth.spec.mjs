@@ -89,6 +89,35 @@ test.describe("authenticated CI practice smoke", () => {
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
   })
 
+  test("student preparation surfaces render and preserve real working state", async ({ page }) => {
+    await signInPractice(page)
+
+    await page.goto("/interviews")
+    await expectProtectedAccess(page, "/interviews")
+    await expect(page.getByRole("heading", { name: /choose one interview/i })).toBeVisible()
+    await expect(page.getByRole("link", { name: /formal interview room/i })).toBeVisible()
+    await expect(page.getByRole("link", { name: /gemini live voice/i })).toBeVisible()
+
+    await page.goto("/essay-tutor")
+    await expectProtectedAccess(page, "/essay-tutor")
+    await expect(page.getByRole("heading", { name: "Essay analysis" })).toBeVisible()
+    const essayDraft = page.getByLabel("Your draft")
+    const draftText = "A strong answer should define its assumptions, compare competing explanations, test the quality of the evidence, and respond directly to the strongest counterargument before reaching a proportionate conclusion."
+    await essayDraft.fill(draftText)
+    await expect(essayDraft).toHaveValue(draftText)
+    await expect(page.getByText(/words ·/)).toBeVisible()
+
+    await page.goto("/written-work-defence")
+    await expectProtectedAccess(page, "/written-work-defence")
+    await expect(page.getByRole("heading", { name: /know what you wrote well enough to be challenged on it/i })).toBeVisible()
+    await page.getByPlaceholder(/limits of nuclear fusion/i).fill("E2E written work")
+    const writtenWork = page.getByPlaceholder(/paste the written work here/i)
+    const defenceText = "This argument begins from a clearly stated claim and then tests it against evidence. It explains why the evidence matters, identifies a plausible limitation, considers an alternative interpretation, and reaches a conclusion that is no stronger than the evidence allows."
+    await writtenWork.fill(defenceText)
+    await expect(writtenWork).toHaveValue(defenceText)
+    await expect(page.getByRole("button", { name: "Build defence" })).toBeEnabled()
+  })
+
   test("practice access reaches Pro preparation but cannot cross School or admin boundaries", async ({ page, context }) => {
     await signInPractice(page)
 
