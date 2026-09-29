@@ -14,7 +14,7 @@ test.describe("public and protected navigation", () => {
     await page.goto("/practice-login")
     await expect(page.getByLabel("Username")).toBeVisible()
     await expect(page.getByLabel("Password")).toBeVisible()
-    await expect(page.getByRole("button", { name: /practice/i })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Start practising" })).toBeVisible()
     expect(errors).toEqual([])
   })
 
