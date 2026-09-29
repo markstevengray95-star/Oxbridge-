@@ -3,7 +3,7 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard, feature/digital-twin-written-defence-replay, feature/classroom-mockday-mistakes-deadlines]
+    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard, feature/digital-twin-written-defence-replay, feature/classroom-mockday-mistakes-deadlines, feature/phase-two-prep-upgrades]
 
 permissions:
   contents: read
@@ -44,6 +44,9 @@ jobs:
 
       - name: Classroom, Mock Day, mistake and deadline checks
         run: node tests/connected-prep-phase-two.cjs
+
+      - name: Next-phase preparation upgrade checks
+        run: node tests/phase-two-prep-upgrades.cjs
 
       - name: Tutor command centre integration checks
         run: node tests/tutor-command-centre.cjs
