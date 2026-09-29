@@ -3,7 +3,7 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard]
+    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard, feature/digital-twin-written-defence-replay]
 
 permissions:
   contents: read
@@ -38,6 +38,9 @@ jobs:
 
       - name: Managed practice tracking checks
         run: node tests/admin-practice-tracking.cjs
+
+      - name: Digital Twin, defence and replay checks
+        run: node tests/digital-twin-defence-replay.cjs
 
       - name: Tutor command centre integration checks
         run: node tests/tutor-command-centre.cjs
