@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test"
 
+async function expectAuthenticatedShell(page) {
+  await expect(page.getByRole("link", { name: "ScholarBridge" }).first()).toBeVisible()
+  await expect(page.getByRole("link", { name: "Tutor" }).first()).toBeVisible()
+  await expect(page.getByLabel("Email")).toHaveCount(0)
+}
+
 test.describe("public and protected navigation", () => {
   test("login and practice login render without browser errors", async ({ page }) => {
     const errors = []
@@ -42,7 +48,7 @@ test.describe("public and protected navigation", () => {
 })
 
 test.describe("authenticated CI practice smoke", () => {
-  test("practice sign in opens protected Tutor routes and persists the session", async ({ page, context }) => {
+  test("practice sign in opens protected routes and persists the session", async ({ page, context }) => {
     const username = process.env.E2E_TEST_USERNAME
     const password = process.env.E2E_TEST_PASSWORD
     expect(username).toBeTruthy()
@@ -53,7 +59,7 @@ test.describe("authenticated CI practice smoke", () => {
     await page.getByLabel("Password").fill(password)
     await page.getByRole("button", { name: "Start practising" }).click()
     await page.waitForURL(/\/student-home$/)
-    await expect(page.getByRole("navigation", { name: "Tutor command centre sections" })).toBeVisible()
+    await expectAuthenticatedShell(page)
 
     const cookies = await context.cookies()
     const e2eCookie = cookies.find(cookie => cookie.name === "__sb_e2e_session")
@@ -62,16 +68,17 @@ test.describe("authenticated CI practice smoke", () => {
 
     await page.goto("/tutor")
     await expect(page).toHaveURL(/\/tutor$/)
-    await expect(page.getByRole("navigation", { name: "Tutor command centre sections" })).toBeVisible()
+    await expectAuthenticatedShell(page)
 
     const secondPage = await context.newPage()
     await secondPage.goto("/student-home")
     await expect(secondPage).toHaveURL(/\/student-home$/)
-    await expect(secondPage.getByRole("navigation", { name: "Tutor command centre sections" })).toBeVisible()
+    await expectAuthenticatedShell(secondPage)
     await secondPage.close()
 
     await context.clearCookies()
     await page.goto("/student-home")
     await expect(page).toHaveURL(/\/login\?next=(%2F|\/)student-home/)
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
   })
 })
