@@ -3,7 +3,7 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard, feature/digital-twin-written-defence-replay, feature/classroom-mockday-mistakes-deadlines, feature/phase-two-prep-upgrades, hardening/end-to-end-journey-integrity, production/e2e-rate-limit]
+    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard, feature/digital-twin-written-defence-replay, feature/classroom-mockday-mistakes-deadlines, feature/phase-two-prep-upgrades, hardening/end-to-end-journey-integrity, production/e2e-rate-limit, production/security-billing-journeys]
 
 permissions:
   contents: read
@@ -35,6 +35,9 @@ jobs:
 
       - name: End-to-end hardening checks
         run: node tests/end-to-end-hardening.cjs
+
+      - name: Privileged API authorization audit
+        run: node tests/api-authorization-boundaries.cjs
 
       - name: AI request protection checks
         run: node tests/ai-request-guard.cjs
