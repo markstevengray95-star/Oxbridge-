@@ -2,6 +2,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 
 const engine = fs.readFileSync('lib/application/personal-statement-analysis.ts', 'utf8')
+const depthEngine = fs.readFileSync('lib/application/personal-statement-analysis-v3.ts', 'utf8')
 const page = fs.readFileSync('app/personal-statement-map/page.tsx', 'utf8')
 const audit = fs.readFileSync('components/application/personal-statement-audit.tsx', 'utf8')
 
@@ -40,9 +41,40 @@ assert.match(engine, /getCourseCriteria/)
 assert.match(audit, /Course-specific criteria evidence/)
 assert.match(audit, /No clear evidence found\. Do not manufacture evidence/)
 
+// Step 5: supercurricular depth must reward analysis/development rather than raw activity count.
+assert.match(depthEngine, /buildSupercurricular/)
+assert.match(depthEngine, /depthScore/)
+assert.match(depthEngine, /own analysis/)
+assert.match(depthEngine, /next step shown/)
+assert.match(audit, /5 · Supercurricular depth checker/)
+assert.match(audit, /Depth matters more than quantity/)
+
+// Step 6: the "so what?" detector must explicitly test reflection and intellectual follow-through.
+assert.match(depthEngine, /buildSoWhat/)
+assert.match(depthEngine, /needs reflection/)
+assert.match(depthEngine, /needs development/)
+assert.match(depthEngine, /What surprised you, changed your mind, or made you disagree/)
+assert.match(depthEngine, /What unresolved question would you pursue/)
+assert.match(audit, /6 · “So what\?” detector/)
+
+// Step 7: academic journey should classify a sequence of source/argument/investigation/project/question nodes.
+assert.match(depthEngine, /buildAcademicJourney/)
+for (const stage of ['source', 'argument', 'investigation', 'project', 'question']) assert.match(depthEngine, new RegExp(`"${stage}"`))
+assert.match(audit, /7 · Academic journey visualisation/)
+assert.match(audit, /interest → source → competing idea → investigation\/project → unresolved question/)
+
+// Step 8: every claim becomes interview pressure with a real handoff to the panel interview.
+assert.match(depthEngine, /buildInterviewVulnerabilities/)
+assert.match(depthEngine, /strongest counterargument, alternative interpretation or limitation/)
+assert.match(audit, /8 · Interview Vulnerability Map/)
+assert.match(audit, /oxbridge-panel-written-work-v1/)
+assert.match(audit, /Personal statement vulnerability interview/)
+assert.match(audit, /window\.location\.href = "\/panel-interview"/)
+
 // Existing application profile context and the detailed AI/offline writing review remain connected.
 assert.match(page, /APPLICATION_KEY/)
+assert.match(page, /analysePersonalStatementV3/)
 assert.match(page, /ReviewPanel essay=\{combined\}/)
 assert.match(page, /Open whole application profile/)
 
-console.log('PASS: UCAS three-question audit, evidence chains, academic depth map and course-specific criteria are integrated')
+console.log('PASS: personal statement analysis steps 1-8 and interview handoff are integrated')
