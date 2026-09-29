@@ -3,7 +3,7 @@ name: Browser E2E
 on:
   pull_request:
   push:
-    branches: [main, production/e2e-rate-limit]
+    branches: [main, production/e2e-rate-limit, production/ci-auth-e2e]
 
 permissions:
   contents: read
@@ -13,8 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
-      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
     steps:
       - name: Checkout
@@ -24,6 +22,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22.13"
+
+      - name: Generate localhost-only E2E credentials
+        shell: bash
+        run: |
+          echo "E2E_TEST_MODE=1" >> "$GITHUB_ENV"
+          echo "E2E_TEST_USERNAME=ci-e2e" >> "$GITHUB_ENV"
+          echo "E2E_TEST_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
 
       - name: Install app dependencies
         run: npm install --legacy-peer-deps
