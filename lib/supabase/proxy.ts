@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import { aiScopeForPath, guardAiRequest } from "@/lib/ai/request-guard"
 import { isConfiguredAdminEmail } from "@/lib/auth/admin-access"
+import { E2E_SESSION_COOKIE, E2E_USER_EMAIL, E2E_USER_ID, e2eSessionActive } from "@/lib/auth/e2e-session"
 import { FREE_PLAN_COOKIE, PLAN_ONBOARDING_STATE_KEY, onboardingCompleted } from "@/lib/onboarding"
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config"
 
@@ -35,8 +36,9 @@ export async function updateSession(request: NextRequest) {
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, { cookies: { getAll(){return request.cookies.getAll()}, setAll(cookiesToSet){cookiesToSet.forEach(({name,value})=>request.cookies.set(name,value));response=NextResponse.next({request});cookiesToSet.forEach(({name,value,options})=>response.cookies.set(name,value,options))} } })
   const { data } = await supabase.auth.getClaims()
   const user=data?.claims
-  const userId=typeof user?.sub==="string"?user.sub:null
-  const userEmail=typeof user?.email==="string"?user.email:null
+  const e2eSession=e2eSessionActive(request.headers.get("host"),request.cookies.get(E2E_SESSION_COOKIE)?.value)
+  const userId=e2eSession?E2E_USER_ID:typeof user?.sub==="string"?user.sub:null
+  const userEmail=e2eSession?E2E_USER_EMAIL:typeof user?.email==="string"?user.email:null
   const pathname=request.nextUrl.pathname
   const isApi=pathname.startsWith("/api/")
   const isPublicPage=matchesAny(pathname,PUBLIC_PAGE_ROUTES)
@@ -44,7 +46,7 @@ export async function updateSession(request: NextRequest) {
   const adminLogin=pathname==="/admin/login"
   const requiresAdmin=pathname==="/admin"||(pathname.startsWith("/admin/")&&!adminLogin)
   const isAdmin=isConfiguredAdminEmail(userEmail)
-  const isPractice=hasPracticeAccess(user)
+  const isPractice=e2eSession||hasPracticeAccess(user)
 
   const aiScope=aiScopeForPath(pathname)
   if(aiScope){

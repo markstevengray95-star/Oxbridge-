@@ -1,5 +1,17 @@
 import { expect, test } from "@playwright/test"
 
+async function expectAuthenticatedShell(page) {
+  await expect(page.getByRole("link", { name: "ScholarBridge" }).first()).toBeVisible()
+  await expect(page.getByRole("link", { name: "Tutor" }).first()).toBeVisible()
+  await expect(page.getByLabel("Email")).toHaveCount(0)
+}
+
+async function expectProtectedAccess(page, pathname) {
+  await expect(page).toHaveURL(new RegExp(`${pathname.replace("/", "\\/")}$`))
+  await expect(page.getByLabel("Email")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(0)
+}
+
 test.describe("public and protected navigation", () => {
   test("login and practice login render without browser errors", async ({ page }) => {
     const errors = []
@@ -41,30 +53,36 @@ test.describe("public and protected navigation", () => {
   })
 })
 
-test.describe("authenticated account smoke", () => {
-  test.skip(!process.env.E2E_EMAIL || !process.env.E2E_PASSWORD, "E2E_EMAIL/E2E_PASSWORD are not configured")
+test.describe("authenticated CI practice smoke", () => {
+  test("practice sign in opens protected routes and persists the session", async ({ page, context }) => {
+    const username = process.env.E2E_TEST_USERNAME
+    const password = process.env.E2E_TEST_PASSWORD
+    expect(username).toBeTruthy()
+    expect(password?.length || 0).toBeGreaterThanOrEqual(16)
 
-  test("sign in, open tutor, persist session, and sign out", async ({ page, context }) => {
-    const email = process.env.E2E_EMAIL
-    const password = process.env.E2E_PASSWORD
-
-    await page.goto("/login?next=/account")
-    await page.getByLabel("Email").fill(email)
+    await page.goto("/practice-login?next=/student-home")
+    await page.getByLabel("Username").fill(username)
     await page.getByLabel("Password").fill(password)
-    await page.getByRole("button", { name: "Sign in" }).click()
-    await page.waitForURL(/\/account|\/post-login|\/premium/)
+    await page.getByRole("button", { name: "Start practising" }).click()
+    await page.waitForURL(/\/student-home$/)
+    await expectAuthenticatedShell(page)
 
-    if (page.url().includes("/post-login") || page.url().includes("/premium")) await page.goto("/account")
-    await expect(page.locator("body")).toContainText(/Welcome|Account|Billing/i)
+    await expect.poll(async () => {
+      const cookies = await context.cookies()
+      return cookies.some(cookie => cookie.name === "__sb_e2e_session" && cookie.httpOnly)
+    }, { timeout: 5000 }).toBe(true)
 
     await page.goto("/tutor")
-    await expect(page.locator("body")).toContainText(/Tutor|preparation|practice/i)
+    await expectProtectedAccess(page, "/tutor")
 
-    const cookies = await context.cookies()
-    expect(cookies.some(cookie => cookie.name.includes("auth-token") || cookie.name.startsWith("sb-"))).toBeTruthy()
+    const secondPage = await context.newPage()
+    await secondPage.goto("/student-home")
+    await expectProtectedAccess(secondPage, "/student-home")
+    await secondPage.close()
 
-    await page.goto("/account")
-    await page.getByRole("button", { name: /Sign out/i }).click()
-    await page.waitForURL(/\/login|\/$/)
+    await context.clearCookies()
+    await page.goto("/student-home")
+    await expect(page).toHaveURL(/\/login\?next=(%2F|\/)student-home/)
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
   })
 })
