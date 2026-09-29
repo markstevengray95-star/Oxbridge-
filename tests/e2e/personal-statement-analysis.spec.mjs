@@ -17,7 +17,7 @@ async function signInPractice(page) {
 }
 
 test.describe("personal statement evidence audit", () => {
-  test("three-question UCAS structure drives evidence and course analysis", async ({ page }) => {
+  test("all eight statement-analysis layers drive interview practice", async ({ page }) => {
     await signInPractice(page)
     await page.goto("/personal-statement-map")
     await expect(page).toHaveURL(/\/personal-statement-map$/)
@@ -40,15 +40,29 @@ test.describe("personal statement evidence audit", () => {
     await expect(question1).not.toHaveValue("")
     await expect(question2).not.toHaveValue("")
     await expect(question3).not.toHaveValue("")
-    await expect(page.getByText("1 · Three-question UCAS audit", { exact: true })).toBeVisible()
-    await expect(page.getByText("2 · Claim → evidence → thinking → development", { exact: true })).toBeVisible()
-    await expect(page.getByText("3 · Academic depth map", { exact: true })).toBeVisible()
-    await expect(page.getByText("4 · Course-specific criteria evidence", { exact: true })).toBeVisible()
+    for (const title of [
+      "1 · Three-question UCAS audit",
+      "2 · Claim → evidence → thinking → development",
+      "3 · Academic depth map",
+      "4 · Course-specific criteria evidence",
+      "5 · Supercurricular depth checker",
+      "6 · “So what?” detector",
+      "7 · Academic journey visualisation",
+      "8 · Interview Vulnerability Map",
+    ]) await expect(page.getByText(title, { exact: true })).toBeVisible()
+
     await expect(page.getByText("Mathematical expression", { exact: true })).toBeVisible()
     await expect(page.getByText("Physical intuition", { exact: true })).toBeVisible()
     await expect(page.getByText(/evidence strength, not an admissions score/i)).toBeVisible()
+    await expect(page.getByText(/depth matters more than quantity/i)).toBeVisible()
+    await expect(page.getByRole("button", { name: /launch vulnerability interview/i })).toBeVisible()
 
     await page.getByRole("button", { name: /save statement \+ analysis/i }).click()
     await expect(page.getByRole("button", { name: /saved analysis/i })).toBeVisible()
+
+    await page.getByRole("button", { name: /launch vulnerability interview/i }).click()
+    await expect(page).toHaveURL(/\/panel-interview$/)
+    await expect(page.getByText("Written-work defence loaded", { exact: true })).toBeVisible()
+    await expect(page.getByText("Personal statement vulnerability interview", { exact: true })).toBeVisible()
   })
 })
