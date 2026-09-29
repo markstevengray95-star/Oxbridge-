@@ -317,7 +317,9 @@ begin
 
   insert into public.school_organization_members(organization_id, user_id, role)
   values (p_organization_id, p_user_id, 'member')
-  on conflict (organization_id, user_id) do update set role = excluded.role;
+  on conflict (user_id) do update
+    set organization_id = excluded.organization_id,
+        role = excluded.role;
 
   insert into public.school_seat_entitlements(user_id, organization_id, role, active, updated_at)
   values (p_user_id, p_organization_id, 'member', true, now())
