@@ -139,6 +139,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 async function syncPaidAddonCheckout(session: Stripe.Checkout.Session) {
   const kind = session.metadata?.kind || ""
   if (kind !== "live_credit_pack" && kind !== "human_interview_review") return false
+  if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") return true
   const userId = session.metadata?.supabase_user_id || session.client_reference_id || ""
   if (!userId) throw new Error(`Paid add-on ${session.id} has no Supabase user`)
   const admin = createAdminClient()
@@ -167,7 +168,7 @@ async function syncPaidAddonCheckout(session: Stripe.Checkout.Session) {
     notes: (session.metadata?.notes || "").slice(0, 450),
     metadata: { payment_status: session.payment_status, customer_id: typeof session.customer === "string" ? session.customer : session.customer?.id || null },
     updated_at: new Date().toISOString(),
-  }, { onConflict: "stripe_checkout_session_id" })
+  }, { onConflict: "stripe_checkout_session_id", ignoreDuplicates: true })
   if (error) throw new Error(error.message)
   return true
 }
@@ -215,6 +216,7 @@ export async function POST(request: Request) {
 
     switch (event.type) {
       case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded":
         await syncCheckoutSession(event.data.object as Stripe.Checkout.Session)
         break
       case "customer.subscription.created":
