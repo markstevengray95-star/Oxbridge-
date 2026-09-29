@@ -49,6 +49,19 @@ for (const rel of privileged) {
       continue
     }
 
+    if (rel === 'app/api/auth/practice-login/route.ts') {
+      requireAll(text, [
+        'USERNAME_PATTERN',
+        'password.length < 8',
+        'practice_access_accounts',
+        'username_normalized',
+        'account.active',
+        'signInWithPassword',
+        'e2eCredentialsMatch',
+      ], `${rel} credential verification`)
+      continue
+    }
+
     if (rel.startsWith('app/api/admin/')) {
       requireContains(text, ['getAppAdminAccess', 'isConfiguredAdminEmail'], `${rel} admin authorization`)
       requireContains(text, ['getClaims(', 'requireAdmin'], `${rel} authenticated actor`)
@@ -67,7 +80,6 @@ for (const rel of privileged) {
       `${rel} authenticated actor`,
     )
 
-    // Non-admin privileged routes must not trust a caller-supplied user id as the actor.
     if (/body\.(userId|user_id)/.test(text) && !rel.startsWith('app/api/school/')) {
       requireContains(text, ['=== userId', '!== userId', '.eq("user_id", userId)', ".eq('user_id', userId)"], `${rel} caller user-id ownership`)
     }
@@ -78,9 +90,9 @@ for (const rel of privileged) {
 
 const highRiskChecks = [
   ['app/api/school/route.ts', ['currentUserId()', 'teacherOwns(', 'school_memberships', 'oxbridge_join_school_seat']],
-  ['app/api/school-targeted/route.ts', ['hasSchoolAccess(', 'teacherOwns(', 'target_user_id']],
-  ['app/api/school/analytics/route.ts', ['teacherOwns(', 'target_user_id']],
-  ['app/api/billing/webhook/route.ts', ['constructEvent', 'oxbridge_claim_stripe_webhook_event', 'oxbridge_fulfill_live_credit_pack']],
+  ['app/api/school-targeted/route.ts', ['hasSchoolAccess(', 'cohort?.owner_user_id !== userId', 'target_user_id', '.eq("user_id", targetUserId)']],
+  ['app/api/school/analytics/route.ts', ['getClaims(', '.eq("owner_user_id", userId)', 'School owner access required']],
+  ['app/api/billing/webhook/route.ts', ['constructEvent', 'oxbridge_claim_stripe_webhook_event', 'oxbridge_fulfill_live_credit_pack', 'checkout.session.async_payment_succeeded']],
   ['app/api/billing/checkout/route.ts', ['getClaims(']],
   ['app/api/billing/addon-checkout/route.ts', ['getClaims(']],
   ['app/api/billing/portal/route.ts', ['getClaims(']],
