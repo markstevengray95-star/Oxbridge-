@@ -89,17 +89,24 @@ test.describe("authenticated CI practice smoke", () => {
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
   })
 
-  test("practice access reaches Pro preparation but cannot cross School or admin boundaries", async ({ page }) => {
+  test("practice access reaches Pro preparation but cannot cross School or admin boundaries", async ({ page, context }) => {
     await signInPractice(page)
 
     await page.goto("/full-papers")
     await expectProtectedAccess(page, "/full-papers")
 
-    await page.goto("/school-dashboard")
-    await expect(page).toHaveURL(/\/premium\?.*required=school/)
+    // Stop at the middleware boundary. The disposable CI session is deliberately not a
+    // real Supabase session, so following the redirect into the server-rendered plan page
+    // would test the CI harness rather than the production School gate.
+    const schoolGate = await context.request.get("/school-dashboard", { maxRedirects: 0 })
+    expect([307, 308]).toContain(schoolGate.status())
+    const schoolLocation = schoolGate.headers().location || ""
+    expect(schoolLocation).toMatch(/\/premium\?.*required=school/)
 
-    await page.goto("/admin")
-    await expect(page).toHaveURL(/\/admin\/login\?.*error=not-authorized/)
+    const adminGate = await context.request.get("/admin", { maxRedirects: 0 })
+    expect([307, 308]).toContain(adminGate.status())
+    const adminLocation = adminGate.headers().location || ""
+    expect(adminLocation).toMatch(/\/admin\/login\?.*error=not-authorized/)
 
     const schoolApi = await page.evaluate(async () => {
       const response = await fetch('/api/school', { credentials: 'include' })
