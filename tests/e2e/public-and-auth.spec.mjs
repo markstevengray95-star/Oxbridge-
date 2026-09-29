@@ -41,30 +41,37 @@ test.describe("public and protected navigation", () => {
   })
 })
 
-test.describe("authenticated account smoke", () => {
-  test.skip(!process.env.E2E_EMAIL || !process.env.E2E_PASSWORD, "E2E_EMAIL/E2E_PASSWORD are not configured")
+test.describe("authenticated CI practice smoke", () => {
+  test("practice sign in opens protected Tutor routes and persists the session", async ({ page, context }) => {
+    const username = process.env.E2E_TEST_USERNAME
+    const password = process.env.E2E_TEST_PASSWORD
+    expect(username).toBeTruthy()
+    expect(password?.length || 0).toBeGreaterThanOrEqual(16)
 
-  test("sign in, open tutor, persist session, and sign out", async ({ page, context }) => {
-    const email = process.env.E2E_EMAIL
-    const password = process.env.E2E_PASSWORD
-
-    await page.goto("/login?next=/account")
-    await page.getByLabel("Email").fill(email)
+    await page.goto("/practice-login?next=/student-home")
+    await page.getByLabel("Username").fill(username)
     await page.getByLabel("Password").fill(password)
-    await page.getByRole("button", { name: "Sign in" }).click()
-    await page.waitForURL(/\/account|\/post-login|\/premium/)
-
-    if (page.url().includes("/post-login") || page.url().includes("/premium")) await page.goto("/account")
-    await expect(page.locator("body")).toContainText(/Welcome|Account|Billing/i)
-
-    await page.goto("/tutor")
-    await expect(page.locator("body")).toContainText(/Tutor|preparation|practice/i)
+    await page.getByRole("button", { name: "Start practising" }).click()
+    await page.waitForURL(/\/student-home$/)
+    await expect(page.getByRole("navigation", { name: "Tutor command centre sections" })).toBeVisible()
 
     const cookies = await context.cookies()
-    expect(cookies.some(cookie => cookie.name.includes("auth-token") || cookie.name.startsWith("sb-"))).toBeTruthy()
+    const e2eCookie = cookies.find(cookie => cookie.name === "__sb_e2e_session")
+    expect(e2eCookie).toBeTruthy()
+    expect(e2eCookie?.httpOnly).toBeTruthy()
 
-    await page.goto("/account")
-    await page.getByRole("button", { name: /Sign out/i }).click()
-    await page.waitForURL(/\/login|\/$/)
+    await page.goto("/tutor")
+    await expect(page).toHaveURL(/\/tutor$/)
+    await expect(page.getByRole("navigation", { name: "Tutor command centre sections" })).toBeVisible()
+
+    const secondPage = await context.newPage()
+    await secondPage.goto("/student-home")
+    await expect(secondPage).toHaveURL(/\/student-home$/)
+    await expect(secondPage.getByRole("navigation", { name: "Tutor command centre sections" })).toBeVisible()
+    await secondPage.close()
+
+    await context.clearCookies()
+    await page.goto("/student-home")
+    await expect(page).toHaveURL(/\/login\?next=(%2F|\/)student-home/)
   })
 })
