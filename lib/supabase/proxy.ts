@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { aiScopeForPath, guardAiRequest } from "@/lib/ai/request-guard"
 import { isConfiguredAdminEmail } from "@/lib/auth/admin-access"
 import { FREE_PLAN_COOKIE, PLAN_ONBOARDING_STATE_KEY, onboardingCompleted } from "@/lib/onboarding"
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config"
@@ -42,6 +43,35 @@ export async function updateSession(request: NextRequest) {
   const isPublicAsset=matchesAny(pathname,PUBLIC_ASSET_ROUTES)
   const adminLogin=pathname==="/admin/login"
   const requiresAdmin=pathname==="/admin"||(pathname.startsWith("/admin/")&&!adminLogin)
+  const isAdmin=isConfiguredAdminEmail(userEmail)
+  const isPractice=hasPracticeAccess(user)
+
+  const aiScope=aiScopeForPath(pathname)
+  if(aiScope){
+    let aiTier: "anonymous"|"free"|"pro"|"school"|"practice"|"admin" = userId?"free":"anonymous"
+    if(userId){
+      if(isAdmin) aiTier="admin"
+      else if(isPractice) aiTier="practice"
+      else {
+        const [{data:subscription},{data:seat}] = await Promise.all([
+          supabase.from("subscriptions").select("tier,status").eq("user_id",userId).maybeSingle(),
+          supabase.from("school_seat_entitlements").select("active").eq("user_id",userId).maybeSingle(),
+        ])
+        const paidTier=effectiveTier(subscription?.tier,subscription?.status)
+        aiTier=seat?.active?"school":paidTier
+      }
+    }
+    const guard=await guardAiRequest({pathname,headers:request.headers,userId,tier:aiTier})
+    if(!guard.allowed){
+      const unavailable=guard.reason==="guard_unavailable"
+      return NextResponse.json(
+        { error: unavailable ? "AI request protection is temporarily unavailable. Please try again shortly." : "Too many AI requests. Please wait before trying again.", reason: guard.reason },
+        { status: unavailable?503:429, headers: { "Retry-After": String(Math.max(1,guard.retryAfterSeconds)), "X-RateLimit-Reason": guard.reason, "X-RateLimit-Burst-Remaining": String(guard.burstRemaining), "X-RateLimit-Hour-Remaining": String(guard.hourRemaining) } },
+      )
+    }
+    response.headers.set("X-RateLimit-Burst-Remaining",String(guard.burstRemaining))
+    response.headers.set("X-RateLimit-Hour-Remaining",String(guard.hourRemaining))
+  }
 
   if(pathname==="/") return redirectTo(request,userId?"/post-login":"/login",userId?undefined:"/post-login")
 
@@ -55,8 +85,6 @@ export async function updateSession(request: NextRequest) {
 
   const requiresPro=matchesAny(pathname,PRO_ROUTES)
   const requiresSchool=matchesAny(pathname,SCHOOL_ROUTES)
-  const isAdmin=isConfiguredAdminEmail(userEmail)
-  const isPractice=hasPracticeAccess(user)
 
   if(adminLogin&&isAdmin) return redirectTo(request,"/admin")
   if(requiresAdmin&&!isAdmin){const url=request.nextUrl.clone();url.pathname="/admin/login";url.search="";url.searchParams.set("error","not-authorized");return NextResponse.redirect(url)}
