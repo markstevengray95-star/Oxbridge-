@@ -72,6 +72,7 @@ const argumentPattern = /\b(argument|argued|however|whereas|although|counter|dis
 const questionPattern = /\b(question|unresolved|wonder|made me question|led me to ask|raised the question|why|how .* decide)\b/i
 const investigationPattern = /\b(research|investigat|experiment|analysis|analysed|analyzed|data|compare|tested)\b/i
 const absolutePattern = /\b(always|never|proves?|definitely|obviously|clearly|only explanation|certainly|must mean)\b/i
+const vulnerabilityRiskOrder: Record<InterviewVulnerability["risk"], number> = { high: 0, medium: 1, low: 2 }
 
 function splitSentences(text: string) {
   return text.split(sentenceSplit).map(item => item.trim()).filter(item => item.length >= 18)
@@ -190,7 +191,7 @@ function buildInterviewVulnerabilities(claims: StatementClaim[]): InterviewVulne
         ? `The claim is missing ${missing.join(" and ")}, leaving an obvious route for challenge.`
         : "The chain is well developed, so the likely challenge is to test its assumptions, limits and transfer to a new context."
     return { id: `vulnerability-${claim.id}`, claimId: claim.id, section: claim.section, claim: claim.text, risk, reason, questions: vulnerabilityQuestions(claim) }
-  }).sort((a, b) => ({ high: 0, medium: 1, low: 2 }[a.risk] - ({ high: 0, medium: 1, low: 2 }[b.risk])).slice(0, 18)
+  }).sort((a, b) => vulnerabilityRiskOrder[a.risk] - vulnerabilityRiskOrder[b.risk]).slice(0, 18)
 }
 
 export function analysePersonalStatementV3(input: { answers: UcasAnswers; course: string; university: TargetUniversity }): PersonalStatementAnalysisV3 {
