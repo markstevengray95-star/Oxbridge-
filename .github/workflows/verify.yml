@@ -3,7 +3,7 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard, feature/digital-twin-written-defence-replay, feature/classroom-mockday-mistakes-deadlines, feature/phase-two-prep-upgrades, hardening/end-to-end-journey-integrity, production/e2e-rate-limit, production/security-billing-journeys]
+    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard, feature/digital-twin-written-defence-replay, feature/classroom-mockday-mistakes-deadlines, feature/phase-two-prep-upgrades, hardening/end-to-end-journey-integrity, production/e2e-rate-limit, production/security-billing-journeys, feature/personal-statement-analysis-v2]
 
 permissions:
   contents: read
@@ -41,6 +41,9 @@ jobs:
 
       - name: AI request protection checks
         run: node tests/ai-request-guard.cjs
+
+      - name: Personal statement analysis checks
+        run: node tests/personal-statement-analysis-v2.cjs
 
       - name: Private history persistence checks
         run: node tests/user-history-persistence.cjs
