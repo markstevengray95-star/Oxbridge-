@@ -1,6 +1,7 @@
 import { type EmailOtpType } from "@supabase/supabase-js"
 import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { safeLocalPath } from "@/lib/auth/safe-path"
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
@@ -8,7 +9,7 @@ export async function GET(request: NextRequest) {
   const type = requestUrl.searchParams.get("type") as EmailOtpType | null
   const code = requestUrl.searchParams.get("code")
   const requestedNext = requestUrl.searchParams.get("next") || "/post-login"
-  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/post-login"
+  const next = safeLocalPath(requestedNext)
   const supabase = await createClient()
 
   if (tokenHash && type) {
