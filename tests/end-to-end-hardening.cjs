@@ -8,6 +8,7 @@ const sw = fs.readFileSync('public/sw.js', 'utf8')
 const offline = fs.readFileSync('public/offline.html', 'utf8')
 const school = fs.readFileSync('app/api/school/route.ts', 'utf8')
 const targeted = fs.readFileSync('app/api/school-targeted/route.ts', 'utf8')
+const analytics = fs.readFileSync('app/api/school/analytics/route.ts', 'utf8')
 
 // Every school/teacher page must be behind the School-plan gate.
 const gatedDirectories = fs.readdirSync('app', { withFileTypes: true })
@@ -53,4 +54,9 @@ assert.match(targeted, /async function hasSchoolAccess/)
 assert.match(targeted, /if \(!\(await hasSchoolAccess\(admin, userId\)\)\) return NextResponse\.json\(\{ error: "School plan required" \}, \{ status: 403 \}\)/)
 assert.match(targeted, /target_user_id\.is\.null,target_user_id\.eq\.\$\{userId\}/)
 
-console.log('PASS: cloud restore, private offline caching, School gates, roster privacy and targeted assignment isolation are hardened')
+// Teacher analytics must not count another learner's personalised task in this learner's completion denominator.
+assert.match(analytics, /select\("id,cohort_id,target_user_id"\)/)
+assert.match(analytics, /!assignment\.target_user_id \|\| assignment\.target_user_id === member\.user_id/)
+assert.doesNotMatch(analytics, /assignmentsByCohort/)
+
+console.log('PASS: cloud restore, private offline caching, School gates, roster privacy, targeted assignment isolation and analytics accuracy are hardened')
