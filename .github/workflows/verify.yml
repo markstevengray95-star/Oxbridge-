@@ -3,7 +3,7 @@ name: Verify app
 on:
   pull_request:
   push:
-    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard, feature/digital-twin-written-defence-replay, feature/classroom-mockday-mistakes-deadlines, feature/phase-two-prep-upgrades]
+    branches: [main, feature/harder-authentic-question-bank-v2, integration/harder-authentic-current-main, feature/mobile-mode-navigation-cleanup, fix/non-admin-ai-access, feature/practice-tracking-dashboard, feature/digital-twin-written-defence-replay, feature/classroom-mockday-mistakes-deadlines, feature/phase-two-prep-upgrades, hardening/end-to-end-journey-integrity]
 
 permissions:
   contents: read
@@ -32,6 +32,9 @@ jobs:
 
       - name: Cloud sync regression checks
         run: node tests/cloud-sync-config.cjs
+
+      - name: End-to-end hardening checks
+        run: node tests/end-to-end-hardening.cjs
 
       - name: Private history persistence checks
         run: node tests/user-history-persistence.cjs
