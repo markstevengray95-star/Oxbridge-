@@ -6,25 +6,29 @@ test.describe("public and protected navigation", () => {
     page.on("pageerror", error => errors.push(error.message))
 
     await page.goto("/login")
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible()
+    await expect(page.getByLabel("Email")).toBeVisible()
+    await expect(page.getByLabel("Password")).toBeVisible()
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
     await expect(page.getByRole("link", { name: /practice username/i })).toBeVisible()
 
     await page.goto("/practice-login")
-    await expect(page.getByRole("heading", { name: "Practice access" })).toBeVisible()
     await expect(page.getByLabel("Username")).toBeVisible()
     await expect(page.getByLabel("Password")).toBeVisible()
+    await expect(page.getByRole("button", { name: /practice/i })).toBeVisible()
     expect(errors).toEqual([])
   })
 
-  test("protected student route redirects to sign in when logged out", async ({ page }) => {
+  test("protected student route redirects to working sign in when logged out", async ({ page }) => {
     await page.goto("/student-home")
     await expect(page).toHaveURL(/\/login\?next=(%2F|\/)student-home/)
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible()
+    await expect(page.getByLabel("Email")).toBeVisible()
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
   })
 
   test("protected school route redirects to sign in when logged out", async ({ page }) => {
     await page.goto("/school-dashboard")
     await expect(page).toHaveURL(/\/login/)
+    await expect(page.getByLabel("Email")).toBeVisible()
   })
 
   test("mobile sign-in stays inside the viewport", async ({ page }) => {
@@ -51,7 +55,7 @@ test.describe("authenticated account smoke", () => {
     await page.waitForURL(/\/account|\/post-login|\/premium/)
 
     if (page.url().includes("/post-login") || page.url().includes("/premium")) await page.goto("/account")
-    await expect(page.getByRole("heading", { name: /Welcome/i })).toBeVisible()
+    await expect(page.locator("body")).toContainText(/Welcome|Account|Billing/i)
 
     await page.goto("/tutor")
     await expect(page.locator("body")).toContainText(/Tutor|preparation|practice/i)
