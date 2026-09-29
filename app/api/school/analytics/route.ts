@@ -61,13 +61,12 @@ export async function GET() {
   const progressRows = progressResult.data ?? []
   const cohortIds = [...new Set(cohortMemberships.map(row => row.cohort_id))]
   const { data: assignments } = cohortIds.length
-    ? await admin.from("school_assignments").select("id,cohort_id").in("cohort_id", cohortIds)
-    : { data: [] as Array<{ id: string; cohort_id: string }> }
+    ? await admin.from("school_assignments").select("id,cohort_id,target_user_id").in("cohort_id", cohortIds)
+    : { data: [] as Array<{ id: string; cohort_id: string; target_user_id: string | null }> }
 
   const profileById = new Map(profiles.map(profile => [profile.id, profile]))
   const intelById = new Map(intelligenceRows.map(row => [row.user_id, row]))
-  const assignmentsByCohort = new Map<string, number>()
-  for (const assignment of assignments ?? []) assignmentsByCohort.set(assignment.cohort_id, (assignmentsByCohort.get(assignment.cohort_id) ?? 0) + 1)
+  const assignmentRows = assignments ?? []
 
   const now = Date.now()
   const weekAgo = now - 7 * 24 * 60 * 60 * 1000
@@ -80,7 +79,7 @@ export async function GET() {
     const userCohorts = cohortMemberships.filter(row => row.user_id === member.user_id)
     const userProgress = progressRows.filter(row => row.user_id === member.user_id)
     const cohortSet = new Set(userCohorts.map(row => row.cohort_id))
-    const assignmentTotal = [...cohortSet].reduce((total, cohortId) => total + (assignmentsByCohort.get(cohortId) ?? 0), 0)
+    const assignmentTotal = assignmentRows.filter(assignment => cohortSet.has(assignment.cohort_id) && (!assignment.target_user_id || assignment.target_user_id === member.user_id)).length
     const assignmentCompleted = userProgress.filter(row => row.status === "completed").length
     const geminiMinutes = userUsage
       .filter(row => row.event_type === "gemini_live_reserved_minutes")

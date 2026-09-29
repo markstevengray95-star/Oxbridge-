@@ -10,9 +10,12 @@ const PRO_ROUTES = [
   "/interview-academy","/interview-difficulty","/thinking-aloud","/reasoning-replay","/retry-moment","/interview-profile","/unseen-lab",
   "/full-papers","/advanced-practice","/adaptive-paper","/admissions-test-courses","/preparation-report","/weekly-programme","/research-project","/knowledge-graph",
 ]
-const SCHOOL_ROUTES = ["/school-dashboard","/school-overview","/school-reports","/human-review","/teacher-coach","/teacher-live-console","/human-interviewer"]
+const SCHOOL_ROUTES = [
+  "/school-classroom","/school-dashboard","/school-data","/school-differentiation","/school-insights","/school-overview","/school-reports","/school-seats",
+  "/human-review","/teacher-coach","/teacher-live-console","/human-interviewer",
+]
 const PUBLIC_PAGE_ROUTES = ["/login", "/practice-login", "/reset-password", "/auth/confirm", "/admin/login"]
-const PUBLIC_ASSET_ROUTES = ["/manifest.webmanifest", "/sw.js", "/robots.txt", "/sitemap.xml"]
+const PUBLIC_ASSET_ROUTES = ["/manifest.webmanifest", "/sw.js", "/robots.txt", "/sitemap.xml", "/offline.html"]
 const PLAN_GATE_ROUTES = ["/premium", "/post-login"]
 
 function matchesAny(pathname: string, routes: string[]) { return routes.some(route => pathname === route || pathname.startsWith(`${route}/`)) }
