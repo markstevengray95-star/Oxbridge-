@@ -1,21 +1,73 @@
 "use client"
 
 import Link from "next/link"
-import { ReviewPanel } from "@/components/writing/review-panel"
-import { useMemo, useState } from "react"
-import { ArrowLeft, ArrowRight, FileText, MessageSquareText, ShieldCheck } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { ArrowLeft, ArrowRight, FileText, Save, ShieldCheck } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+import { ReviewPanel } from "@/components/writing/review-panel"
+import { PersonalStatementAudit } from "@/components/application/personal-statement-audit"
+import { APPLICATION_KEY } from "@/lib/personal-tutor"
+import { analysePersonalStatement, combineUcasAnswers, UCAS_MIN_SECTION_CHARACTERS, UCAS_SECTIONS, UCAS_TOTAL_CHARACTER_LIMIT, type TargetUniversity, type UcasAnswers, type UcasSectionKey } from "@/lib/application/personal-statement-analysis"
 
-type Claim={text:string;kind:"Academic claim"|"Activity/reading"|"Motivation"}
-function split(text:string){return text.split(/(?<=[.!?])\s+/).map(x=>x.trim()).filter(Boolean)}
-function extract(text:string):Claim[]{return split(text).map(s=>{if(/\b(read|book|article|lecture|podcast|project|competition|research|essay|experiment|course)\b/i.test(s))return{text:s,kind:"Activity/reading" as const};if(/\b(interested|fascinat|motivated|want to study|drawn to|enjoy|curious)\b/i.test(s))return{text:s,kind:"Motivation" as const};if(/\b(think|argue|believe|suggest|show|because|therefore|means|demonstrates|important)\b/i.test(s))return{text:s,kind:"Academic claim" as const};return null}).filter((x):x is Claim=>Boolean(x)).slice(0,24)}
-function questions(c:Claim){if(c.kind==="Activity/reading")return["What specific idea from this activity changed your thinking?","What did you disagree with or find unconvincing?","How does it connect to another academic idea you have explored?","If the interviewer challenged your interpretation, what evidence would you use?","What would you investigate next rather than simply reading more about the same point?"];if(c.kind==="Motivation")return["What academic problem sits behind this motivation?","Which part of the subject do you find genuinely difficult rather than simply enjoyable?","What evidence from your own work supports this statement?","What would make you change your mind about studying this area?","How is this motivation different from a prepared application phrase?"];return["What exactly do you mean by the key term in this claim?","What is your strongest evidence for it?","Which assumption does the claim depend on?","What is the strongest counterexample or objection?","How would you revise the claim if that objection were true?"]}
+const STORAGE_KEY = "oxbridge-personal-statement-ucas-v3"
+const ANALYSIS_KEY = "oxbridge-personal-statement-analysis-v3"
+const emptyAnswers: UcasAnswers = { motivation: "", preparation: "", outside: "" }
+type SavedStatement = { answers: UcasAnswers; course: string; university: TargetUniversity; savedAt?: string }
+function safeUniversity(value: unknown): TargetUniversity { return value === "Oxford" || value === "Cambridge" || value === "Both" ? value : "Both" }
 
-export default function PersonalStatementMapPage(){
- const [course,setCourse]=useState("");const [text,setText]=useState("");const [selected,setSelected]=useState(0);const claims=useMemo(()=>extract(text),[text]);const current=claims[selected]??claims[0]
- const save=()=>{try{localStorage.setItem("oxbridge-personal-statement-v1",JSON.stringify({text,claims,date:new Date().toISOString()}))}catch{}}
- return <main className="min-h-screen bg-[#f6f8f8] text-[#172b3a]"><header className="border-b bg-white"><div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6"><Button asChild variant="ghost"><Link href="/student-home"><ArrowLeft/>Student Home</Link></Button><Badge variant="outline"><FileText className="size-3.5"/>Statement defence map</Badge></div></header><div className="mx-auto max-w-6xl px-4 py-8 sm:px-6"><section className="mb-6"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Application defence</p><h1 className="mt-2 font-serif text-4xl font-bold">Understand and strengthen your personal statement.</h1><p className="mt-2 max-w-3xl text-slate-600">Paste the statement you actually submitted or plan to submit. Get a detailed review of your motivation, subject engagement and reflection, then practise defending the claims you make. The detailed reviewer can run with AI or entirely offline on this device.</p></section><section className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]"><Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Personal statement</CardTitle><CardDescription>Review academic motivation, evidence, reflection and course relevance. Keep your own voice and ideas.</CardDescription></CardHeader><CardContent className="space-y-3"><label className="mb-3 block text-sm font-semibold">Target course<input className="mt-1 block w-full rounded-md border p-2" value={course} maxLength={160} onChange={e=>setCourse(e.target.value)} placeholder="e.g. History, Medicine, Engineering"/></label><Textarea maxLength={20000} rows={22} value={text} onChange={e=>{setText(e.target.value);setSelected(0)}} placeholder="Paste your personal statement…"/><div className="flex flex-wrap justify-between gap-3"><span className="text-sm text-slate-500">{text.trim()?text.trim().split(/\s+/).length:0} words · {text.length.toLocaleString()}/4,000 UCAS characters · {claims.length} defence points</span><div className="flex gap-2"><Button asChild><a href="#statement-analysis">Detailed analysis</a></Button><Button variant="outline" onClick={save} disabled={!text.trim()}>Save locally</Button></div></div>{text.length>4000&&<p className="text-sm font-semibold text-amber-800">This draft is over the current 4,000-character UCAS personal-statement limit. The reviewer will still analyse it, but it must be shortened before submission.</p>}</CardContent></Card><aside className="space-y-4"><Card className="shadow-none"><CardHeader><MessageSquareText className="size-6 text-[#147d91]"/><CardTitle className="font-serif text-xl">Defence points</CardTitle></CardHeader><CardContent className="space-y-2">{claims.length?claims.map((c,i)=><button key={`${c.text}-${i}`} onClick={()=>setSelected(i)} className={`w-full rounded-xl border p-3 text-left ${i===selected?"border-[#147d91] bg-[#edf7f8]":"bg-white"}`}><Badge variant="outline">{c.kind}</Badge><p className="mt-2 text-sm leading-relaxed">{c.text}</p></button>):<p className="text-sm text-slate-500">Paste your statement to build the defence map.</p>}</CardContent></Card>{current&&<Card className="border-[#147d91]/20 shadow-none"><CardHeader><CardTitle className="font-serif text-xl">Progressive interview ladder</CardTitle></CardHeader><CardContent className="space-y-3">{questions(current).map((q,i)=><div key={q} className="flex gap-3"><span className="grid size-7 flex-none place-items-center rounded-full bg-[#102a43] text-xs font-bold text-white">{i+1}</span><p className="text-sm leading-relaxed">{q}</p></div>)}<Button asChild className="mt-2 w-full"><Link href="/interview-room">Defend it in Interview Room <ArrowRight/></Link></Button></CardContent></Card>}<Card className="shadow-none"><CardContent className="flex gap-3 p-4 text-sm text-slate-600"><ShieldCheck className="size-5 flex-none text-[#147d91]"/><p>Save locally and Analyse offline keep the draft on this device. Analyse writing attempts the AI reviewer first and automatically switches to the local deterministic review if AI is unavailable. Neither mode is an official university admissions score.</p></CardContent></Card></aside></section><div id="statement-analysis" className="mt-6 scroll-mt-6"><ReviewPanel essay={text} mode="statement" course={course} test="Personal statement"/></div></div></main>
+export default function PersonalStatementMapPage() {
+  const [answers, setAnswers] = useState<UcasAnswers>(emptyAnswers)
+  const [course, setCourse] = useState("")
+  const [university, setUniversity] = useState<TargetUniversity>("Both")
+  const [saved, setSaved] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
+  const combined = useMemo(() => combineUcasAnswers(answers), [answers])
+  const analysis = useMemo(() => analysePersonalStatement({ answers, course, university }), [answers, course, university])
+  const hasDraft = analysis.totalCharacters > 0
+
+  useEffect(() => {
+    try {
+      const savedStatement = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") as SavedStatement | null
+      const application = JSON.parse(localStorage.getItem(APPLICATION_KEY) || "{}") as { course?: string; university?: TargetUniversity }
+      if (savedStatement?.answers) {
+        setAnswers({ ...emptyAnswers, ...savedStatement.answers })
+        setCourse(savedStatement.course || application.course || "")
+        setUniversity(safeUniversity(savedStatement.university || application.university))
+      } else {
+        const legacy = JSON.parse(localStorage.getItem("oxbridge-personal-statement-v1") || "{}") as { text?: string }
+        if (legacy.text) setAnswers({ ...emptyAnswers, motivation: legacy.text })
+        if (application.course) setCourse(application.course)
+        setUniversity(safeUniversity(application.university))
+      }
+    } catch { /* begin with blank editor */ }
+    finally { setHydrated(true) }
+  }, [])
+
+  function setAnswer(key: UcasSectionKey, value: string) { setAnswers(current => ({ ...current, [key]: value })); setSaved(false) }
+  function saveStatement() {
+    const payload: SavedStatement = { answers, course, university, savedAt: new Date().toISOString() }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+      localStorage.setItem(ANALYSIS_KEY, JSON.stringify({ ...analysis, course, university, savedAt: payload.savedAt, sectionCharacters: Object.fromEntries(analysis.sections.map(section => [section.key, section.characters])) }))
+      localStorage.setItem("oxbridge-personal-statement-v1", JSON.stringify({ text: combined, claims: analysis.claims, date: payload.savedAt }))
+      setSaved(true)
+    } catch { setSaved(false) }
+  }
+
+  if (!hydrated) return <main className="min-h-screen bg-[#f6f8f8] p-8 text-[#172b3a]"><p className="text-sm text-slate-600">Loading your saved application context…</p></main>
+
+  return <main className="min-h-screen bg-[#f6f8f8] text-[#172b3a]">
+    <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6"><Button asChild variant="ghost"><Link href="/student-home"><ArrowLeft/>Student Home</Link></Button><Badge variant="outline"><FileText className="size-3.5"/>Application evidence audit</Badge></div></header>
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
+      <section className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Personal statement + application evidence</p><h1 className="mt-2 font-serif text-4xl font-bold">Build a statement you can actually defend.</h1><p className="mt-3 max-w-3xl leading-7 text-slate-600">Work in the current three-question UCAS structure. The analyser checks each answer separately, maps academic claims to evidence and reflection, measures demonstrated depth, and compares your evidence with relevant Oxford/Cambridge course criteria. It does not predict admission or imitate an admissions decision.</p></div><Card className="border-0 bg-[#102a43] text-white"><CardHeader><CardDescription className="text-white/65">Current draft</CardDescription><CardTitle className="font-serif text-4xl">{analysis.totalCharacters.toLocaleString()}</CardTitle><CardDescription className="text-white/65">of {UCAS_TOTAL_CHARACTER_LIMIT.toLocaleString()} UCAS characters · {analysis.totalWords} words</CardDescription></CardHeader><CardContent><div className="flex flex-wrap gap-2"><Badge className={analysis.withinCharacterLimit ? "bg-emerald-100 text-emerald-900" : "bg-red-100 text-red-900"}>{analysis.withinCharacterLimit ? "Within total limit" : "Over total limit"}</Badge><Badge className={analysis.allSectionsMeetMinimum ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-900"}>{analysis.allSectionsMeetMinimum ? "All section minimums met" : "Section minimum incomplete"}</Badge></div></CardContent></Card></section>
+      <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Application target</CardTitle><CardDescription>The course and university setting changes the course-fit evidence check. “Both” is useful for preparation comparison; applicants cannot apply to Oxford and Cambridge in the same UCAS cycle.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">University</span><select aria-label="University" className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={university} onChange={event=>{setUniversity(safeUniversity(event.target.value));setSaved(false)}}><option>Oxford</option><option>Cambridge</option><option>Both</option></select></label><label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">Target course</span><input aria-label="Target course" className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={course} maxLength={160} onChange={event=>{setCourse(event.target.value);setSaved(false)}} placeholder="e.g. Physics, Medicine, Law"/></label></CardContent></Card>
+      <section className="space-y-4">{UCAS_SECTIONS.map(section => { const diagnostic = analysis.sections.find(item => item.key === section.key); const characters = diagnostic?.characters ?? 0; return <Card className="shadow-none" key={section.key}><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-[#147d91]">{section.label}</p><CardTitle className="mt-1 font-serif text-2xl">{section.question}</CardTitle><CardDescription className="mt-2 max-w-4xl">{section.purpose}</CardDescription></div><Badge variant="outline" className={characters >= UCAS_MIN_SECTION_CHARACTERS ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}>{characters.toLocaleString()} chars · min {UCAS_MIN_SECTION_CHARACTERS}</Badge></div></CardHeader><CardContent><Textarea aria-label={`${section.label} answer`} rows={section.key === "outside" ? 12 : 10} value={answers[section.key]} onChange={event=>setAnswer(section.key,event.target.value)} placeholder={`Write your ${section.label.toLowerCase()} answer here…`}/>{diagnostic?.guidance.length ? <div className="mt-3 flex flex-wrap gap-2">{diagnostic.guidance.slice(0,3).map(item => <Badge variant="outline" key={item} className="whitespace-normal text-left font-normal">{item}</Badge>)}</div> : null}</CardContent></Card> })}</section>
+      <div className="flex flex-wrap items-center gap-2"><Button onClick={saveStatement} disabled={!hasDraft}><Save/>{saved ? "Saved analysis" : "Save statement + analysis"}</Button><Button asChild variant="outline"><Link href="/application-profile">Open whole application profile <ArrowRight/></Link></Button><span className="text-xs text-slate-500">Your detailed AI/offline writing review remains available below.</span></div>
+      {hasDraft ? <PersonalStatementAudit analysis={analysis}/> : <Card className="border-dashed shadow-none"><CardContent className="flex gap-3 p-6 text-sm text-slate-600"><ShieldCheck className="size-5 flex-none text-[#147d91]"/><p>Start writing any UCAS section to activate the structured evidence audit. The audit describes evidence visible in the draft; it does not decide whether an applicant is suitable for Oxford or Cambridge.</p></CardContent></Card>}
+      {hasDraft && <section id="statement-analysis" className="scroll-mt-6"><ReviewPanel essay={combined} mode="statement" course={`${university} · ${course || "course not set"}`} test="UCAS personal statement"/></section>}
+    </div>
+  </main>
 }
