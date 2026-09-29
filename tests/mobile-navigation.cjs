@@ -1,4 +1,5 @@
 const fs = require('fs')
+const path = require('path')
 
 const nav = fs.readFileSync('components/global-focus-nav.tsx', 'utf8')
 const layout = fs.readFileSync('app/layout.tsx', 'utf8')
@@ -16,6 +17,16 @@ for (const destination of ['/full-papers', '/interviews', '/application-profile'
   expect(nav.includes(`href: "${destination}"`), `Navigation lost destination ${destination}`)
 }
 
+const declaredRoutes = new Set([
+  ...[...nav.matchAll(/href:\s*"(\/[^"?#]*)"/g)].map(match => match[1]),
+  ...[...nav.matchAll(/href="(\/[^"?#]*)"/g)].map(match => match[1]),
+])
+for (const route of declaredRoutes) {
+  if (route === '/') continue
+  const page = path.join('app', ...route.split('/').filter(Boolean), 'page.tsx')
+  expect(fs.existsSync(page), `Navigation points to missing page ${route}`)
+}
+
 expect(nav.includes('mobile-bottom-nav'), 'Mobile bottom navigation is not rendered')
 expect(nav.includes('All tools'), 'Mobile all-tools drawer is missing')
 expect(nav.includes('Find a tool'), 'Mobile navigation search is missing')
@@ -27,4 +38,4 @@ expect(mobileCss.includes('overflow-x: auto'), 'Mobile tab bars should scroll ho
 expect(mobileCss.includes('padding-bottom: calc(4.25rem + env(safe-area-inset-bottom))'), 'Pages need bottom-dock clearance')
 expect(layout.includes('import "./mobile.css"'), 'Root layout does not load mobile mode styles')
 
-console.log('PASS: mobile mode, compact bottom navigation, searchable grouped tools and mobile tab overflow are wired')
+console.log(`PASS: mobile mode, grouped tools and ${declaredRoutes.size} navigation destinations resolve to real pages`)
