@@ -10,6 +10,10 @@ async function signInPractice(page) {
   await page.getByLabel("Password").fill(password)
   await page.getByRole("button", { name: "Start practising" }).click()
   await page.waitForURL(/\/student-home$/)
+  await expect.poll(async () => {
+    const cookies = await page.context().cookies()
+    return cookies.some(cookie => cookie.name === "__sb_e2e_session" && cookie.httpOnly)
+  }, { timeout: 5000 }).toBe(true)
 }
 
 test.describe("personal statement evidence audit", () => {
@@ -22,13 +26,20 @@ test.describe("personal statement evidence audit", () => {
     await page.getByLabel("University").selectOption("Oxford")
     await page.getByLabel("Target course").fill("Physics")
 
-    const boxes = page.locator("textarea")
-    await expect(boxes).toHaveCount(3)
+    const question1 = page.getByLabel("Question 1 answer")
+    const question2 = page.getByLabel("Question 2 answer")
+    const question3 = page.getByLabel("Question 3 answer")
+    await expect(question1).toBeVisible()
+    await expect(question2).toBeVisible()
+    await expect(question3).toBeVisible()
 
-    await boxes.nth(0).fill("I want to study physics because modelling lets me turn an observation into a question that can be tested mathematically. Reading about orbital mechanics made me question when a simple model stops being useful, so I compared idealised assumptions with situations where drag and non-uniform fields matter. That led me to explore how approximations can remain powerful even when they are not literally true, and why deciding what to neglect is itself part of physical reasoning. I now want to study the subject in greater depth because I enjoy the point where mathematical structure and physical intuition constrain one another.")
-    await boxes.nth(1).fill("Studying Physics and Mathematics has trained me to move between diagrams, equations and verbal explanations rather than treating them as separate tasks. In mechanics problems I learned to define a system before choosing equations, because the wrong boundary can make an otherwise correct calculation meaningless. When solving unfamiliar problems I compare limiting cases and units before accepting a result. This has made me more careful about assumptions and more interested in why a method works, not only whether it gives the expected numerical answer. Further Mathematics has also helped me see how the same mathematical idea can describe apparently different physical situations.")
-    await boxes.nth(2).fill("Outside lessons I built a small simulation to investigate projectile motion and changed one assumption at a time to see which effects mattered most. Comparing the numerical output with hand calculations exposed where my model was too simple, so I revised it and documented the limitations rather than hiding the mismatch. I also read articles on gravitational waves and followed unfamiliar terms into introductory papers, which made me think more carefully about how indirect measurements support claims about systems we cannot observe directly. These activities led me to ask how physicists decide when evidence is strong enough to favour one model over another.")
+    await question1.fill("I want to study physics because modelling lets me turn an observation into a question that can be tested mathematically. Reading about orbital mechanics made me question when a simple model stops being useful, so I compared idealised assumptions with situations where drag and non-uniform fields matter. That led me to explore how approximations can remain powerful even when they are not literally true, and why deciding what to neglect is itself part of physical reasoning. I now want to study the subject in greater depth because I enjoy the point where mathematical structure and physical intuition constrain one another.")
+    await question2.fill("Studying Physics and Mathematics has trained me to move between diagrams, equations and verbal explanations rather than treating them as separate tasks. In mechanics problems I learned to define a system before choosing equations, because the wrong boundary can make an otherwise correct calculation meaningless. When solving unfamiliar problems I compare limiting cases and units before accepting a result. This has made me more careful about assumptions and more interested in why a method works, not only whether it gives the expected numerical answer. Further Mathematics has also helped me see how the same mathematical idea can describe apparently different physical situations.")
+    await question3.fill("Outside lessons I built a small simulation to investigate projectile motion and changed one assumption at a time to see which effects mattered most. Comparing the numerical output with hand calculations exposed where my model was too simple, so I revised it and documented the limitations rather than hiding the mismatch. I also read articles on gravitational waves and followed unfamiliar terms into introductory papers, which made me think more carefully about how indirect measurements support claims about systems we cannot observe directly. These activities led me to ask how physicists decide when evidence is strong enough to favour one model over another.")
 
+    await expect(question1).not.toHaveValue("")
+    await expect(question2).not.toHaveValue("")
+    await expect(question3).not.toHaveValue("")
     await expect(page.getByRole("heading", { name: /1 · three-question UCAS audit/i })).toBeVisible()
     await expect(page.getByRole("heading", { name: /2 · claim → evidence → thinking → development/i })).toBeVisible()
     await expect(page.getByRole("heading", { name: /3 · academic depth map/i })).toBeVisible()
