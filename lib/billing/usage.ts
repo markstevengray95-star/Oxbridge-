@@ -18,6 +18,15 @@ type UsageState = {
 
 type SupabaseResult = { error?: { message?: string; code?: string } | null }
 
+type AtomicReservationRow = {
+  allowed?: boolean
+  reservation_id?: string | null
+  event_type?: string | null
+  used_minutes?: number | string | null
+  base_remaining_minutes?: number | string | null
+  credit_remaining_minutes?: number | string | null
+}
+
 function numeric(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(value)
   return Number.isFinite(parsed) ? parsed : 0
@@ -132,51 +141,34 @@ export async function reserveGeminiSession(userId: string, email?: string | null
     return { allowed: true as const, state, reservationId: null as string | null }
   }
 
-  const amount = state.reservationMinutes
-  if (state.remainingMinutes < amount) {
-    return { allowed: false as const, state, reservationId: null as string | null }
-  }
-
-  const eventType = state.baseRemainingMinutes >= amount
-    ? "gemini_live_reserved_minutes"
-    : "gemini_live_credit_consumed_minutes"
-
-  if (eventType === "gemini_live_credit_consumed_minutes" && state.creditMinutes < amount) {
-    return { allowed: false as const, state, reservationId: null as string | null }
-  }
-
   const admin = createAdminClient()
-  const { data, error } = await admin.from("usage_events").insert({
-    user_id: userId,
-    event_type: eventType,
-    quantity: amount,
-    metadata: {
-      source: "server",
-      feature: "gemini_live",
-      reservation_minutes: amount,
-      source_bucket: eventType === "gemini_live_reserved_minutes" ? "monthly_allowance" : "purchased_credit",
-    },
-  }).select("id").single()
+  const { data, error } = await admin.rpc("oxbridge_reserve_gemini_minutes", {
+    p_user_id: userId,
+    p_amount: state.reservationMinutes,
+    p_monthly_limit: state.limitMinutes,
+    p_month_start: monthStartIso(),
+  }).maybeSingle()
 
   if (error) throw new Error(`Could not reserve Gemini Live usage: ${error.message}`)
+  const row = (data ?? {}) as AtomicReservationRow
+  const baseRemainingMinutes = numeric(row.base_remaining_minutes)
+  const creditMinutes = numeric(row.credit_remaining_minutes)
+  const nextState: UsageState = {
+    ...state,
+    usedMinutes: numeric(row.used_minutes),
+    baseRemainingMinutes,
+    creditMinutes,
+    remainingMinutes: baseRemainingMinutes + creditMinutes,
+  }
 
-  const nextBase = eventType === "gemini_live_reserved_minutes"
-    ? Math.max(0, state.baseRemainingMinutes - amount)
-    : state.baseRemainingMinutes
-  const nextCredit = eventType === "gemini_live_credit_consumed_minutes"
-    ? Math.max(0, state.creditMinutes - amount)
-    : state.creditMinutes
+  if (!row.allowed || !row.reservation_id) {
+    return { allowed: false as const, state: nextState, reservationId: null as string | null }
+  }
 
   return {
     allowed: true as const,
-    reservationId: data.id as string,
-    state: {
-      ...state,
-      usedMinutes: eventType === "gemini_live_reserved_minutes" ? state.usedMinutes + amount : state.usedMinutes,
-      baseRemainingMinutes: nextBase,
-      creditMinutes: nextCredit,
-      remainingMinutes: nextBase + nextCredit,
-    },
+    reservationId: row.reservation_id,
+    state: nextState,
   }
 }
 
