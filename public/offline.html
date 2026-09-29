@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#102a43" />
+  <title>ScholarBridge — Offline</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f5f7f7; color: #172b3a; }
+    main { width: min(560px, calc(100% - 32px)); box-sizing: border-box; border: 1px solid #d9e2e8; border-radius: 24px; background: white; padding: 32px; box-shadow: 0 16px 40px rgba(16,42,67,.08); }
+    p:first-child { margin: 0 0 10px; color: #147d91; font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0 0 12px; font-family: Georgia, serif; font-size: clamp(30px, 7vw, 44px); line-height: 1.05; }
+    p { line-height: 1.65; color: #526777; }
+    button { margin-top: 12px; border: 0; border-radius: 10px; background: #102a43; color: white; padding: 11px 16px; font: inherit; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <p>ScholarBridge</p>
+    <h1>You’re offline.</h1>
+    <p>For privacy, signed-in pages are not stored in the browser’s offline cache. Reconnect to load your account and the latest saved preparation data.</p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </main>
+</body>
+</html>
