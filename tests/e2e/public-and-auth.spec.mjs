@@ -6,6 +6,12 @@ async function expectAuthenticatedShell(page) {
   await expect(page.getByLabel("Email")).toHaveCount(0)
 }
 
+async function expectProtectedAccess(page, pathname) {
+  await expect(page).toHaveURL(new RegExp(`${pathname.replace("/", "\\/")}$`))
+  await expect(page.getByLabel("Email")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(0)
+}
+
 test.describe("public and protected navigation", () => {
   test("login and practice login render without browser errors", async ({ page }) => {
     const errors = []
@@ -61,19 +67,17 @@ test.describe("authenticated CI practice smoke", () => {
     await page.waitForURL(/\/student-home$/)
     await expectAuthenticatedShell(page)
 
-    const cookies = await context.cookies()
-    const e2eCookie = cookies.find(cookie => cookie.name === "__sb_e2e_session")
-    expect(e2eCookie).toBeTruthy()
-    expect(e2eCookie?.httpOnly).toBeTruthy()
+    await expect.poll(async () => {
+      const cookies = await context.cookies()
+      return cookies.some(cookie => cookie.name === "__sb_e2e_session" && cookie.httpOnly)
+    }, { timeout: 5000 }).toBe(true)
 
     await page.goto("/tutor")
-    await expect(page).toHaveURL(/\/tutor$/)
-    await expectAuthenticatedShell(page)
+    await expectProtectedAccess(page, "/tutor")
 
     const secondPage = await context.newPage()
     await secondPage.goto("/student-home")
-    await expect(secondPage).toHaveURL(/\/student-home$/)
-    await expect(secondPage.getByLabel("Email")).toHaveCount(0)
+    await expectProtectedAccess(secondPage, "/student-home")
     await secondPage.close()
 
     await context.clearCookies()
