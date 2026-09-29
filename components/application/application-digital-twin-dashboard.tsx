@@ -141,7 +141,7 @@ export function ApplicationDigitalTwinDashboard() {
     </Card>
 
     <div className="grid gap-4 md:grid-cols-3">
-      <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-xl">Defend written work</CardTitle><CardDescription>Turn submitted work into a live academic challenge.</CardDescription></CardHeader><CardContent><Button asChild className="w-full"><Link href="/written-work-defence">Open defence simulator <ArrowRight /></Link></Button></CardContent></Card>
+      <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-xl">Defend written work</CardTitle><CardDescription>Turn submitted work into a live academic challenge.</CardDescription></CardHeader><CardContent><Button asChild className="w-full"><Link href="/written-work-interview">Open defence simulator <ArrowRight /></Link></Button></CardContent></Card>
       <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-xl">Replay weak interview moments</CardTitle><CardDescription>Re-answer a specific branch without repeating the whole session.</CardDescription></CardHeader><CardContent><Button asChild variant="outline" className="w-full"><Link href="/interview-replay">Open Replay Lab <ArrowRight /></Link></Button></CardContent></Card>
       <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-xl">Tutor priority</CardTitle><CardDescription>{intelligence.priority?.label ?? "Build a baseline"}</CardDescription></CardHeader><CardContent><Button asChild variant="outline" className="w-full"><Link href={intelligence.recommendations[0]?.href ?? "/tutor"}>Work on priority <ArrowRight /></Link></Button></CardContent></Card>
     </div>
