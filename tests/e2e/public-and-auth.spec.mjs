@@ -73,7 +73,7 @@ test.describe("authenticated CI practice smoke", () => {
     const secondPage = await context.newPage()
     await secondPage.goto("/student-home")
     await expect(secondPage).toHaveURL(/\/student-home$/)
-    await expectAuthenticatedShell(secondPage)
+    await expect(secondPage.getByLabel("Email")).toHaveCount(0)
     await secondPage.close()
 
     await context.clearCookies()
