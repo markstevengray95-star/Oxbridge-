@@ -1,8 +1,8 @@
-const CACHE='oxbridge-tutor-v12';
-const SHELL=['/','/student-home','/interviews','/interview-room','/ai-interview','/elevenlabs-interview','/live-interview','/panel-interview','/cambridge-interview-day','/advanced-practice','/adaptive-paper','/essay-tutor','/timing-trainer','/question-quality','/reasoning-lab','/intervention-session','/written-work-vault','/personal-statement-map','/working-analysis','/accessibility-profiles','/learning-support','/requirements','/cambridge-assessments','/source-health','/timeline','/backup-center','/course-bank','/unseen-lab','/reading-room','/knowledge-graph','/research-project','/mock-week','/technology-rehearsal','/teacher-coach','/manifest.webmanifest','/favicon.svg'];
+const CACHE='oxbridge-static-v13';
+const STATIC_SHELL=['/offline.html','/manifest.webmanifest','/favicon.svg'];
 
 self.addEventListener('install',event=>{
-  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(STATIC_SHELL)).then(()=>self.skipWaiting()));
 });
 
 self.addEventListener('activate',event=>{
@@ -17,9 +17,15 @@ self.addEventListener('fetch',event=>{
   if(url.pathname.startsWith('/api/')) return;
 
   if(request.mode==='navigate'){
-    event.respondWith(fetch(request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(request,copy));return response}).catch(()=>caches.match(request).then(hit=>hit||caches.match('/student-home')||caches.match('/'))));
+    event.respondWith(fetch(request).catch(()=>caches.match('/offline.html')));
     return;
   }
 
-  event.respondWith(caches.match(request).then(cached=>{const network=fetch(request).then(response=>{if(response.ok){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(request,copy))}return response}).catch(()=>cached);return cached||network}));
+  const cacheableStatic=url.pathname.startsWith('/_next/static/')||STATIC_SHELL.includes(url.pathname);
+  if(!cacheableStatic) return;
+
+  event.respondWith(caches.match(request).then(cached=>cached||fetch(request).then(response=>{
+    if(response.ok){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(request,copy));}
+    return response;
+  })));
 });
