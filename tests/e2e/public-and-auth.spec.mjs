@@ -12,6 +12,18 @@ async function expectProtectedAccess(page, pathname) {
   await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(0)
 }
 
+async function signInPractice(page) {
+  const username = process.env.E2E_TEST_USERNAME
+  const password = process.env.E2E_TEST_PASSWORD
+  expect(username).toBeTruthy()
+  expect(password?.length || 0).toBeGreaterThanOrEqual(16)
+  await page.goto("/practice-login?next=/student-home")
+  await page.getByLabel("Username").fill(username)
+  await page.getByLabel("Password").fill(password)
+  await page.getByRole("button", { name: "Start practising" }).click()
+  await page.waitForURL(/\/student-home$/)
+}
+
 test.describe("public and protected navigation", () => {
   test("login and practice login render without browser errors", async ({ page }) => {
     const errors = []
@@ -55,16 +67,7 @@ test.describe("public and protected navigation", () => {
 
 test.describe("authenticated CI practice smoke", () => {
   test("practice sign in opens protected routes and persists the session", async ({ page, context }) => {
-    const username = process.env.E2E_TEST_USERNAME
-    const password = process.env.E2E_TEST_PASSWORD
-    expect(username).toBeTruthy()
-    expect(password?.length || 0).toBeGreaterThanOrEqual(16)
-
-    await page.goto("/practice-login?next=/student-home")
-    await page.getByLabel("Username").fill(username)
-    await page.getByLabel("Password").fill(password)
-    await page.getByRole("button", { name: "Start practising" }).click()
-    await page.waitForURL(/\/student-home$/)
+    await signInPractice(page)
     await expectAuthenticatedShell(page)
 
     await expect.poll(async () => {
@@ -84,5 +87,25 @@ test.describe("authenticated CI practice smoke", () => {
     await page.goto("/student-home")
     await expect(page).toHaveURL(/\/login\?next=(%2F|\/)student-home/)
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
+  })
+
+  test("practice access reaches Pro preparation but cannot cross School or admin boundaries", async ({ page }) => {
+    await signInPractice(page)
+
+    await page.goto("/full-papers")
+    await expectProtectedAccess(page, "/full-papers")
+
+    await page.goto("/school-dashboard")
+    await expect(page).toHaveURL(/\/premium\?.*required=school/)
+
+    await page.goto("/admin")
+    await expect(page).toHaveURL(/\/admin\/login\?.*error=not-authorized/)
+
+    const schoolApi = await page.evaluate(async () => {
+      const response = await fetch('/api/school', { credentials: 'include' })
+      return { status: response.status, body: await response.json().catch(() => ({})) }
+    })
+    expect(schoolApi.status).toBe(401)
+    expect(schoolApi.body?.error).toMatch(/sign in required/i)
   })
 })
