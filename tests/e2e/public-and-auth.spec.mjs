@@ -100,7 +100,7 @@ test.describe("authenticated CI practice smoke", () => {
 
     await page.goto("/essay-tutor")
     await expectProtectedAccess(page, "/essay-tutor")
-    await expect(page.getByRole("heading", { name: "Essay analysis" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Essay analysis", exact: true })).toBeVisible()
     const essayDraft = page.getByLabel("Your draft")
     const draftText = "A strong answer should define its assumptions, compare competing explanations, test the quality of the evidence, and respond directly to the strongest counterargument before reaching a proportionate conclusion."
     await essayDraft.fill(draftText)
