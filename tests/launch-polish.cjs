@@ -32,6 +32,7 @@ const health = read("app/api/health/route.ts")
 const statusProbe = read("components/service-status-probe.tsx")
 const notFound = read("app/not-found.tsx")
 const errorPage = read("app/error.tsx")
+const authProxy = read("lib/supabase/proxy.ts")
 const envExample = read(".env.example")
 
 const expectIncludes = (content, needle, label) => {
@@ -54,9 +55,12 @@ expectIncludes(envExample, "NEXT_PUBLIC_SITE_URL=", "environment example")
 expectIncludes(support, 'alternates: { canonical: "/support" }', "support metadata")
 expectIncludes(statusPage, 'alternates: { canonical: "/status" }', "status metadata")
 
-for (const route of ["/privacy", "/terms", "/cookies", "/privacy-centre", "/safeguarding", "/support", "/status"]) {
+const publicLaunchRoutes = ["/privacy", "/terms", "/cookies", "/privacy-centre", "/safeguarding", "/support", "/status"]
+for (const route of publicLaunchRoutes) {
   expectIncludes(sitemap, `path: \"${route}\"`, "sitemap")
+  expectIncludes(authProxy, `\"${route}\"`, "public auth route list")
 }
+expectIncludes(authProxy, '"/opengraph-image"', "public auth route list")
 
 for (const privatePrefix of ["/admin/", "/api/", "/account/", "/history/", "/student-home/", "/tutor/", "/school-dashboard/"]) {
   expectIncludes(robots, `\"${privatePrefix}\"`, "robots rules")
@@ -77,4 +81,4 @@ if (/https:\/\/[^"'`\s]*scholarbridge/i.test(siteUrl)) {
   throw new Error("Canonical URL helper must not hard-code an unverified ScholarBridge production domain")
 }
 
-console.log("PASS: public launch metadata, indexing, support/status, health and recovery surfaces are wired without inventing production contact/domain details")
+console.log("PASS: public launch metadata, indexing, auth boundaries, support/status, health and recovery surfaces are wired without inventing production contact/domain details")
