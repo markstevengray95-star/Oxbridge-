@@ -16,8 +16,8 @@ type GeminiResponse = {
   }[]
 }
 
-type OutputMode = "structured" | "json-only"
-type FailureCode = "no_key" | "credential_rejected" | "rate_limited" | "model_unavailable" | "request_rejected" | "network" | "timeout" | "empty_response" | "invalid_response" | "unknown"
+type OutputMode = "structured" | "json-only" | "prompt-json"
+type FailureCode = "no_key" | "credential_rejected" | "rate_limited" | "model_unavailable" | "provider_unavailable" | "request_rejected" | "network" | "timeout" | "empty_response" | "invalid_response" | "unknown"
 
 function parseJsonOutput(raw: string) {
   const trimmed = raw.trim()
@@ -53,10 +53,14 @@ function generationConfig(mode: OutputMode) {
     }
   }
 
-  return {
-    ...common,
-    responseMimeType: "application/json",
+  if (mode === "json-only") {
+    return {
+      ...common,
+      responseMimeType: "application/json",
+    }
   }
+
+  return common
 }
 
 function deploymentEnvironment() {
@@ -122,20 +126,25 @@ export async function POST(request: Request) {
   })
 
   const deadline = Date.now() + 48_000
+  const outputModes = ["structured", "json-only", "prompt-json"] as const
 
   modelLoop: for (const model of models) {
-    for (const key of keys) {
-      for (const outputMode of ["structured", "json-only"] as const) {
+    keyLoop: for (const key of keys) {
+      for (const outputMode of outputModes) {
         const remaining = deadline - Date.now()
-        if (remaining < 2_500 || attempts >= 12) break modelLoop
+        if (remaining < 2_500 || attempts >= 18) break modelLoop
         attempts += 1
         lastModel = model
         lastCredentialSource = key.source
         lastOutputMode = outputMode
 
+        const payloadText = outputMode === "prompt-json"
+          ? `${userPayload}\n\nReturn only one valid JSON object with exactly the requested report structure. Do not use Markdown fences or add commentary outside the JSON.`
+          : userPayload
+
         const requestBody = JSON.stringify({
           systemInstruction: { parts: [{ text: writingSystem }] },
-          contents: [{ role: "user", parts: [{ text: userPayload }] }],
+          contents: [{ role: "user", parts: [{ text: payloadText }] }],
           generationConfig: generationConfig(outputMode),
         })
 
@@ -158,17 +167,24 @@ export async function POST(request: Request) {
         if (!response.ok) {
           lastStatus = response.status
           if (response.status === 401 || response.status === 403) lastFailure = "credential_rejected"
+          else if (response.status === 408) lastFailure = "timeout"
           else if (response.status === 429) lastFailure = "rate_limited"
           else if (response.status === 404) lastFailure = "model_unavailable"
-          else if (response.status === 400) lastFailure = "request_rejected"
+          else if (response.status >= 500) lastFailure = "provider_unavailable"
+          else if (response.status >= 400) lastFailure = "request_rejected"
           else lastFailure = "unknown"
 
           const detail = await response.text().catch(() => "")
           console.warn("Gemini writing request rejected", { model, outputMode, credentialSource: key.source, status: response.status, detail: detail.slice(0, 400) })
 
-          if (response.status === 404) continue modelLoop
-          if (response.status === 400) {
+          if (response.status === 401 || response.status === 403) continue keyLoop
+          if (response.status === 404 || response.status === 429) continue modelLoop
+          if (response.status >= 500) {
             if (outputMode === "structured") continue
+            continue modelLoop
+          }
+          if (response.status >= 400) {
+            if (outputMode !== "prompt-json") continue
             continue modelLoop
           }
           continue
@@ -206,20 +222,22 @@ export async function POST(request: Request) {
   const reason = lastFailure === "credential_rejected"
     ? `The Gemini API key is present, but Google rejected it${lastStatus ? ` with HTTP ${lastStatus}` : ""}.${variable} Check that the key belongs to a Google AI project with Gemini API access and that any API/application restrictions allow this Vercel deployment.`
     : lastFailure === "rate_limited"
-      ? `The Gemini API key is present, but Google is rate-limiting it (HTTP 429).${variable} Check the Gemini project quota/billing and retry after quota is available.`
+      ? `The Gemini API key is present, but Google is rate-limiting it (HTTP 429).${variable} The route also tried the configured backup models before using the offline review.`
       : lastFailure === "model_unavailable"
-        ? `The Gemini API key is present, but the configured model (${lastModel || models[0]}) is not available to this Google AI project.${variable}`
-        : lastFailure === "request_rejected"
-          ? `The Gemini API key is present, but Google rejected the analysis request configuration (HTTP 400).${variable}`
-          : lastFailure === "invalid_response"
-            ? `Gemini responded, but its report did not pass ScholarBridge's evidence/JSON verification, so the deterministic offline review was used instead.${variable}`
-            : lastFailure === "empty_response"
-              ? `Gemini accepted the request but returned no usable report text, so the deterministic offline review was used instead.${variable}`
-              : lastFailure === "timeout"
-                ? `The Vercel function could reach Gemini, but the AI request timed out before a verified report completed.${variable}`
-                : lastFailure === "network"
-                  ? `The Vercel function could not complete its connection to the Gemini API.${variable}`
-                  : `The Gemini review could not complete a verified response.${variable}`
+        ? `The Gemini API key is present, but the configured model (${lastModel || models[0]}) is not available to this Google AI project.${variable} The route tried the remaining supported writing models before using the offline review.`
+        : lastFailure === "provider_unavailable"
+          ? `Gemini is temporarily returning a server error${lastStatus ? ` (HTTP ${lastStatus})` : ""} for ${lastModel || "the writing model"}.${variable} The route retried with a simpler JSON mode and backup Gemini models before using the offline review.`
+          : lastFailure === "request_rejected"
+            ? `The Gemini API key is present, but Google rejected the analysis request configuration${lastStatus ? ` (HTTP ${lastStatus})` : ""}.${variable} The route retried with progressively simpler JSON output modes and backup models before using the offline review.`
+            : lastFailure === "invalid_response"
+              ? `Gemini responded, but its report did not pass ScholarBridge's evidence/JSON verification, so the deterministic offline review was used instead.${variable}`
+              : lastFailure === "empty_response"
+                ? `Gemini accepted the request but returned no usable report text, so the deterministic offline review was used instead.${variable}`
+                : lastFailure === "timeout"
+                  ? `The Vercel function could reach Gemini, but the AI request timed out before a verified report completed.${variable}`
+                  : lastFailure === "network"
+                    ? `The Vercel function could not complete its connection to the Gemini API.${variable}`
+                    : `The Gemini review could not complete a verified response${lastStatus ? ` (HTTP ${lastStatus})` : ""}.${variable}`
 
   return fallback(reason)
 }
