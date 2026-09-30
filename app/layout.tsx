@@ -12,10 +12,7 @@ import "./mobile.css";
 
 export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
-  title: {
-    default: "ScholarBridge | Oxford & Cambridge Admissions Preparation",
-    template: "%s | ScholarBridge",
-  },
+  title: "ScholarBridge | Oxford & Cambridge Admissions Preparation",
   description:
     "Oxford and Cambridge admissions preparation with interview practice, admissions-test preparation, written-work feedback and personalised study support.",
   applicationName: "ScholarBridge",
