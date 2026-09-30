@@ -26,7 +26,6 @@ export const metadata: Metadata = {
     "LNAT practice",
     "UCAT practice",
   ],
-  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     url: "/",
