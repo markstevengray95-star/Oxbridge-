@@ -29,6 +29,7 @@ function load(file) {
 }
 
 const { analyseOfflineEssayTask, buildOfflineWritingReport } = load('lib/writing/offline-review-v4.ts')
+const { validateReport } = load('lib/writing/review.ts')
 
 const policyPrompt = 'Should social media companies be legally responsible for harmful content posted by users?'
 const policyEssay = [
@@ -105,12 +106,30 @@ assert.ok(drift.potentialDriftParagraphs.includes(2), `expected paragraph 3 drif
 const report = buildOfflineWritingReport({ essay: driftEssay, mode: 'essay', prompt: driftPrompt })
 assert.ok(report.annotations.some(a => a.kind === 'relevance' && a.evidence.paragraph === 2), 'drift paragraph should get a relevance annotation')
 assert.match(report.paragraphs[2].limitation, /Relevance warning/i)
+assert.doesNotThrow(() => validateReport(report, driftEssay, 'essay'), 'strict offline report must pass the same validator used by the production fallback')
+assert.ok(report.summary.length <= 1800, `validated summary must stay within schema bounds, got ${report.summary.length}`)
 
 const echoReport = buildOfflineWritingReport({ essay: echoEssay, mode: 'essay', prompt: 'Should public libraries remain free to use?' })
 assert.ok((echoReport.criteria[0].level ?? 4) <= 1, `prompt-echo essay should be capped at weak relevance, got ${echoReport.criteria[0].level}`)
 assert.equal(echoReport.priorities[0].title, 'Complete the exact task')
+assert.doesNotThrow(() => validateReport(echoReport, echoEssay, 'essay'), 'prompt-echo fallback must remain fully validated rather than dropping to mechanics only')
+
+const capHeavyEssay = [
+  'This question is important and should be considered because it matters.',
+  'This paragraph says something relevant but gives no developed evidence.',
+  'Another point is mentioned without explaining why it follows.',
+  'Overall this is my conclusion.'
+].join('\n\n')
+const capHeavyReport = buildOfflineWritingReport({
+  essay: capHeavyEssay,
+  mode: 'essay',
+  prompt: 'To what extent should governments restrict artificial intelligence in education?',
+})
+assert.doesNotThrow(() => validateReport(capHeavyReport, capHeavyEssay, 'essay'), 'cap-heavy strict scoring must not overflow the report schema')
+assert.ok(capHeavyReport.summary.length <= 1800)
+assert.ok(capHeavyReport.criteria.every(item => item.judgement.length <= 1800))
 
 const tsconfig = JSON.parse(fs.readFileSync('tsconfig.json', 'utf8'))
 assert.equal(tsconfig.compilerOptions.paths['@/lib/writing/offline-review'][0], './lib/writing/offline-review-v4')
 
-console.log('PASS: task classification, prompt-echo protection, comparison/extent/causal completion, drift detection, relevance annotation precedence, and production alias wiring')
+console.log('PASS: task classification, prompt-echo protection, drift detection, strict-scoring schema safety, production fallback validation, and production alias wiring')
