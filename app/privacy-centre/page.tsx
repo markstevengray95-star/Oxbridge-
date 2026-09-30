@@ -1,9 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { FormEvent, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
 import { AlertTriangle, CheckCircle2, Download, GraduationCap, Loader2, ShieldCheck, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { getPrivacyChoice, setPrivacyChoice, type PrivacyChoice } from "@/components/privacy-consent-banner"
 
 const privacyEmail=process.env.NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL||"Privacy contact to be configured before launch"
 
@@ -16,6 +17,16 @@ export default function PrivacyCentrePage(){
   const [deleteText,setDeleteText]=useState("")
   const [deleteBusy,setDeleteBusy]=useState(false)
   const [deleteError,setDeleteError]=useState("")
+  const [privacyChoice,setPrivacyChoiceState]=useState<PrivacyChoice|null>(null)
+  const [privacyMessage,setPrivacyMessage]=useState("")
+
+  useEffect(()=>{setPrivacyChoiceState(getPrivacyChoice())},[])
+
+  function updatePrivacy(next:PrivacyChoice){
+    setPrivacyChoice(next)
+    setPrivacyChoiceState(next)
+    setPrivacyMessage(next==="optional"?"Optional services are allowed on this device.":"Only essential services are enabled on this device.")
+  }
 
   async function downloadData(){
     setRightsError("")
@@ -54,7 +65,13 @@ export default function PrivacyCentrePage(){
 
     <section className="grid gap-4 md:grid-cols-2">
       <Card title="Download my data" icon={<Download/>}><p>Creates a JSON copy of accessible ScholarBridge cloud data and this device's ScholarBridge local storage. It does not contain full card details because Stripe holds those separately.</p><Button className="mt-4" onClick={()=>void downloadData()}><Download/>Download data</Button></Card>
-      <Card title="Privacy choices" icon={<ShieldCheck/>}><p>Optional services stay separate from essential sign-in, security and plan storage. Use the privacy button at the bottom-right of any page to switch between Essential only and Allow optional.</p><div className="mt-4 flex gap-3 text-sm font-semibold"><Link href="/cookies" className="text-teal-800 underline">Cookie Notice</Link><Link href="/privacy" className="text-teal-800 underline">Privacy Notice</Link></div></Card>
+      <Card title="Privacy choices" icon={<ShieldCheck/>}>
+        <p>Optional services stay separate from essential sign-in, security and plan storage. Change your saved choice here at any time.</p>
+        <p className="mt-2 text-xs font-semibold text-slate-500">Current choice: {privacyChoice==="optional"?"Allow optional":privacyChoice==="essential"?"Essential only":"Not chosen yet"}</p>
+        <div className="mt-4 flex flex-wrap gap-2"><Button type="button" variant={privacyChoice==="essential"?"default":"outline"} onClick={()=>updatePrivacy("essential")}>Essential only</Button><Button type="button" variant={privacyChoice==="optional"?"default":"outline"} onClick={()=>updatePrivacy("optional")}>Allow optional</Button></div>
+        {privacyMessage&&<div className="mt-3 flex gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-900"><CheckCircle2 className="mt-0.5 size-4 shrink-0"/>{privacyMessage}</div>}
+        <div className="mt-4 flex gap-3 text-sm font-semibold"><Link href="/cookies" className="text-teal-800 underline">Cookie Notice</Link><Link href="/privacy" className="text-teal-800 underline">Privacy Notice</Link></div>
+      </Card>
     </section>
 
     <section className="rounded-2xl border bg-white p-6"><h2 className="font-serif text-2xl font-bold">Ask us to act on your data</h2><p className="mt-2 text-sm leading-6 text-slate-600">Use this for correction, restriction, objection, portability or another privacy request that cannot be completed automatically. Do not include passwords or payment details.</p><form onSubmit={submitRights} className="mt-5 space-y-4"><label className="block"><span className="mb-1 block text-sm font-semibold">Request</span><select className="h-11 w-full rounded-xl border bg-white px-3" value={requestType} onChange={e=>setRequestType(e.target.value)}><option value="correction">Correct my information</option><option value="restriction">Restrict processing</option><option value="objection">Object to processing</option><option value="portability">Data portability</option><option value="access">Access question</option><option value="erasure">Erasure question</option><option value="other">Other privacy request</option></select></label><label className="block"><span className="mb-1 block text-sm font-semibold">Details</span><textarea rows={5} maxLength={3000} className="w-full rounded-xl border p-3 text-sm" value={details} onChange={e=>setDetails(e.target.value)} placeholder="Tell us what you want changed or reviewed."/></label>{rightsError&&<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{rightsError} You can also contact {privacyEmail}.</div>}{rightsMessage&&<div className="flex gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"><CheckCircle2 className="mt-0.5 size-4"/>{rightsMessage}</div>}<Button disabled={rightsBusy}>{rightsBusy?<><Loader2 className="animate-spin"/>Sending…</>:"Submit privacy request"}</Button></form></section>
