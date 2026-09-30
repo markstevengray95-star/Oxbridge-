@@ -60,7 +60,13 @@ test.describe("public launch surfaces", () => {
     expect(sitemapText).toContain("/support")
     expect(sitemapText).toContain("/status")
 
-    const missing = await page.goto("/launch-check-page-that-does-not-exist")
+    const missingPath = "/launch-check-page-that-does-not-exist"
+    const loggedOutMissing = await request.get(missingPath, { maxRedirects: 0 })
+    expect([307, 308]).toContain(loggedOutMissing.status())
+    expect(loggedOutMissing.headers().location || "").toMatch(/\/login\?next=/)
+
+    await signInPractice(page)
+    const missing = await page.goto(missingPath)
     expect(missing?.status()).toBe(404)
     await expect(page.getByText("404 · Page not found")).toBeVisible()
     await expect(page.getByRole("link", { name: "Support" })).toBeVisible()
