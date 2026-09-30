@@ -38,9 +38,10 @@ function parseJsonOutput(raw: string) {
 }
 
 function generationConfig(mode: OutputMode) {
+  // Gemini 3.x performs best with its default sampling behaviour. Keep only
+  // the output budget here, and use structured output as the format control.
   const common = {
-    temperature: 0.2,
-    maxOutputTokens: 12000,
+    maxOutputTokens: 20000,
   }
 
   if (mode === "structured") {
