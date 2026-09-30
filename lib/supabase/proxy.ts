@@ -16,7 +16,21 @@ const SCHOOL_ROUTES = [
   "/school-classroom","/school-dashboard","/school-data","/school-differentiation","/school-insights","/school-overview","/school-reports","/school-seats",
   "/human-review","/teacher-coach","/teacher-live-console","/human-interviewer",
 ]
-const PUBLIC_PAGE_ROUTES = ["/login", "/practice-login", "/reset-password", "/auth/confirm", "/admin/login"]
+const PUBLIC_PAGE_ROUTES = [
+  "/login",
+  "/practice-login",
+  "/reset-password",
+  "/auth/confirm",
+  "/admin/login",
+  "/privacy",
+  "/privacy-centre",
+  "/terms",
+  "/cookies",
+  "/safeguarding",
+  "/support",
+  "/status",
+  "/opengraph-image",
+]
 const PUBLIC_ASSET_ROUTES = ["/manifest.webmanifest", "/sw.js", "/robots.txt", "/sitemap.xml", "/offline.html"]
 const PLAN_GATE_ROUTES = ["/premium", "/post-login"]
 
