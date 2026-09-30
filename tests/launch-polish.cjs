@@ -27,6 +27,7 @@ const siteUrl = read("lib/site-url.ts")
 const sitemap = read("app/sitemap.ts")
 const robots = read("app/robots.ts")
 const support = read("app/support/page.tsx")
+const statusPage = read("app/status/page.tsx")
 const health = read("app/api/health/route.ts")
 const statusProbe = read("components/service-status-probe.tsx")
 const notFound = read("app/not-found.tsx")
@@ -40,14 +41,18 @@ const expectIncludes = (content, needle, label) => {
 expectIncludes(layout, "metadataBase: getSiteUrl()", "root metadata")
 expectIncludes(layout, "openGraph:", "root metadata")
 expectIncludes(layout, "twitter:", "root metadata")
-expectIncludes(layout, "alternates: { canonical: \"/\" }", "root metadata")
 expectIncludes(layout, 'href="/support"', "footer")
 expectIncludes(layout, 'href="/status"', "footer")
+if (layout.includes('alternates: { canonical: "/" }')) {
+  throw new Error("Root layout must not force every child route to use the homepage canonical URL")
+}
 
 expectIncludes(siteUrl, "NEXT_PUBLIC_SITE_URL", "site URL helper")
 expectIncludes(siteUrl, "VERCEL_PROJECT_PRODUCTION_URL", "site URL helper")
 expectIncludes(siteUrl, "localhost:3000", "site URL helper")
 expectIncludes(envExample, "NEXT_PUBLIC_SITE_URL=", "environment example")
+expectIncludes(support, 'alternates: { canonical: "/support" }', "support metadata")
+expectIncludes(statusPage, 'alternates: { canonical: "/status" }', "status metadata")
 
 for (const route of ["/privacy", "/terms", "/cookies", "/privacy-centre", "/safeguarding", "/support", "/status"]) {
   expectIncludes(sitemap, `path: \"${route}\"`, "sitemap")
