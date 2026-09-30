@@ -24,6 +24,43 @@ async function signInPractice(page) {
   await page.waitForURL(/\/student-home$/)
 }
 
+test.describe("public launch surfaces", () => {
+  test("legal, support, status, indexing and recovery routes are public and working", async ({ page, request }) => {
+    const publicPages = ["/privacy", "/terms", "/cookies", "/privacy-centre", "/safeguarding", "/support", "/status"]
+
+    for (const pathname of publicPages) {
+      const response = await page.goto(pathname)
+      expect(response?.ok(), `${pathname} should return a successful response`).toBe(true)
+      await expect(page.locator("main").first()).toBeVisible()
+    }
+
+    await expect(page.getByText(/ScholarBridge web application is responding/i)).toBeVisible({ timeout: 10_000 })
+
+    const health = await request.get("/api/health")
+    expect(health.ok()).toBe(true)
+    expect((await health.json()).status).toBe("ok")
+    expect(health.headers()["cache-control"] || "").toMatch(/no-store/i)
+
+    const robots = await request.get("/robots.txt")
+    expect(robots.ok()).toBe(true)
+    const robotsText = await robots.text()
+    expect(robotsText).toContain("Disallow: /admin/")
+    expect(robotsText).toContain("Sitemap:")
+
+    const sitemap = await request.get("/sitemap.xml")
+    expect(sitemap.ok()).toBe(true)
+    const sitemapText = await sitemap.text()
+    expect(sitemapText).toContain("/privacy")
+    expect(sitemapText).toContain("/support")
+    expect(sitemapText).toContain("/status")
+
+    const missing = await page.goto("/launch-check-page-that-does-not-exist")
+    expect(missing?.status()).toBe(404)
+    await expect(page.getByText("404 · Page not found")).toBeVisible()
+    await expect(page.getByRole("link", { name: "Support" })).toBeVisible()
+  })
+})
+
 test.describe("public and protected navigation", () => {
   test("login and practice login render without browser errors", async ({ page }) => {
     const errors = []
