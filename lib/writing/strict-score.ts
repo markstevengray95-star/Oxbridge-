@@ -51,6 +51,7 @@ export type StrictEssayScore = {
 // Relevance and reasoning dominate. Polished prose cannot compensate for a weak answer.
 const WEIGHTS = [30, 25, 10, 15, 10, 10] as const
 const SCORE_PREFIX = "University-style practice mark:"
+const REPORT_TEXT_LIMIT = 1750
 const REASONING_LINK = /\b(?:because|since|therefore|thereby|thus|hence|consequently|which means|as a result|so that|this implies|this suggests|the reason|depends on)\b/gi
 const EVALUATION_LINK = /\b(?:however|although|while|whereas|yet|nevertheless|on the other hand|counterargument|objection|limitation|unless|even if|on balance|despite|but this|a stronger objection)\b/gi
 const CONCLUSION_LANGUAGE = /\b(?:in conclusion|overall|on balance|therefore|ultimately|for these reasons|the better view|the stronger position|I conclude|it follows that)\b/i
@@ -67,6 +68,11 @@ export const UNIVERSITY_CLASSIFICATION_BANDS = [
   { minimum: 40, label: "Third", descriptor: "Basic understanding is visible, but there are substantial gaps, limited analysis or inconsistent relevance." },
   { minimum: 0, label: "Fail", descriptor: "Insufficient understanding, analysis or relevance for a passing university-style standard." },
 ] as const satisfies ReadonlyArray<{ minimum: number; label: UniversityEssayClassification; descriptor: string }>
+
+function clipReportText(value: string) {
+  if (value.length <= REPORT_TEXT_LIMIT) return value
+  return `${value.slice(0, REPORT_TEXT_LIMIT - 1).trimEnd()}…`
+}
 
 function normalise(text: string) {
   return text.toLowerCase().replace(/[“”‘’]/g, "").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim()
@@ -258,23 +264,26 @@ export function attachStrictEssayScoring(report: WritingReport, prompt: string, 
   const mark = scoreStrictEssay(report, prompt, essay)
   if (!mark || report.summary.startsWith(SCORE_PREFIX)) return { report, strictScore: mark }
 
-  const caps = mark.caps.length
-    ? ` Classification ceiling${mark.caps.length === 1 ? "" : "s"}: ${mark.caps.map(cap => `${cap.maximum}/100 (${cap.reason})`).join("; ")}.`
+  const visibleCaps = mark.caps.slice(0, 3)
+  const hiddenCapCount = Math.max(0, mark.caps.length - visibleCaps.length)
+  const caps = visibleCaps.length
+    ? ` Classification ceiling${mark.caps.length === 1 ? "" : "s"}: ${visibleCaps.map(cap => `${cap.maximum}/100 (${cap.reason})`).join("; ")}${hiddenCapCount ? `; plus ${hiddenCapCount} additional ceiling${hiddenCapCount === 1 ? "" : "s"} shown in the detailed mark breakdown` : ""}.`
     : " No classification ceiling was triggered."
-  report.summary = `${SCORE_PREFIX} ${mark.score}/100 — ${mark.classification} (${mark.descriptor}). Raw weighted mark: ${mark.rawScore}/100.${caps} ${report.summary}`
+
+  report.summary = clipReportText(`${SCORE_PREFIX} ${mark.score}/100 — ${mark.classification} (${mark.descriptor}). Raw weighted mark: ${mark.rawScore}/100.${caps} ${report.summary}`)
 
   report.criteria = report.criteria.map((criterion, index) => {
     const component = mark.components[index]
     if (!component || criterion.judgement.startsWith("University-style weighted mark:")) return criterion
     return {
       ...criterion,
-      judgement: `University-style weighted mark: ${component.earned}/${component.weight}. ${criterion.judgement}`,
+      judgement: clipReportText(`University-style weighted mark: ${component.earned}/${component.weight}. ${criterion.judgement}`),
     }
   })
 
   report.limitations = [
-    mark.note,
-    ...report.limitations.filter(item => !/strict ScholarBridge .*practice/i.test(item)),
+    clipReportText(mark.note),
+    ...report.limitations.filter(item => !/strict ScholarBridge .*practice/i.test(item)).map(clipReportText),
   ].slice(0, 5)
 
   return { report, strictScore: mark }
