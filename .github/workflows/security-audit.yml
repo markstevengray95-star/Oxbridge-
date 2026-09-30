@@ -24,16 +24,6 @@ jobs:
           node-version: "22.13"
           cache: npm
 
-      - name: Regenerate dependency lock metadata
-        run: npm install --package-lock-only --legacy-peer-deps
-
-      - name: Upload regenerated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-package-lock
-          path: package-lock.json
-          retention-days: 1
-
       - name: Verify clean locked install
         run: npm ci --legacy-peer-deps
 
