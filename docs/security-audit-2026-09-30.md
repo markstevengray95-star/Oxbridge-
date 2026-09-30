@@ -114,6 +114,18 @@ No matches were found in the repository in this pass.
 
 This does not replace GitHub secret scanning or provider-side credential review. Enable GitHub secret scanning/Dependabot/security alerts where available, and rotate any credential that has ever been pasted into public code, logs or tickets.
 
+### Dependency integrity and vulnerability audit
+
+A new `.github/workflows/security-audit.yml` now runs on pull requests, pushes to `main`, and weekly. It uses a clean `npm ci --legacy-peer-deps` install, reports all dependency advisories, and fails the release check if a high/critical vulnerability is present in production dependencies.
+
+The first strict install exposed a real dependency-integrity issue: `@mediapipe/tasks-vision@1.0.1` was declared in `package.json` and dynamically used by `components/video-interview-monitor.tsx`, but its metadata was missing from `package-lock.json`. A one-time GitHub Action regenerated the lockfile with the repository's Node/npm version and committed exactly seven lockfile lines. The temporary write-enabled repair workflow was then removed. The committed lockfile now contains the MediaPipe dependency and normal CI can use reproducible `npm ci` again.
+
+Current audit result after the repair:
+- **production dependencies:** `npm audit --omit=dev --audit-level=high` reports **0 vulnerabilities**;
+- **development/build tooling:** npm currently reports **4 advisories (3 moderate, 1 high)** in the Cloudflare/Miniflare/Wrangler dependency chain, including vulnerable `undici` versions. These packages are dev tooling and are omitted from the production dependency audit, but should be upgraded in a separate tested maintenance change rather than hidden.
+
+The security workflow deliberately reports the dev advisories without making them a false production-launch blocker, while continuing to hard-fail for high/critical production vulnerabilities.
+
 ## 6. Billing and entitlement controls
 
 Verified code/previous production hardening includes:
