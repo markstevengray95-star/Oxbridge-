@@ -69,7 +69,7 @@ test.describe("public launch surfaces", () => {
     const missing = await page.goto(missingPath)
     expect(missing?.status()).toBe(404)
     await expect(page.getByText("404 · Page not found")).toBeVisible()
-    await expect(page.getByRole("link", { name: "Support" })).toBeVisible()
+    await expect(page.getByRole("main").getByRole("link", { name: "Support" })).toBeVisible()
   })
 })
 
