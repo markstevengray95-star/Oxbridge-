@@ -8,6 +8,11 @@ type HealthState =
   | { state: "online"; checkedAt: string }
   | { state: "unavailable" }
 
+type HealthResponse = {
+  status?: unknown
+  checkedAt?: unknown
+}
+
 export function ServiceStatusProbe() {
   const [health, setHealth] = useState<HealthState>({ state: "checking" })
 
@@ -20,13 +25,14 @@ export function ServiceStatusProbe() {
           cache: "no-store",
           signal: controller.signal,
         })
-        const body = await response.json().catch(() => null)
+        const body = (await response.json().catch(() => null)) as HealthResponse | null
         if (!response.ok || body?.status !== "ok") {
           setHealth({ state: "unavailable" })
           return
         }
-        setHealth({ state: "online", checkedAt: body.checkedAt || new Date().toISOString() })
-      } catch (error) {
+        const checkedAt = typeof body.checkedAt === "string" ? body.checkedAt : new Date().toISOString()
+        setHealth({ state: "online", checkedAt })
+      } catch {
         if (!controller.signal.aborted) setHealth({ state: "unavailable" })
       }
     }
