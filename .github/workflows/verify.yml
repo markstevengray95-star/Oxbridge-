@@ -138,5 +138,8 @@ jobs:
       - name: UCAT quantitative-reasoning data checks
         run: node tests/ucat-qr-format.mjs
 
+      - name: Public launch polish checks
+        run: node tests/launch-polish.cjs
+
       - name: Type-aware production build
         run: npm run build
