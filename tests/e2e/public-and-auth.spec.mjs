@@ -31,7 +31,9 @@ test.describe("public launch surfaces", () => {
     for (const pathname of publicPages) {
       const response = await page.goto(pathname)
       expect(response?.ok(), `${pathname} should return a successful response`).toBe(true)
+      await expect(page).toHaveURL(new RegExp(`${pathname.replaceAll("/", "\\/")}$`))
       await expect(page.locator("main").first()).toBeVisible()
+      await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(0)
     }
 
     await expect(page.getByText(/ScholarBridge web application is responding/i)).toBeVisible({ timeout: 10_000 })
@@ -40,6 +42,10 @@ test.describe("public launch surfaces", () => {
     expect(health.ok()).toBe(true)
     expect((await health.json()).status).toBe("ok")
     expect(health.headers()["cache-control"] || "").toMatch(/no-store/i)
+
+    const socialImage = await request.get("/opengraph-image")
+    expect(socialImage.ok()).toBe(true)
+    expect(socialImage.headers()["content-type"] || "").toMatch(/image\/png/i)
 
     const robots = await request.get("/robots.txt")
     expect(robots.ok()).toBe(true)
