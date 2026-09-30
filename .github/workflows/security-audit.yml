@@ -27,5 +27,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Audit production dependencies
+      - name: Report all dependency advisories
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+      - name: Block high or critical production vulnerabilities
         run: npm audit --omit=dev --audit-level=high
