@@ -1,0 +1,41 @@
+name: Repair package lock
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/repair-lockfile.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.13"
+
+      - name: Regenerate package lock
+        run: npm install --package-lock-only --legacy-peer-deps
+
+      - name: Commit repaired lockfile
+        shell: bash
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json is already in sync"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "Repair package lock metadata"
+          git push origin HEAD:main
