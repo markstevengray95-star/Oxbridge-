@@ -8,14 +8,15 @@ import { Button } from "@/components/ui/button"
 export const PRIVACY_COOKIE = "scholarbridge_privacy_choices_v1"
 export type PrivacyChoice = "essential" | "optional"
 
-function readChoice(): PrivacyChoice | null {
+export function getPrivacyChoice(): PrivacyChoice | null {
   if (typeof document === "undefined") return null
   const item = document.cookie.split("; ").find(part => part.startsWith(`${PRIVACY_COOKIE}=`))
   const value = item?.split("=")[1]
   return value === "essential" || value === "optional" ? value : null
 }
 
-function writeChoice(choice: PrivacyChoice) {
+export function setPrivacyChoice(choice: PrivacyChoice) {
+  if (typeof document === "undefined") return
   const maxAge = 60 * 60 * 24 * 180
   document.cookie = `${PRIVACY_COOKIE}=${choice}; Max-Age=${maxAge}; Path=/; SameSite=Lax; Secure`
   window.dispatchEvent(new CustomEvent("scholarbridge-privacy-change", { detail: choice }))
@@ -25,11 +26,11 @@ export function PrivacyConsentBanner() {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    setOpen(!readChoice())
+    setOpen(!getPrivacyChoice())
   }, [])
 
   function save(next: PrivacyChoice) {
-    writeChoice(next)
+    setPrivacyChoice(next)
     setOpen(false)
   }
 
@@ -52,9 +53,9 @@ export function PrivacyConsentBanner() {
 }
 
 export function hasOptionalPrivacyConsent() {
-  return readChoice() === "optional"
+  return getPrivacyChoice() === "optional"
 }
 
 export function grantOptionalPrivacyConsent() {
-  writeChoice("optional")
+  setPrivacyChoice("optional")
 }
