@@ -17,6 +17,7 @@ type GeminiResponse = {
 }
 
 type OutputMode = "structured" | "json-only"
+type FailureCode = "no_key" | "credential_rejected" | "rate_limited" | "model_unavailable" | "request_rejected" | "network" | "timeout" | "empty_response" | "invalid_response" | "unknown"
 
 function parseJsonOutput(raw: string) {
   const trimmed = raw.trim()
@@ -38,11 +39,7 @@ function parseJsonOutput(raw: string) {
 }
 
 function generationConfig(mode: OutputMode) {
-  // Gemini 3.x performs best with its default sampling behaviour. Keep only
-  // the output budget here, and use structured output as the format control.
-  const common = {
-    maxOutputTokens: 20000,
-  }
+  const common = { maxOutputTokens: 20000 }
 
   if (mode === "structured") {
     return {
@@ -56,13 +53,14 @@ function generationConfig(mode: OutputMode) {
     }
   }
 
-  // Compatibility fallback for deployments/models that still expect the
-  // legacy GenerateContent JSON-only setting. Zod validation remains the
-  // final authority before any model response reaches the UI.
   return {
     ...common,
     responseMimeType: "application/json",
   }
+}
+
+function deploymentEnvironment() {
+  return process.env.VERCEL_ENV || process.env.NODE_ENV || "unknown"
 }
 
 export async function POST(request: Request) {
@@ -73,22 +71,47 @@ export async function POST(request: Request) {
   const { essay, mode, prompt, course, test } = parsed.data
   const paragraphs = splitParagraphs(essay)
   if (paragraphs.length > 40) return NextResponse.json({ error: "Please review up to 40 paragraphs at a time." }, { status: 400 })
+
   const basic = mechanics(essay)
+  const keys = getGeminiApiKeyCandidates()
+  const models = configuredWritingModels()
+  const environment = deploymentEnvironment()
   const scoreFor = (report: ReturnType<typeof validateReport>) => mode === "essay" ? scoreStrictEssay(report, prompt, essay) : null
-  const fallback = (message: string) => {
+
+  let attempts = 0
+  let lastStatus: number | null = null
+  let lastFailure: FailureCode = "unknown"
+  let lastModel: string | null = null
+  let lastCredentialSource: string | null = null
+  let lastOutputMode: OutputMode | null = null
+
+  const diagnostic = (code: FailureCode = lastFailure) => ({
+    code,
+    environment,
+    keyVariablesDetected: keys.map(key => key.source),
+    attemptedModels: models,
+    attempts,
+    lastStatus,
+    lastModel,
+    lastCredentialSource,
+    lastOutputMode,
+  })
+
+  const fallback = (message: string, code: FailureCode = lastFailure) => {
     try {
       const local = validateReport(buildOfflineWritingReport({ essay, mode, prompt, course, test }), essay, mode)
-      return NextResponse.json({ provider: "local", report: local, strictScore: scoreFor(local), mechanics: basic, message, rubricVersion: 5 })
+      return NextResponse.json({ provider: "local", report: local, strictScore: scoreFor(local), mechanics: basic, message, diagnostic: diagnostic(code), rubricVersion: 5 })
     } catch (error) {
       console.error("Offline writing review failed validation", { error: error instanceof Error ? error.message : "unknown" })
-      return NextResponse.json({ provider: "local", report: null, strictScore: null, mechanics: basic, message: `${message} The offline substantive review could not be verified, so only mechanical checks are shown.`, rubricVersion: 5 })
+      return NextResponse.json({ provider: "local", report: null, strictScore: null, mechanics: basic, message: `${message} The offline substantive review could not be verified, so only mechanical checks are shown.`, diagnostic: diagnostic(code), rubricVersion: 5 })
     }
   }
 
-  const keys = getGeminiApiKeyCandidates()
-  if (!keys.length) return fallback("AI review is not configured on this deployment, so the deterministic offline review was used instead. It stays evidence-anchored but is not an official admissions assessment.")
+  if (!keys.length) {
+    lastFailure = "no_key"
+    return fallback(`This ${environment} deployment cannot see a Gemini API key. Add GEMINI_API_KEY (or GOOGLE_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY) to this same Vercel project's ${environment === "production" ? "Production" : environment} environment and redeploy before testing again.`, "no_key")
+  }
 
-  const models = configuredWritingModels()
   const writingSystem = `${STUDENT_AI_SAFETY_POLICY}\n\n${reviewInstructions(mode)}\n\nAdditional writing-review rule: assess only the supplied academic writing. Do not infer the student's mental health, disability, personality, socioeconomic status, ethnicity, religion, sexuality, family circumstances or other sensitive traits from style, vocabulary, topic choice or performance.`
   const userPayload = JSON.stringify({
     task: test,
@@ -99,8 +122,6 @@ export async function POST(request: Request) {
   })
 
   const deadline = Date.now() + 48_000
-  let attempts = 0
-  let lastStatus: number | null = null
 
   modelLoop: for (const model of models) {
     for (const key of keys) {
@@ -108,6 +129,9 @@ export async function POST(request: Request) {
         const remaining = deadline - Date.now()
         if (remaining < 2_500 || attempts >= 12) break modelLoop
         attempts += 1
+        lastModel = model
+        lastCredentialSource = key.source
+        lastOutputMode = outputMode
 
         const requestBody = JSON.stringify({
           systemInstruction: { parts: [{ text: writingSystem }] },
@@ -125,12 +149,20 @@ export async function POST(request: Request) {
             signal: AbortSignal.timeout(Math.min(15_000, Math.max(2_500, remaining))),
           })
         } catch (error) {
-          console.warn("Gemini writing request failed before response", { model, outputMode, credentialSource: key.source, error: error instanceof Error ? error.message : "unknown" })
+          const message = error instanceof Error ? error.message : "unknown"
+          lastFailure = /timeout|aborted/i.test(message) ? "timeout" : "network"
+          console.warn("Gemini writing request failed before response", { model, outputMode, credentialSource: key.source, error: message })
           continue
         }
 
         if (!response.ok) {
           lastStatus = response.status
+          if (response.status === 401 || response.status === 403) lastFailure = "credential_rejected"
+          else if (response.status === 429) lastFailure = "rate_limited"
+          else if (response.status === 404) lastFailure = "model_unavailable"
+          else if (response.status === 400) lastFailure = "request_rejected"
+          else lastFailure = "unknown"
+
           const detail = await response.text().catch(() => "")
           console.warn("Gemini writing request rejected", { model, outputMode, credentialSource: key.source, status: response.status, detail: detail.slice(0, 400) })
 
@@ -147,6 +179,7 @@ export async function POST(request: Request) {
           const candidate = data.candidates?.[0]
           const output = candidate?.content?.parts?.filter(part => !part.thought).map(part => part.text ?? "").join("") || ""
           if (!output.trim()) {
+            lastFailure = "empty_response"
             console.warn("Gemini writing response contained no usable text", { model, outputMode, finishReason: candidate?.finishReason })
             continue
           }
@@ -162,16 +195,31 @@ export async function POST(request: Request) {
           }
           return NextResponse.json({ provider: "gemini", report, strictScore, mechanics: basic, rubricVersion: 5, model })
         } catch (error) {
+          lastFailure = "invalid_response"
           console.warn("Gemini writing response could not be validated", { model, outputMode, error: error instanceof Error ? error.message : "unknown" })
         }
       }
     }
   }
 
-  const reason = lastStatus === 401 || lastStatus === 403
-    ? "The configured AI credential was rejected, so the deterministic offline review was used automatically."
-    : lastStatus === 429
-      ? "The AI review service is currently rate-limited, so the deterministic offline review was used automatically."
-      : "The AI review service could not complete a verified response, so the deterministic offline review was used automatically."
+  const variable = lastCredentialSource ? ` The deployment detected ${lastCredentialSource}.` : ""
+  const reason = lastFailure === "credential_rejected"
+    ? `The Gemini API key is present, but Google rejected it${lastStatus ? ` with HTTP ${lastStatus}` : ""}.${variable} Check that the key belongs to a Google AI project with Gemini API access and that any API/application restrictions allow this Vercel deployment.`
+    : lastFailure === "rate_limited"
+      ? `The Gemini API key is present, but Google is rate-limiting it (HTTP 429).${variable} Check the Gemini project quota/billing and retry after quota is available.`
+      : lastFailure === "model_unavailable"
+        ? `The Gemini API key is present, but the configured model (${lastModel || models[0]}) is not available to this Google AI project.${variable}`
+        : lastFailure === "request_rejected"
+          ? `The Gemini API key is present, but Google rejected the analysis request configuration (HTTP 400).${variable}`
+          : lastFailure === "invalid_response"
+            ? `Gemini responded, but its report did not pass ScholarBridge's evidence/JSON verification, so the deterministic offline review was used instead.${variable}`
+            : lastFailure === "empty_response"
+              ? `Gemini accepted the request but returned no usable report text, so the deterministic offline review was used instead.${variable}`
+              : lastFailure === "timeout"
+                ? `The Vercel function could reach Gemini, but the AI request timed out before a verified report completed.${variable}`
+                : lastFailure === "network"
+                  ? `The Vercel function could not complete its connection to the Gemini API.${variable}`
+                  : `The Gemini review could not complete a verified response.${variable}`
+
   return fallback(reason)
 }
