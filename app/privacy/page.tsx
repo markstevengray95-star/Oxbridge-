@@ -7,8 +7,7 @@ export const metadata = {
 }
 
 const controllerName =
-  process.env.NEXT_PUBLIC_DATA_CONTROLLER_NAME ||
-  "ScholarBridge (legal operator name must be confirmed before paid launch)"
+  process.env.NEXT_PUBLIC_DATA_CONTROLLER_NAME || "ScholarBridge"
 const controllerAddress =
   process.env.NEXT_PUBLIC_DATA_CONTROLLER_ADDRESS ||
   "Cheshire, North West England, United Kingdom (full service address must be confirmed before paid launch)"
@@ -58,7 +57,7 @@ export default function PrivacyPage() {
               <strong>Privacy contact:</strong> <a className="font-semibold text-[#147d91] underline" href={`mailto:${privacyEmail}`}>{privacyEmail}</a>
             </p>
             <p className="text-sm text-slate-500">
-              The public service location above is currently a regional location. A complete legal operator identity and suitable geographic service address must be confirmed before paid public launch.
+              ScholarBridge is the operator name supplied for the service. If ScholarBridge is a trading name rather than a separate incorporated legal entity, the underlying legal person or entity must also be identified in the legal records and disclosures that require it. The regional location above is not being treated as a complete geographic service address for paid launch.
             </p>
           </Section>
 
