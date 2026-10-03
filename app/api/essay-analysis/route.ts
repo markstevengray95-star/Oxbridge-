@@ -46,7 +46,8 @@ function generationConfig(mode: OutputMode) {
       ...common,
       responseFormat: {
         text: {
-          mimeType: "application/json",
+          // Raw Gemini REST uses the enum spelling here, not the IANA string.
+          mimeType: "APPLICATION_JSON",
           schema: responseJsonSchema,
         },
       },
@@ -56,7 +57,9 @@ function generationConfig(mode: OutputMode) {
   if (mode === "json-only") {
     return {
       ...common,
+      // Keep the documented generateContent compatibility path as a fallback.
       responseMimeType: "application/json",
+      responseJsonSchema,
     }
   }
 
@@ -123,6 +126,9 @@ export async function POST(request: Request) {
     course,
     paragraphs: paragraphs.map((text, index) => ({ index, text })),
     requiredTopLevelKeys: ["summary", "criteria", "paragraphs", "annotations", "priorities", "questions", "limitations"],
+    // This also guides the non-structured fallback modes so they cannot guess a
+    // looser shape with missing criterion/evidence fields.
+    responseSchema: responseJsonSchema,
   })
 
   const deadline = Date.now() + 48_000
@@ -139,7 +145,7 @@ export async function POST(request: Request) {
         lastOutputMode = outputMode
 
         const payloadText = outputMode === "prompt-json"
-          ? `${userPayload}\n\nReturn only one valid JSON object with exactly the requested report structure. Do not use Markdown fences or add commentary outside the JSON.`
+          ? `${userPayload}\n\nReturn only one valid JSON object that follows responseSchema exactly. Include every required nested field. Do not use Markdown fences or add commentary outside the JSON.`
           : userPayload
 
         const requestBody = JSON.stringify({
