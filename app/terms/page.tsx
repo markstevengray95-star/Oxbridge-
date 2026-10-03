@@ -1,9 +1,9 @@
 import Link from "next/link"
 import { AlertTriangle, GraduationCap, Scale, ShieldCheck } from "lucide-react"
 
-const operator = process.env.NEXT_PUBLIC_DATA_CONTROLLER_NAME || "Not yet configured — paid checkout is disabled until the legal operator is identified"
-const address = process.env.NEXT_PUBLIC_DATA_CONTROLLER_ADDRESS || "Not yet configured — paid checkout is disabled until a current contact address is supplied"
-const legalEmail = process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL || process.env.NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL || "Not yet configured — paid checkout is disabled until a monitored legal/privacy contact is supplied"
+const operator = process.env.NEXT_PUBLIC_DATA_CONTROLLER_NAME || "ScholarBridge"
+const address = process.env.NEXT_PUBLIC_DATA_CONTROLLER_ADDRESS || "Cheshire, North West England, United Kingdom (full service address must be confirmed before paid launch)"
+const legalEmail = process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL || process.env.NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL || "scholarbridge@gmail.com"
 
 export const metadata = { title: "Terms of Service | ScholarBridge" }
 
@@ -14,10 +14,10 @@ export default function TermsPage() {
       <section className="rounded-3xl bg-[#102a43] p-7 text-white sm:p-9">
         <p className="text-xs font-bold uppercase tracking-[.18em] text-cyan-200">Terms of Service & consumer information</p>
         <h1 className="mt-3 font-serif text-4xl font-bold">Clear rules for using and buying ScholarBridge.</h1>
-        <p className="mt-4 max-w-3xl leading-7 text-slate-200">Last updated 3 October 2026. These terms explain the educational service, free trials, subscriptions, cancellation, AI limitations and account responsibilities. Your statutory consumer rights are not excluded.</p>
+        <p className="mt-4 max-w-3xl leading-7 text-slate-200">Last updated 4 October 2026. These terms explain the educational service, free trials, subscriptions, cancellation, AI limitations and account responsibilities. Your statutory consumer rights are not excluded.</p>
       </section>
 
-      <Notice icon={<Scale />} title="Who provides the service"><p>ScholarBridge is operated by <strong>{operator}</strong>. Contact address: {address}. Legal/contact email: {legalEmail}.</p></Notice>
+      <Notice icon={<Scale />} title="Who provides the service"><p>ScholarBridge is operated by <strong>{operator}</strong>. Operating location: {address}. Legal/contact email: {legalEmail}. If ScholarBridge is a trading name rather than a separate incorporated legal entity, the underlying legal person or entity must also be identified in any disclosure where the law requires it.</p></Notice>
       <Notice icon={<GraduationCap />} title="Independent educational service"><p>ScholarBridge/Oxbridge is an independent preparation service. It is not Oxford University, the University of Cambridge, UCAS, an admissions-test provider, a school or an official university admissions service, and it is not endorsed by those organisations unless an explicit written partnership says otherwise.</p></Notice>
       <Notice icon={<GraduationCap />} title="Educational service — not an admissions decision"><p>ScholarBridge provides preparation, practice questions, writing feedback and simulated interview coaching. AI or offline scores are practice signals only. They are not official Oxford, Cambridge, UCAS, admissions-test-provider, school or university decisions, marks or guarantees of an offer.</p></Notice>
       <Notice icon={<ShieldCheck />} title="Accounts and younger users"><p>You must give accurate account information and keep login details private. Direct self-sign-up is intended for people aged 13 or over. Users under 18 receive high-privacy defaults. A user under 18 must not confirm a paid purchase unless an appropriate adult has authorised that purchase.</p></Notice>
@@ -63,7 +63,7 @@ export default function TermsPage() {
         <p>How personal data is handled is explained in the <Link className="font-semibold text-teal-800 underline" href="/privacy">Privacy Notice</Link>. Privacy choices are described in the <Link className="font-semibold text-teal-800 underline" href="/cookies">Cookie Notice</Link>. Safety concerns can be raised through the <Link className="font-semibold text-teal-800 underline" href="/safeguarding">Safeguarding page</Link>. Other legal or consumer complaints can be sent to {legalEmail}.</p>
       </Section>
 
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950"><div className="flex gap-3"><AlertTriangle className="mt-0.5 size-5 shrink-0" /><p><strong>Public paid launch gate:</strong> paid checkout is disabled unless the operator name, current contact address and monitored legal/privacy email are configured. These product terms are a launch safeguard, not a substitute for professional legal review of the particular business and school contracts.</p></div></div>
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950"><div className="flex gap-3"><AlertTriangle className="mt-0.5 size-5 shrink-0" /><p><strong>Public paid launch gate:</strong> ScholarBridge is confirmed as the operator name supplied for the service. Paid checkout remains disabled until a suitable full geographic service address and the required public legal/contact configuration are complete. These product terms are a launch safeguard, not a substitute for professional legal review of the particular business and school contracts.</p></div></div>
       <div className="flex flex-wrap gap-4 text-sm font-semibold"><Link href="/privacy" className="text-teal-800 underline">Privacy Notice</Link><Link href="/safeguarding" className="text-teal-800 underline">Safeguarding</Link><Link href="/account" className="text-teal-800 underline">Account & billing</Link></div>
     </div>
   </main>
