@@ -1,9 +1,11 @@
 export const DEFAULT_GEMINI_WRITING_MODELS = [
   "gemini-3.8-flash",
+  // Keep a lower-capacity fallback near the front so temporary high demand on
+  // the larger Flash models cannot consume the whole Vercel request budget.
+  "gemini-3.5-flash-lite",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
 ] as const
 
 function normalizeModelName(value: string | undefined | null) {
