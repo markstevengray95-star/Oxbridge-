@@ -14,30 +14,9 @@ import { tracks, type TrackId } from "@/lib/oxbridge-data"
 
 type LivePhase = "lobby" | "connecting" | "live" | "review"
 type TranscriptTurn = { role: "candidate" | "interviewer"; text: string }
-type SessionPayload = {
-  token?: string
-  model?: string
-  voice?: string
-  instructions?: string
-  revision?: string
-  error?: string
-  code?: string
-}
-type FeedbackAnswer = {
-  score?: number
-  strengths?: string[]
-  improvements?: string[]
-  nextMove?: string
-  dominantTarget?: string
-}
-type Feedback = {
-  overallSummary?: string
-  recurringStrengths?: string[]
-  recurringWeaknesses?: string[]
-  priorityTarget?: string
-  nextInterviewPlan?: string[]
-  answers?: FeedbackAnswer[]
-}
+type SessionPayload = { token?: string; model?: string; voice?: string; instructions?: string; revision?: string; error?: string; code?: string }
+type FeedbackAnswer = { score?: number; strengths?: string[]; improvements?: string[]; nextMove?: string; dominantTarget?: string }
+type Feedback = { overallSummary?: string; recurringStrengths?: string[]; recurringWeaknesses?: string[]; priorityTarget?: string; nextInterviewPlan?: string[]; answers?: FeedbackAnswer[] }
 type ServerMessage = {
   setupComplete?: Record<string, unknown>
   serverContent?: {
@@ -126,15 +105,17 @@ export function GeminiLiveInterviewExperience() {
   const playbackContextRef = useRef<AudioContext | null>(null)
   const playbackSourcesRef = useRef(new Set<AudioBufferSourceNode>())
   const playbackCursorRef = useRef(0)
+  const turnsRef = useRef<TranscriptTurn[]>([])
   const candidateDraftRef = useRef("")
   const interviewerDraftRef = useRef("")
   const captureStartedRef = useRef(false)
   const setupCompleteRef = useRef(false)
   const intentionalCloseRef = useRef(false)
+  const mutedRef = useRef(false)
   const startedAtRef = useRef<number | null>(null)
 
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
-  const personaName = useMemo(() => interviewerPersonas[persona]?.name || persona, [persona])
+  const personaName = useMemo(() => interviewerPersonas[persona]?.label || persona, [persona])
 
   useEffect(() => {
     try {
@@ -168,8 +149,7 @@ export function GeminiLiveInterviewExperience() {
 
   async function playAudio(base64: string, mimeType?: string) {
     if (!base64) return
-    const AudioContextClass = window.AudioContext
-    if (!playbackContextRef.current) playbackContextRef.current = new AudioContextClass()
+    if (!playbackContextRef.current) playbackContextRef.current = new AudioContext()
     const context = playbackContextRef.current
     if (context.state === "suspended") await context.resume().catch(() => undefined)
     const samples = decodePcm16(base64)
@@ -200,7 +180,7 @@ export function GeminiLiveInterviewExperience() {
     silent.connect(context.destination)
     processor.onaudioprocess = event => {
       const socket = socketRef.current
-      if (!socket || socket.readyState !== WebSocket.OPEN || muted || !setupCompleteRef.current) return
+      if (!socket || socket.readyState !== WebSocket.OPEN || mutedRef.current || !setupCompleteRef.current) return
       const data = floatToPcm16Base64(event.inputBuffer.getChannelData(0), context.sampleRate)
       socket.send(JSON.stringify({ realtimeInput: { audio: { data, mimeType: "audio/pcm;rate=16000" } } }))
     }
@@ -210,15 +190,16 @@ export function GeminiLiveInterviewExperience() {
     setStatus("Listening · Gemini Live")
   }
 
-  function flushTurn() {
+  function commitDrafts() {
     const candidate = candidateDraftRef.current.trim()
     const interviewer = interviewerDraftRef.current.trim()
     if (candidate || interviewer) {
-      setTurns(current => [
-        ...current,
+      const additions: TranscriptTurn[] = [
         ...(candidate ? [{ role: "candidate" as const, text: candidate }] : []),
         ...(interviewer ? [{ role: "interviewer" as const, text: interviewer }] : []),
-      ])
+      ]
+      turnsRef.current = [...turnsRef.current, ...additions]
+      setTurns(turnsRef.current)
     }
     candidateDraftRef.current = ""
     interviewerDraftRef.current = ""
@@ -257,10 +238,13 @@ export function GeminiLiveInterviewExperience() {
     setNotice("")
     setFeedback(null)
     setTurns([])
+    turnsRef.current = []
     setSeconds(0)
     candidateDraftRef.current = ""
     interviewerDraftRef.current = ""
     intentionalCloseRef.current = false
+    mutedRef.current = false
+    setMuted(false)
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("This browser does not provide microphone capture.")
@@ -273,9 +257,7 @@ export function GeminiLiveInterviewExperience() {
         body: JSON.stringify({ course, track, persona: personaName, mode, voice, panel }),
       })
       const session = await response.json() as SessionPayload
-      if (!response.ok || !session.token || !session.model || !session.instructions) {
-        throw new Error(session.error || "Gemini Live could not start.")
-      }
+      if (!response.ok || !session.token || !session.model || !session.instructions) throw new Error(session.error || "Gemini Live could not start.")
 
       setStatus("Connecting to Gemini Live…")
       const socket = new WebSocket(`${LIVE_ENDPOINT}?access_token=${encodeURIComponent(session.token)}`)
@@ -333,17 +315,17 @@ export function GeminiLiveInterviewExperience() {
           if (part.inlineData?.data) await playAudio(part.inlineData.data, part.inlineData.mimeType)
         }
         if (content.turnComplete) {
-          flushTurn()
+          commitDrafts()
           if (!captureStartedRef.current && streamRef.current) await startAudioCapture(streamRef.current)
-          else setStatus(muted ? "Microphone muted" : "Listening · Gemini Live")
+          else setStatus(mutedRef.current ? "Microphone muted" : "Listening · Gemini Live")
         }
       }
 
       socket.onerror = () => {
         if (!intentionalCloseRef.current) switchToFallback("Gemini Live could not maintain a voice connection, so ScholarBridge switched to the compatible interview mode automatically.")
       }
-      socket.onclose = event => {
-        if (!intentionalCloseRef.current && event.code !== 1000) switchToFallback("The Gemini Live connection ended unexpectedly, so ScholarBridge switched to the compatible interview mode automatically.")
+      socket.onclose = () => {
+        if (!intentionalCloseRef.current) switchToFallback("The Gemini Live connection ended unexpectedly, so ScholarBridge switched to the compatible interview mode automatically.")
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gemini Live could not start."
@@ -352,29 +334,23 @@ export function GeminiLiveInterviewExperience() {
   }
 
   function toggleMute() {
-    const next = !muted
+    const next = !mutedRef.current
+    mutedRef.current = next
     setMuted(next)
     const trackItem = streamRef.current?.getAudioTracks()[0]
     if (trackItem) trackItem.enabled = !next
-    if (next && socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
-    }
+    if (next && socketRef.current?.readyState === WebSocket.OPEN) socketRef.current.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
     setStatus(next ? "Microphone muted" : "Listening · Gemini Live")
   }
 
   async function finishInterview() {
     if (phase !== "live") return
     intentionalCloseRef.current = true
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
-    }
-    flushTurn()
-    const finalTurns = [
-      ...turns,
-      ...(candidateDraftRef.current.trim() ? [{ role: "candidate" as const, text: candidateDraftRef.current.trim() }] : []),
-      ...(interviewerDraftRef.current.trim() ? [{ role: "interviewer" as const, text: interviewerDraftRef.current.trim() }] : []),
-    ]
+    if (socketRef.current?.readyState === WebSocket.OPEN) socketRef.current.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
+    commitDrafts()
+    const finalTurns = [...turnsRef.current]
     cleanupLiveSession()
+    setTurns(finalTurns)
     setPhase("review")
     setStatus("Interview complete")
 
@@ -424,12 +400,16 @@ export function GeminiLiveInterviewExperience() {
     cleanupLiveSession()
     setPhase("lobby")
     setTurns([])
+    turnsRef.current = []
     setCandidateDraft("")
     setInterviewerDraft("")
+    candidateDraftRef.current = ""
+    interviewerDraftRef.current = ""
     setFeedback(null)
     setFeedbackProvider("")
     setNotice("")
     setSeconds(0)
+    mutedRef.current = false
     setMuted(false)
     setStatus("Ready")
   }
@@ -447,10 +427,7 @@ export function GeminiLiveInterviewExperience() {
   if (phase === "review") {
     return <main className="min-h-screen bg-slate-50 text-slate-950">
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button asChild variant="ghost"><Link href="/interviews"><ArrowLeft />Interview Hub</Link></Button>
-          <Button onClick={reset}><RefreshCw />New live interview</Button>
-        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><Button asChild variant="ghost"><Link href="/interviews"><ArrowLeft />Interview Hub</Link></Button><Button onClick={reset}><RefreshCw />New live interview</Button></div>
         <Card className="border-[#cfe1e4]"><CardHeader><Badge className="w-fit border-0 bg-emerald-100 text-emerald-800"><CheckCircle2 className="mr-1 size-3.5" />Gemini Live complete</Badge><CardTitle className="font-serif text-3xl">Live interview review</CardTitle><CardDescription>{course} · {formatTime(seconds)} · transcript saved to your interview history</CardDescription></CardHeader></Card>
         {feedback && <Card><CardHeader><CardTitle>Reasoning analysis</CardTitle><CardDescription>{feedbackProvider === "gemini" ? "Gemini-reviewed practice analysis" : "Built-in practice analysis"} · not an official admissions score</CardDescription></CardHeader><CardContent className="space-y-4"><p className="text-sm leading-7 text-slate-700">{feedback.overallSummary}</p><div className="grid gap-4 md:grid-cols-2"><div className="rounded-2xl bg-emerald-50 p-4"><p className="font-semibold text-emerald-950">Recurring strengths</p>{(feedback.recurringStrengths || []).map(item => <p key={item} className="mt-2 text-sm text-emerald-900">• {item}</p>)}</div><div className="rounded-2xl bg-amber-50 p-4"><p className="font-semibold text-amber-950">Priority improvements</p>{(feedback.recurringWeaknesses || []).map(item => <p key={item} className="mt-2 text-sm text-amber-900">• {item}</p>)}</div></div>{feedback.priorityTarget && <div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Next priority</p><p className="mt-1 font-semibold">{feedback.priorityTarget}</p></div>}</CardContent></Card>}
         <Card><CardHeader><CardTitle>Interview transcript</CardTitle><CardDescription>The spoken input/output transcription from your Gemini Live session.</CardDescription></CardHeader><CardContent className="space-y-3">{turns.length ? turns.map((turn, index) => <div key={`${turn.role}-${index}`} className={`rounded-2xl p-4 ${turn.role === "interviewer" ? "bg-[#102a43] text-white" : "ml-auto max-w-4xl bg-white ring-1 ring-slate-200"}`}><p className="mb-1 text-xs font-bold uppercase tracking-wider opacity-65">{turn.role === "interviewer" ? "Interviewer" : "Candidate"}</p><p className="text-sm leading-7">{turn.text}</p></div>) : <p className="text-sm text-slate-500">No transcript was returned for this session.</p>}</CardContent></Card>
