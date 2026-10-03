@@ -1,5 +1,5 @@
-import { AdvancedInterviewExperience } from "@/components/advanced-interview-experience"
+import { GeminiLiveInterviewExperience } from "@/components/gemini-live-interview-experience"
 
 export default function AiInterviewPage() {
-  return <AdvancedInterviewExperience variant="ai" />
+  return <GeminiLiveInterviewExperience />
 }
