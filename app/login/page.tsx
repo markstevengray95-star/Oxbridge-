@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input"
 
 type Mode = "signin" | "signup" | "forgot"
 type AgeBand = "13-15" | "16-17" | "18+" | ""
-const TERMS_VERSION="2026-09-25"
-const PRIVACY_VERSION="2026-09-25"
+const TERMS_VERSION="2026-10-03"
+const PRIVACY_VERSION="2026-10-03"
 
 function nextPath() {
   if (typeof window === "undefined") return "/post-login"

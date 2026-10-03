@@ -127,9 +127,12 @@ for (const marker of ["PERSONAL_STATEMENT_KEY", "APPLICATION_KEY", "personalStat
 
 const aiPage = fs.readFileSync(path.join(root, "app/ai-interview/page.tsx"), "utf8")
 const roomPage = fs.readFileSync(path.join(root, "app/interview-room/page.tsx"), "utf8")
-for (const [label, source] of [["AI Interview", aiPage], ["Interview Room", roomPage]]) {
-  if (!source.includes("AdvancedInterviewExperience")) throw new Error(`${label} is not using the advanced interview experience`)
+const liveComponent = fs.readFileSync(path.join(root, "components/gemini-live-interview-experience.tsx"), "utf8")
+if (!aiPage.includes("GeminiLiveInterviewExperience")) throw new Error("AI Interview is not using the Gemini Live primary interview experience")
+if (!liveComponent.includes("AdvancedInterviewExperience") || !liveComponent.includes("switchToFallback")) {
+  throw new Error("Gemini Live interview must retain the advanced interview experience as its compatible fallback")
 }
+if (!roomPage.includes("AdvancedInterviewExperience")) throw new Error("Interview Room is not using the advanced interview experience")
 
 const routeSource = fs.readFileSync(path.join(root, "app/api/interview-turn/route.ts"), "utf8")
 for (const marker of [
@@ -147,4 +150,4 @@ for (const marker of [
   if (!routeSource.includes(marker)) throw new Error(`Interview API is missing server-side depth marker: ${marker}`)
 }
 
-console.log("PASS: deep interview chains, personal-statement launches, two-academic panels, course-specific engines and hint-aware intellectual recovery diagnostics are integrated into both typed interview routes, with server-side depth enforcement.")
+console.log("PASS: deep interview chains, personal-statement launches, two-academic panels, course-specific engines and hint-aware intellectual recovery diagnostics are preserved across the advanced interview route and Gemini Live primary mode with an advanced fallback, with server-side depth enforcement.")
