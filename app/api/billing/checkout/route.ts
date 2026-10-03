@@ -14,11 +14,29 @@ function redirectPricing(request: Request, value: string) {
   return NextResponse.redirect(url, 303)
 }
 
+const PLACEHOLDER_MARKERS = [
+  "not yet configured",
+  "configure before",
+  "to be configured",
+  "add the controller",
+  "add a privacy",
+  "operator contact address",
+  "scholarbridge service operator",
+  "example.com",
+]
+
+function configuredPublicValue(value: string | undefined) {
+  const normalized = value?.trim()
+  if (!normalized) return false
+  const lower = normalized.toLowerCase()
+  return !PLACEHOLDER_MARKERS.some(marker => lower.includes(marker))
+}
+
 function legalIdentityReady() {
-  const name = process.env.NEXT_PUBLIC_DATA_CONTROLLER_NAME?.trim()
-  const address = process.env.NEXT_PUBLIC_DATA_CONTROLLER_ADDRESS?.trim()
-  const contact = (process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL || process.env.NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL)?.trim()
-  return Boolean(name && address && contact)
+  const name = process.env.NEXT_PUBLIC_DATA_CONTROLLER_NAME
+  const address = process.env.NEXT_PUBLIC_DATA_CONTROLLER_ADDRESS
+  const contact = process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL || process.env.NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL
+  return configuredPublicValue(name) && configuredPublicValue(address) && configuredPublicValue(contact) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact!.trim())
 }
 
 export async function POST(request: Request) {
@@ -42,6 +60,7 @@ export async function POST(request: Request) {
     if (purchaseAuthority !== "confirmed" || startNow !== "confirmed") return redirectPricing(request, "consent-required")
 
     // Fail closed: do not start a paid/trial customer journey until the public legal identity is complete.
+    // Known placeholder/fallback text is rejected as well as empty values.
     if (!legalIdentityReady()) return redirectPricing(request, "legal-details-required")
     if (!isStripeConfigured()) return redirectPricing(request, "stripe-not-configured")
     if (!hasSupabaseAdminConfig()) return redirectPricing(request, "supabase-not-configured")
