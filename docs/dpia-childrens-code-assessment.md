@@ -2,9 +2,9 @@
 
 **Status:** Working launch document for controller review and sign-off. This is not a legal certification.
 
-**Review date:** 30 September 2026  
-**Owner/controller:** Complete from `NEXT_PUBLIC_DATA_CONTROLLER_NAME` before launch.  
-**Privacy contact:** Complete from `NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL` before launch.
+**Review date:** 3 October 2026  
+**Owner/controller:** Complete from `NEXT_PUBLIC_DATA_CONTROLLER_NAME` before paid launch.  
+**Privacy contact:** Complete from `NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL` before paid launch.
 
 ## 1. Scope and purpose
 
@@ -26,7 +26,7 @@ Official guidance reviewed for this assessment:
 - School administrators.
 - Purchasers/account holders where different from the learner.
 
-ScholarBridge records an age band rather than a full date of birth. Users under 13 are not intended to self-register.
+ScholarBridge records an age band rather than a full date of birth. Users under 13 are not intended to self-register. Paid checkout asks a user under 18 to confirm that an appropriate adult has authorised the purchase.
 
 ## 3. Personal data processed
 
@@ -101,11 +101,17 @@ This section must be confirmed by the controller before launch; lawful basis can
 - high-privacy defaults;
 - optional privacy choice defaults to essential-only until the user acts;
 - Privacy Centre provides export, rights-request and deletion controls;
+- public privacy wording includes a short under-18 explanation;
 - safety concerns enter a restricted human-review queue;
 - AI scores are labelled as practice feedback, not admissions decisions;
 - school data is isolated by user/organisation and protected with RLS/server authorization;
-- full payment-card details are not stored by ScholarBridge;
+- premium and School AI/API routes now enforce entitlement on the server as well as in the UI;
 - expensive AI routes use rate limiting and concurrency controls;
+- full payment-card details are not stored by ScholarBridge;
+- first-time individual Pro and School trials have explicit duration/renewal wording before checkout;
+- checkout is disabled when required public operator/contact configuration is incomplete;
+- account deletion cancels active ScholarBridge Stripe subscriptions before deleting the login and user-linked data;
+- School-owner deletion is blocked while other members would lose workspace/cohort data;
 - users are told not to submit unnecessary sensitive information.
 
 ## 6. Processor/data-flow register
@@ -127,14 +133,15 @@ Providers that are not required for a production feature should be disabled rath
 
 | Risk | Initial risk | Controls | Residual risk/action |
 | --- | --- | --- | --- |
-| Cross-account disclosure | High | RLS, owner filters, protected routes, browser E2E, authorization audit | Medium/low; retain regression tests for every schema change. |
-| School pupil data exposed to wrong staff | High | school-plan gates, membership checks, targeted-assignment isolation | Medium; school permissions and offboarding need periodic audit. |
+| Cross-account disclosure | High | RLS, owner filters, protected routes, server-side paid API entitlements, browser E2E, authorization audit | Medium/low; retain regression tests for every schema change. |
+| School pupil data exposed to wrong staff | High | school-plan gates, membership checks, targeted-assignment isolation, School API entitlement gate | Medium; school permissions and offboarding need periodic audit. |
 | AI output mistaken for admissions decision | Medium/high | explicit practice-only wording across app | Low/medium; review new scoring features before release. |
 | Excessive child-data collection | High | age bands, minimisation messaging, no DOB, no public social layer | Medium; review every new data field through this DPIA. |
 | Safeguarding report not acted on | High | restricted queue, public report page, fallback contact | Medium until a named human owner and response rota are assigned. |
 | Optional processing enabled without meaningful choice | High | essential-only default and Privacy Centre controls | Low/medium; test after every third-party feature change. |
-| Credential/account takeover | High | Supabase Auth, rate limits, protected server routes | Medium; enable leaked-password protection/MFA where supported and review auth settings. |
-| Payment/subscription misunderstanding | Medium/high | price/interval shown pre-checkout, cancellation via account/Stripe portal, Terms | Medium; controller must review consumer wording and current subscription law. |
+| Credential/account takeover | High | Supabase Auth, rate limits, protected server routes | Medium; Supabase Security Advisor still reports leaked-password protection disabled and this should be enabled where available. |
+| Payment/subscription misunderstanding | Medium/high | price/interval and 5-day Pro / 7-day School trial shown pre-checkout, adult-purchase acknowledgement for under-18s, cancellation via Account/Stripe portal, Terms | Medium; controller must review consumer wording and exact launch model. |
+| Continued billing after account deletion | High | deletion endpoint cancels active base and School-seat Stripe subscriptions before deleting account | Low/medium; complete a controlled test-mode lifecycle before launch. |
 | Provider/international transfer risk | High | provider minimisation and contracts | Medium until processor register/transfers are signed off. |
 
 ## 8. Retention schedule to approve
@@ -142,9 +149,9 @@ Providers that are not required for a production feature should be disabled rath
 A final retention schedule must be approved by the controller. Working defaults:
 - active account and learning progress: while the account remains active and necessary to provide the service;
 - deleted accounts: erase user-linked cloud data through the deletion workflow, except records that must lawfully be retained;
+- safeguarding reports: the user link is removed on account deletion while the report can remain where proportionate safeguarding/accountability retention is required;
 - privacy requests: retain only as long as needed to evidence handling/accountability under the controller's chosen schedule;
-- safeguarding reports: retain according to a documented safeguarding/legal schedule, access restricted on a need-to-know basis;
-- billing: retain only ScholarBridge records required for entitlement/accounting; Stripe applies its own lawful retention obligations;
+- billing: Stripe may retain transaction records required for financial/tax/legal purposes; ScholarBridge removes/cascades user-linked entitlement records after active billing is cancelled;
 - technical/rate-limit records: shortest operational period consistent with security and abuse prevention.
 
 ## 9. Children's Code checkpoints
@@ -154,10 +161,12 @@ Before launch the controller must sign off that:
 - [ ] this DPIA has been reviewed by the responsible person;
 - [ ] age-band approach is proportionate to identified risks;
 - [ ] privacy information is understandable for teenagers;
-- [ ] privacy settings are high by default;
-- [ ] only minimum necessary personal data is collected;
-- [ ] optional third-party processing is not silently enabled;
-- [ ] geolocation is not required for core ScholarBridge use;
+- [x] privacy settings are high by default in the current product design;
+- [x] geolocation is not required for core ScholarBridge use;
+- [x] public profiles and student-to-student messaging are not part of the current product;
+- [x] paid feature entitlement is enforced server-side rather than relying only on UI locks;
+- [ ] only minimum necessary personal data is collected in every production feature;
+- [ ] optional third-party processing is not silently enabled across every production feature;
 - [ ] profiling/personalisation is limited to educational preparation and not sensitive-trait inference;
 - [ ] nudge techniques do not weaken privacy choices;
 - [ ] safeguarding and privacy contacts are actively monitored;
@@ -165,13 +174,13 @@ Before launch the controller must sign off that:
 
 ## 10. ICO data-protection fee
 
-The controller must complete the ICO registration self-assessment before launch. As of 30 September 2026, the ICO states that controllers may need to pay an annual data-protection fee unless an exemption applies, with the tier depending on organisation size/turnover. Do not mark this item complete merely because ScholarBridge is small.
+The controller must complete the ICO registration self-assessment before launch. Do not mark this item complete merely because ScholarBridge is small.
 
 ICO fee guide: https://ico.org.uk/for-organisations/data-protection-fee/data-protection-fee/
 
 ## 11. Decision and sign-off
 
-**Decision:** The technical design contains substantial child-privacy safeguards, but commercial launch should not be treated as DPIA-complete until the named controller has reviewed the purposes/lawful bases, processor contracts/transfers, retention periods, safeguarding owner and residual risks above.
+**Decision:** The technical design now contains stronger child-privacy, paid-API, billing-disclosure, export and deletion safeguards. Commercial launch must still not be treated as DPIA-complete until the named controller has reviewed the purposes/lawful bases, processor contracts/transfers, retention periods, safeguarding owner, current consumer terms and residual risks above.
 
 Controller/DPO or responsible person: ____________________  
 Date: ____________________  
