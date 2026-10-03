@@ -93,12 +93,12 @@ const highRiskChecks = [
   ['app/api/school-targeted/route.ts', ['hasSchoolAccess(', 'cohort?.owner_user_id !== userId', 'target_user_id', '.eq("user_id", targetUserId)']],
   ['app/api/school/analytics/route.ts', ['getClaims(', '.eq("owner_user_id", userId)', 'School owner access required']],
   ['app/api/billing/webhook/route.ts', ['constructEvent', 'oxbridge_claim_stripe_webhook_event', 'oxbridge_fulfill_live_credit_pack', 'checkout.session.async_payment_succeeded']],
-  ['app/api/billing/checkout/route.ts', ['getClaims(']],
+  ['app/api/billing/checkout/route.ts', ['getClaims(', 'legalIdentityReady()', 'subscriptions.list({ customer: customerId, status: "all", limit: 1 })', 'trialDaysForTier(tier)', 'allow_promotion_codes: true']],
   ['app/api/billing/addon-checkout/route.ts', ['getClaims(']],
   ['app/api/billing/portal/route.ts', ['getClaims(']],
   ['app/api/billing/school-seats/route.ts', ['getClaims(']],
-  ['app/api/privacy/export/route.ts', ['getClaims(']],
-  ['app/api/privacy/delete-account/route.ts', ['getClaims(']],
+  ['app/api/privacy/export/route.ts', ['getClaims(', 'createAdminClient()', 'school_assignment_submissions', 'human_review_orders', 'usage_events']],
+  ['app/api/privacy/delete-account/route.ts', ['getClaims(', 'stripe.subscriptions.cancel(', 'admin.auth.admin.deleteUser(userId)', 'schoolActionRequired']],
   ['app/api/privacy/request/route.ts', ['getClaims(']],
 ]
 
@@ -110,6 +110,30 @@ for (const [rel, tokens] of highRiskChecks) {
   }
   try { requireAll(source(rel), tokens, rel) }
   catch (error) { violations.push(error instanceof Error ? error.message : String(error)) }
+}
+
+const proxy = source('lib/supabase/proxy.ts')
+for (const token of [
+  'const PRO_API_ROUTES',
+  'const SCHOOL_API_ROUTES',
+  '"/api/essay-analysis"',
+  '"/api/interview-feedback"',
+  '"/api/weekly-programme"',
+  '"/api/written-work-defence"',
+  '"/api/school"',
+  'requiredTier: apiRequiresSchool ? "school" : "pro"',
+  'status: 401',
+  'status: 403',
+]) {
+  if (!proxy.includes(token)) violations.push(`lib/supabase/proxy.ts paid API boundary: missing ${token}`)
+}
+if (!proxy.includes('apiRequiresSchool || apiRequiresPro')) violations.push('lib/supabase/proxy.ts: paid API entitlement boundary is not evaluated before provider work')
+if (!proxy.includes('tier==="pro"||tier==="school"')) violations.push('lib/supabase/proxy.ts: Pro entitlement does not recognise active Pro/School tiers')
+if (!proxy.includes('tier==="school"')) violations.push('lib/supabase/proxy.ts: School entitlement check is missing')
+
+const plans = source('lib/billing/plans.ts')
+for (const token of ['pro: 5', 'school: 7', 'trialDaysForTier']) {
+  if (!plans.includes(token)) violations.push(`lib/billing/plans.ts trial policy: missing ${token}`)
 }
 
 const usage = source('lib/billing/usage.ts')
@@ -134,4 +158,4 @@ if (violations.length) {
   process.exit(1)
 }
 
-console.log(`Privileged API authorization audit passed: ${privileged.length} service/admin route(s) reviewed across ${routes.length} API route(s).`)
+console.log(`Privileged API authorization audit passed: ${privileged.length} service/admin route(s) reviewed across ${routes.length} API route(s), including paid-tier API and billing/deletion lifecycle boundaries.`)

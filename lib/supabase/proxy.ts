@@ -16,6 +16,20 @@ const SCHOOL_ROUTES = [
   "/school-classroom","/school-dashboard","/school-data","/school-differentiation","/school-insights","/school-overview","/school-reports","/school-seats",
   "/human-review","/teacher-coach","/teacher-live-console","/human-interviewer",
 ]
+
+// Page gates are only a UX convenience. These API gates are the security boundary for
+// premium server work so a Free user cannot bypass a locked page and call the endpoint directly.
+const PRO_API_ROUTES = [
+  "/api/essay-analysis",
+  "/api/extract-written-work",
+  "/api/interview-feedback",
+  "/api/reasoning-interview-turn",
+  "/api/targeted-practice",
+  "/api/weekly-programme",
+  "/api/written-work-defence",
+]
+const SCHOOL_API_ROUTES = ["/api/school", "/api/school-targeted"]
+
 const PUBLIC_PAGE_ROUTES = [
   "/login",
   "/practice-login",
@@ -34,8 +48,10 @@ const PUBLIC_PAGE_ROUTES = [
 const PUBLIC_ASSET_ROUTES = ["/manifest.webmanifest", "/sw.js", "/robots.txt", "/sitemap.xml", "/offline.html"]
 const PLAN_GATE_ROUTES = ["/premium", "/post-login"]
 
+type AccessTier = "free" | "pro" | "school"
+
 function matchesAny(pathname: string, routes: string[]) { return routes.some(route => pathname === route || pathname.startsWith(`${route}/`)) }
-function effectiveTier(tier: unknown, status: unknown) { const active=status==="active"||status==="trialing"; if(active&&tier==="school")return "school" as const;if(active&&tier==="pro")return "pro" as const;return "free" as const }
+function effectiveTier(tier: unknown, status: unknown): AccessTier { const active=status==="active"||status==="trialing"; if(active&&tier==="school")return "school";if(active&&tier==="pro")return "pro";return "free" }
 function redirectTo(request: NextRequest, pathname: string, next?: string) { const url=request.nextUrl.clone();url.pathname=pathname;url.search="";if(next)url.searchParams.set("next",next);return NextResponse.redirect(url) }
 function hasPracticeAccess(user: unknown) {
   if (!user || typeof user !== "object") return false
@@ -62,20 +78,40 @@ export async function updateSession(request: NextRequest) {
   const isAdmin=isConfiguredAdminEmail(userEmail)
   const isPractice=e2eSession||hasPracticeAccess(user)
 
+  let resolvedTier: AccessTier | null = null
+  async function accessTier(): Promise<AccessTier> {
+    if (resolvedTier) return resolvedTier
+    if (!userId) return "free"
+    const [{data:subscription},{data:seat}] = await Promise.all([
+      supabase.from("subscriptions").select("tier,status").eq("user_id",userId).maybeSingle(),
+      supabase.from("school_seat_entitlements").select("active").eq("user_id",userId).maybeSingle(),
+    ])
+    const paidTier=effectiveTier(subscription?.tier,subscription?.status)
+    resolvedTier=seat?.active?"school":paidTier
+    return resolvedTier
+  }
+
+  const apiRequiresSchool=matchesAny(pathname,SCHOOL_API_ROUTES)
+  const apiRequiresPro=matchesAny(pathname,PRO_API_ROUTES)
+  if (apiRequiresSchool || apiRequiresPro) {
+    if (!userId) return NextResponse.json({ error: "Sign in to use this feature.", requiredTier: apiRequiresSchool ? "school" : "pro" }, { status: 401 })
+    if (!isAdmin && !isPractice) {
+      const tier=await accessTier()
+      const hasPro=tier==="pro"||tier==="school"
+      const hasSchool=tier==="school"
+      if ((apiRequiresSchool&&!hasSchool)||(apiRequiresPro&&!hasPro)) {
+        return NextResponse.json({ error: apiRequiresSchool ? "A School plan is required for this feature." : "A Pro or School plan is required for this feature.", requiredTier: apiRequiresSchool ? "school" : "pro" }, { status: 403 })
+      }
+    }
+  }
+
   const aiScope=aiScopeForPath(pathname)
   if(aiScope){
     let aiTier: "anonymous"|"free"|"pro"|"school"|"practice"|"admin" = userId?"free":"anonymous"
     if(userId){
       if(isAdmin) aiTier="admin"
       else if(isPractice) aiTier="practice"
-      else {
-        const [{data:subscription},{data:seat}] = await Promise.all([
-          supabase.from("subscriptions").select("tier,status").eq("user_id",userId).maybeSingle(),
-          supabase.from("school_seat_entitlements").select("active").eq("user_id",userId).maybeSingle(),
-        ])
-        const paidTier=effectiveTier(subscription?.tier,subscription?.status)
-        aiTier=seat?.active?"school":paidTier
-      }
+      else aiTier=await accessTier()
     }
     const guard=await guardAiRequest({pathname,headers:request.headers,userId,tier:aiTier})
     if(!guard.allowed){
@@ -106,13 +142,10 @@ export async function updateSession(request: NextRequest) {
   if(requiresAdmin&&!isAdmin){const url=request.nextUrl.clone();url.pathname="/admin/login";url.search="";url.searchParams.set("error","not-authorized");return NextResponse.redirect(url)}
 
   if(!isApi&&!isPublicPage&&!isPublicAsset&&!matchesAny(pathname,PLAN_GATE_ROUTES)&&!requiresAdmin&&!isAdmin){
-    const [{data:subscription},{data:seat},{data:onboarding}] = await Promise.all([
-      supabase.from("subscriptions").select("tier,status").eq("user_id",userId).maybeSingle(),
-      supabase.from("school_seat_entitlements").select("active").eq("user_id",userId).maybeSingle(),
+    const [{data:onboarding}, tier] = await Promise.all([
       supabase.from("user_state").select("state_value").eq("user_id",userId).eq("state_key",PLAN_ONBOARDING_STATE_KEY).maybeSingle(),
+      accessTier(),
     ])
-    const paidTier=effectiveTier(subscription?.tier,subscription?.status)
-    const tier=seat?.active?"school":paidTier
     const cookieFreePlan=request.cookies.get(FREE_PLAN_COOKIE)?.value===userId
     const hasChosenPlan=isPractice||tier==="pro"||tier==="school"||cookieFreePlan||onboardingCompleted(onboarding?.state_value)
     if(!hasChosenPlan){const url=request.nextUrl.clone();url.pathname="/premium";url.search="";url.searchParams.set("onboarding","required");return NextResponse.redirect(url)}
