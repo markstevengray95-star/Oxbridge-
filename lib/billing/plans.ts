@@ -14,6 +14,11 @@ export const PRICING = {
   school: { monthly: 59, annual: 499 },
 } as const
 
+export const TRIAL_DAYS = {
+  pro: 5,
+  school: 7,
+} as const
+
 function numberFromEnv(name: string, fallback: number) {
   const raw = process.env[name]
   const parsed = raw ? Number(raw) : Number.NaN
@@ -25,6 +30,10 @@ export function displayPrice(tier: SubscriptionTier, interval: BillingInterval) 
   if (tier === "pro") return numberFromEnv(interval === "annual" ? "PRO_ANNUAL_PRICE_GBP" : "PRO_MONTHLY_PRICE_GBP", fallback)
   if (tier === "school") return numberFromEnv(interval === "annual" ? "SCHOOL_ANNUAL_PRICE_GBP" : "SCHOOL_MONTHLY_PRICE_GBP", fallback)
   return 0
+}
+
+export function trialDaysForTier(tier: Exclude<SubscriptionTier, "free">) {
+  return TRIAL_DAYS[tier]
 }
 
 export function schoolExtraSeatMonthlyPrice() { return numberFromEnv("SCHOOL_EXTRA_SEAT_MONTHLY_PRICE_GBP", 5.99) }
