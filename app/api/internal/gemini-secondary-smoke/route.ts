@@ -1,30 +1,45 @@
 import { NextResponse } from "next/server"
-import { POST as interviewAdjudicate } from "@/app/api/interview-adjudicate/route"
+import { POST as answerFeedback } from "@/app/api/answer-feedback/route"
+import { POST as analyseWorking } from "@/app/api/analyse-working/route"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const runtime = "nodejs"
 export const maxDuration = 60
 
-export async function GET() {
-  const request = new Request("http://internal/api/interview-adjudicate", {
+function makeRequest(path: string, body: unknown) {
+  return new Request(`http://internal${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      course: "Physics",
-      track: "STEM",
-      concepts: ["kinematics", "gravity", "acceleration"],
-      referenceAnswer: "At the highest point the instantaneous velocity is zero while acceleration remains approximately 9.81 m s^-2 downward if air resistance is neglected.",
-      turns: [
-        { role: "interviewer", text: "A ball is thrown vertically upwards. What are its velocity and acceleration at the highest point?" },
-        { role: "candidate", text: "The velocity is zero for an instant, but acceleration remains approximately g downwards because gravity is still acting." },
-        { role: "interviewer", text: "How would you test whether that reasoning is consistent with a velocity-time graph?" },
-        { role: "candidate", text: "I would draw a straight line with gradient minus g. It crosses zero velocity at the highest point, but the gradient is still negative there, showing acceleration has not become zero." }
-      ]
-    })
+    body: JSON.stringify(body),
   })
-  const response = await interviewAdjudicate(request)
+}
+
+export async function GET(request: Request) {
+  const mode = new URL(request.url).searchParams.get("mode") || "answer"
+
+  if (mode === "vision") {
+    const onePixelPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    const response = await analyseWorking(makeRequest("/api/analyse-working", {
+      image: onePixelPng,
+      subject: "Physics mechanics",
+      context: "Reliability smoke test. If no academic working is visible, say so clearly rather than inventing content."
+    }))
+    const body = await response.json() as Record<string, unknown>
+    return NextResponse.json({ mode, status: response.status, ok: response.ok, provider: body.provider ?? null, hasAnalysis: typeof body.analysis === "string" && body.analysis.length > 0, error: body.error ?? null }, { headers: { "Cache-Control": "no-store, max-age=0" } })
+  }
+
+  const response = await answerFeedback(makeRequest("/api/answer-feedback", {
+    test: "ESAT-style physics practice",
+    section: "Mechanics",
+    difficulty: "Stretch",
+    prompt: "A car travels at constant speed around a circular track. Which quantity must be changing?",
+    options: ["Mass", "Velocity", "Kinetic energy", "Speed"],
+    selectedAnswer: "Velocity",
+    correctAnswer: "Velocity",
+    correct: true,
+    explanation: "Velocity changes because its direction changes even when speed is constant."
+  }))
   const body = await response.json() as Record<string, unknown>
-  const adjudication = body.adjudication && typeof body.adjudication === "object" ? body.adjudication as Record<string, unknown> : null
-  return NextResponse.json({ status: response.status, ok: response.ok, provider: adjudication?.provider ?? null, markerAgreement: adjudication?.markerAgreement ?? null, hasProfile: Boolean(body.evidenceProfile) }, { headers: { "Cache-Control": "no-store, max-age=0" } })
+  return NextResponse.json({ mode: "answer", status: response.status, ok: response.ok, provider: body.provider ?? null, degraded: body.degraded ?? false, hasFeedback: Boolean(body.feedback) }, { headers: { "Cache-Control": "no-store, max-age=0" } })
 }
