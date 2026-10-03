@@ -165,8 +165,13 @@ export async function POST(request: Request) {
           })
         } catch (error) {
           const message = error instanceof Error ? error.message : "unknown"
+          lastStatus = null
           lastFailure = /timeout|aborted/i.test(message) ? "timeout" : "network"
           console.warn("Gemini writing request failed before response", { model, outputMode, credentialSource: key.source, error: message })
+          // A transport timeout is unlikely to be fixed by changing the response
+          // format on the same model. Move on immediately so a responsive backup
+          // model still has enough of the Vercel function budget to complete.
+          if (lastFailure === "timeout") continue modelLoop
           continue
         }
 
@@ -184,11 +189,7 @@ export async function POST(request: Request) {
           console.warn("Gemini writing request rejected", { model, outputMode, credentialSource: key.source, status: response.status, detail: detail.slice(0, 400) })
 
           if (response.status === 401 || response.status === 403) continue keyLoop
-          if (response.status === 404 || response.status === 429) continue modelLoop
-          if (response.status >= 500) {
-            if (outputMode === "structured") continue
-            continue modelLoop
-          }
+          if (response.status === 404 || response.status === 408 || response.status === 429 || response.status >= 500) continue modelLoop
           if (response.status >= 400) {
             if (outputMode !== "prompt-json") continue
             continue modelLoop
@@ -232,7 +233,7 @@ export async function POST(request: Request) {
       : lastFailure === "model_unavailable"
         ? `The Gemini API key is present, but the configured model (${lastModel || models[0]}) is not available to this Google AI project.${variable} The route tried the remaining supported writing models before using the offline review.`
         : lastFailure === "provider_unavailable"
-          ? `Gemini is temporarily returning a server error${lastStatus ? ` (HTTP ${lastStatus})` : ""} for ${lastModel || "the writing model"}.${variable} The route retried with a simpler JSON mode and backup Gemini models before using the offline review.`
+          ? `Gemini is temporarily returning a server error${lastStatus ? ` (HTTP ${lastStatus})` : ""} for ${lastModel || "the writing model"}.${variable} The route moved to backup Gemini models before using the offline review.`
           : lastFailure === "request_rejected"
             ? `The Gemini API key is present, but Google rejected the analysis request configuration${lastStatus ? ` (HTTP ${lastStatus})` : ""}.${variable} The route retried with progressively simpler JSON output modes and backup models before using the offline review.`
             : lastFailure === "invalid_response"
