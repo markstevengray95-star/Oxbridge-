@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { POST as analyzeEssay } from "@/app/api/essay-analysis/route"
+import { POST as interviewTurn } from "@/app/api/interview-turn/route"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -23,7 +24,39 @@ const syntheticStatement = {
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
-  const payload = url.searchParams.get("mode") === "statement" ? syntheticStatement : syntheticEssay
+  const requestedMode = url.searchParams.get("mode")
+
+  if (requestedMode === "interview") {
+    const internalRequest = new Request("http://internal/api/interview-turn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        course: "Physics",
+        track: "STEM",
+        difficulty: "Stretch",
+        persona: "Socratic",
+        mode: "Realistic",
+        question: "A ball is thrown vertically upwards. At the highest point, what can you say about its velocity and acceleration?",
+        answer: "Its velocity is zero for an instant, but its acceleration is still approximately g downwards because gravity is still acting.",
+        concepts: ["kinematics", "acceleration", "gravity"],
+        turns: [],
+      }),
+    })
+    const response = await interviewTurn(internalRequest)
+    const body = await response.json() as Record<string, unknown>
+    return NextResponse.json({
+      requestedMode: "interview",
+      ok: response.ok,
+      status: response.status,
+      provider: body.provider ?? null,
+      configured: body.configured ?? null,
+      degraded: body.degraded ?? false,
+      hasReply: typeof body.reply === "string" && body.reply.length > 0,
+      classification: body.classification ?? null,
+    }, { headers: { "Cache-Control": "no-store, max-age=0" } })
+  }
+
+  const payload = requestedMode === "statement" ? syntheticStatement : syntheticEssay
   const internalRequest = new Request("http://internal/api/essay-analysis", {
     method: "POST",
     headers: { "content-type": "application/json" },
