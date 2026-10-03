@@ -47,8 +47,8 @@ if (!history.includes("Full transcript") || !history.includes("Section breakdown
 if (!history.includes('.eq("user_id", user.id)')) {
   throw new Error("History page must explicitly scope cloud reads to the signed-in user in addition to RLS.")
 }
-if (!privacyExport.includes('{name:"test_results",ownerColumn:"user_id"}')) {
-  throw new Error("Privacy export does not include structured test history.")
+if (!privacyExport.includes('{ name: "test_results", ownerColumns: ["user_id"] }')) {
+  throw new Error("Privacy export does not include structured test history in the current hardened export allowlist.")
 }
 
 console.log("PASS: interview transcripts and full-test results are privately mirrored, user-scoped, viewable together, and included in account data export.")
