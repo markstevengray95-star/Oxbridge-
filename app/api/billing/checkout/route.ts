@@ -70,15 +70,53 @@ export async function POST(request: Request) {
     const admin = createAdminClient()
     const { data: userData } = await supabase.auth.getUser()
     const email = userData.user?.email || undefined
-    const { data: currentSubscription, error: subscriptionError } = await admin.from("subscriptions").select("stripe_customer_id").eq("user_id", userId).maybeSingle()
-    if (subscriptionError) { console.error("Billing database is not ready", subscriptionError); return redirectPricing(request, "database-not-ready") }
+    const [
+      { data: currentSubscription, error: subscriptionError },
+      { data: orbitsAccount, error: orbitsAccountError },
+    ] = await Promise.all([
+      admin.from("subscriptions").select("stripe_customer_id").eq("user_id", userId).maybeSingle(),
+      admin.from("orbits_accounts").select("stripe_customer_id").eq("user_id", userId).maybeSingle(),
+    ])
+    if (subscriptionError || orbitsAccountError) {
+      console.error("Billing database is not ready", subscriptionError || orbitsAccountError)
+      return redirectPricing(request, "database-not-ready")
+    }
 
-    let customerId = currentSubscription?.stripe_customer_id || ""
+    const fellowCustomerId = currentSubscription?.stripe_customer_id || ""
+    const canonicalCustomerId = orbitsAccount?.stripe_customer_id || ""
+    // Preserve any historical Fellow customer if it already differs from the canonical
+    // Orbitals customer. New purchases otherwise reuse one shared Stripe customer.
+    let customerId = fellowCustomerId || canonicalCustomerId
+
+    if (fellowCustomerId && canonicalCustomerId && fellowCustomerId !== canonicalCustomerId) {
+      console.warn("Fellow account has a legacy split Stripe customer; preserving the existing Fellow customer", { userId })
+    }
+
     if (!customerId) {
-      const customer = await stripe.customers.create({ email, metadata: { supabase_user_id: userId } })
+      const customer = await stripe.customers.create({ email, metadata: { supabase_user_id: userId, platform: "orbits" } })
       customerId = customer.id
-      const { error: customerSaveError } = await admin.from("subscriptions").upsert({ user_id: userId, stripe_customer_id: customerId }, { onConflict: "user_id" })
-      if (customerSaveError) { console.error("Could not save Stripe customer", customerSaveError); return redirectPricing(request, "database-not-ready") }
+    }
+
+    if (!fellowCustomerId) {
+      const { error: customerSaveError } = await admin.from("subscriptions").upsert(
+        { user_id: userId, stripe_customer_id: customerId },
+        { onConflict: "user_id" },
+      )
+      if (customerSaveError) {
+        console.error("Could not save Fellow Stripe customer", customerSaveError)
+        return redirectPricing(request, "database-not-ready")
+      }
+    }
+
+    if (!canonicalCustomerId) {
+      const { error: canonicalSaveError } = await admin.from("orbits_accounts").upsert(
+        { user_id: userId, stripe_customer_id: customerId, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      )
+      if (canonicalSaveError) {
+        console.error("Could not save canonical Orbitals Stripe customer", canonicalSaveError)
+        return redirectPricing(request, "database-not-ready")
+      }
     }
 
     // Trial eligibility is one-time per Stripe customer. A cancelled or expired historical subscription
