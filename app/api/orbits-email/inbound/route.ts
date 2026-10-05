@@ -4,6 +4,18 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
+type EmailReceivedEvent = {
+  type: "email.received";
+  data: {
+    email_id: string;
+    from: string;
+    to: string[];
+    cc?: string[];
+    subject?: string;
+    message_id?: string;
+  };
+};
+
 function normaliseAddresses(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String).filter(Boolean);
   if (typeof value === "string" && value.trim()) return [value.trim()];
@@ -47,12 +59,12 @@ export async function POST(req: NextRequest) {
     const event = resend.webhooks.verify({
       payload,
       headers: {
-        "svix-id": req.headers.get("svix-id"),
-        "svix-timestamp": req.headers.get("svix-timestamp"),
-        "svix-signature": req.headers.get("svix-signature"),
+        id: req.headers.get("svix-id") ?? "",
+        timestamp: req.headers.get("svix-timestamp") ?? "",
+        signature: req.headers.get("svix-signature") ?? "",
       },
-      secret: webhookSecret,
-    });
+      webhookSecret,
+    }) as EmailReceivedEvent;
 
     if (event.type !== "email.received") {
       return new NextResponse("OK", { status: 200 });
@@ -70,9 +82,9 @@ export async function POST(req: NextRequest) {
 
     const from = String(email.from ?? event.data.from ?? "").trim();
     const to = normaliseAddresses(email.to ?? event.data.to);
-    const cc = normaliseAddresses(email.cc);
+    const cc = normaliseAddresses(email.cc ?? event.data.cc);
     const subject = String(email.subject ?? event.data.subject ?? "").slice(0, 998);
-    const messageId = getHeader(email.headers, "message-id");
+    const messageId = getHeader(email.headers, "message-id") || event.data.message_id || null;
     const inReplyTo = getHeader(email.headers, "in-reply-to");
     const externalThreadId = inReplyTo || messageId || event.data.email_id;
 
