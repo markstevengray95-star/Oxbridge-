@@ -4,7 +4,7 @@ function normaliseUrl(value: string | undefined) {
   const raw = value?.trim()
   if (!raw) return null
 
-  const candidate = /^https?:///i.test(raw) ? raw : `https://${raw}`
+  const candidate = raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`
 
   try {
     return new URL(candidate)
