@@ -256,7 +256,7 @@ export function scoreStrictEssay(report: WritingReport, prompt: string, essay: s
       hasObjectionResponse: diagnostics.hasObjectionResponse,
       repeatedPromptRisk: diagnostics.repeatedPromptRisk,
     },
-    note: "This is a deliberately strict ScholarBridge practice classification, not an official Oxford/Cambridge admissions decision or an official LNAT/TARA score. It is designed to under-reward polished but shallow, generic or partially relevant writing rather than average those weaknesses away.",
+    note: "This is a deliberately strict Fellow practice classification, not an official Oxford/Cambridge admissions decision or an official LNAT/TARA score. It is designed to under-reward polished but shallow, generic or partially relevant writing rather than average those weaknesses away.",
   }
 }
 
@@ -283,7 +283,7 @@ export function attachStrictEssayScoring(report: WritingReport, prompt: string, 
 
   report.limitations = [
     clipReportText(mark.note),
-    ...report.limitations.filter(item => !/strict ScholarBridge .*practice/i.test(item)).map(clipReportText),
+    ...report.limitations.filter(item => !/strict Fellow .*practice/i.test(item)).map(clipReportText),
   ].slice(0, 5)
 
   return { report, strictScore: mark }

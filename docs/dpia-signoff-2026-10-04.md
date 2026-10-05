@@ -1,14 +1,14 @@
-# ScholarBridge DPIA approval record
+# Fellow DPIA approval record
 
 **Approval date:** 4 October 2026  
 **DPIA:** `docs/dpia-childrens-code-assessment.md`  
-**Service/operator name supplied:** ScholarBridge  
+**Service/operator name supplied:** Fellow  
 **Privacy contact:** scholarbridge@gmail.com  
 **Operating location supplied:** Cheshire, North West England, United Kingdom
 
 ## Approval
 
-The ScholarBridge operator has explicitly confirmed approval/sign-off of the current ScholarBridge Data Protection Impact Assessment and Children's Code assessment on 4 October 2026.
+The Fellow operator has explicitly confirmed approval/sign-off of the current Fellow Data Protection Impact Assessment and Children's Code assessment on 4 October 2026.
 
 This approval applies to the current product design and the controls, lawful-basis assessment, retention approach, children's best-interests assessment and residual-risk treatment described in the DPIA as of the approval date.
 
@@ -21,7 +21,7 @@ This file is an internal governance/audit record of the operator's explicit appr
 Approval of the DPIA does not make the following incomplete items disappear:
 
 1. Confirm a suitable **full geographic service address** for disclosures where one is legally required. The regional description "Cheshire, North West England, United Kingdom" is not being treated as a complete service address for paid launch.
-2. If **ScholarBridge** is a trading name rather than a separate incorporated legal entity, record the underlying legal person or entity wherever law, provider terms or contracts require that identity.
+2. If **Fellow** is a trading name rather than a separate incorporated legal entity, record the underlying legal person or entity wherever law, provider terms or contracts require that identity.
 3. Complete the ICO data-protection-fee self-assessment and pay a fee if required.
 4. Review and retain the applicable processor/data-processing terms for Supabase, Vercel, Stripe, Google Gemini, OpenAI and ElevenLabs where those services are used for personal data.
 5. Record the relevant UK international-transfer mechanism for each provider where required.
@@ -30,13 +30,13 @@ Approval of the DPIA does not make the following incomplete items disappear:
 
 ## Review trigger
 
-Review this DPIA no later than **4 October 2027**, and earlier if ScholarBridge materially changes its processing of children's personal data. Examples include public social features, location sharing, materially broader profiling, biometric analysis, new sensitive-data categories, significant automated decisions, or new school-data sharing.
+Review this DPIA no later than **4 October 2027**, and earlier if Fellow materially changes its processing of children's personal data. Examples include public social features, location sharing, materially broader profiling, biometric analysis, new sensitive-data categories, significant automated decisions, or new school-data sharing.
 
 ## Approval record
 
-**Operator/controller name supplied:** ScholarBridge  
-**Responsible role:** ScholarBridge operator / controller representative  
-**Approval method:** Explicit approval provided by the operator in the ScholarBridge project workflow  
+**Operator/controller name supplied:** Fellow  
+**Responsible role:** Fellow operator / controller representative  
+**Approval method:** Explicit approval provided by the operator in the Fellow project workflow  
 **Date approved:** 4 October 2026  
 **Residual-risk decision:** Accepted for the current design subject to the outstanding governance actions listed above  
 **Next review:** 4 October 2027 or earlier following a material change

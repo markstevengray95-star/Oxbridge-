@@ -3,8 +3,8 @@ import Link from "next/link"
 import { CircleHelp, Mail, ShieldCheck, Activity, KeyRound, CreditCard } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: "Support | ScholarBridge",
-  description: "Get help with ScholarBridge accounts, preparation tools, billing, privacy and safeguarding.",
+  title: "Support | Fellow",
+  description: "Get help with Fellow accounts, preparation tools, billing, privacy and safeguarding.",
   alternates: { canonical: "/support" },
 }
 
@@ -20,7 +20,7 @@ const helpAreas = [
   },
   {
     title: "Billing and subscription",
-    description: "Plan access, billing status and available subscription controls are shown in Account & billing. Payment-card details are handled by Stripe rather than stored by ScholarBridge.",
+    description: "Plan access, billing status and available subscription controls are shown in Account & billing. Payment-card details are handled by Stripe rather than stored by Fellow.",
     icon: CreditCard,
     href: "/account",
     label: "Account & billing",
@@ -34,7 +34,7 @@ const helpAreas = [
   },
   {
     title: "Service availability",
-    description: "Check whether the ScholarBridge web application is currently responding. The status page deliberately does not claim that every external AI or payment provider is healthy.",
+    description: "Check whether the Fellow web application is currently responding. The status page deliberately does not claim that every external AI or payment provider is healthy.",
     icon: Activity,
     href: "/status",
     label: "Service status",
@@ -50,7 +50,7 @@ export default function SupportPage() {
             <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#edf7f8] text-[#147d91]"><CircleHelp /></span>
             <div>
               <p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Help & support</p>
-              <h1 className="mt-1 font-serif text-4xl font-bold text-[#102a43]">ScholarBridge Support</h1>
+              <h1 className="mt-1 font-serif text-4xl font-bold text-[#102a43]">Fellow Support</h1>
               <p className="mt-3 max-w-3xl leading-7 text-slate-600">Find the right route for account, billing, privacy, safeguarding and service issues. This page does not expose private account information.</p>
             </div>
           </div>
@@ -82,7 +82,7 @@ export default function SupportPage() {
 
           <section className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-5">
             <h2 className="font-bold text-amber-950">Safety concern?</h2>
-            <p className="mt-2 text-sm leading-6 text-amber-900">Use the dedicated safeguarding route for concerns about a student or unsafe content. ScholarBridge is an educational preparation service, not an emergency or safeguarding authority.</p>
+            <p className="mt-2 text-sm leading-6 text-amber-900">Use the dedicated safeguarding route for concerns about a student or unsafe content. Fellow is an educational preparation service, not an emergency or safeguarding authority.</p>
             <Link href="/safeguarding" className="mt-3 inline-flex font-semibold text-amber-950 underline underline-offset-4">Open safeguarding</Link>
           </section>
         </section>

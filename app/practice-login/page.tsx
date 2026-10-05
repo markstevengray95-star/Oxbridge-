@@ -44,7 +44,7 @@ export default function PracticeLoginPage() {
 
   return <main className="min-h-screen bg-[#f2f5f5] px-4 py-8 text-[#172b3a] sm:px-6 lg:py-12">
     <div className="mx-auto max-w-xl">
-      <Link href="/login" className="mb-6 inline-flex items-center gap-2 font-serif text-lg font-bold text-[#102a43]"><GraduationCap className="size-5 text-[#147d91]" />ScholarBridge</Link>
+      <Link href="/login" className="mb-6 inline-flex items-center gap-2 font-serif text-lg font-bold text-[#102a43]"><GraduationCap className="size-5 text-[#147d91]" />Fellow</Link>
       <Card className="overflow-hidden rounded-[2rem] border-[#dbe5e7] shadow-[0_30px_90px_rgba(16,42,67,.09)]">
         <div className="bg-[#102a43] p-7 text-white sm:p-9">
           <div className="grid size-12 place-items-center rounded-2xl bg-white/10 text-[#8dd7de]"><KeyRound /></div>

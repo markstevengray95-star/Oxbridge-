@@ -6,7 +6,7 @@ import { CircleAlert, House, RotateCcw } from "lucide-react"
 
 export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error("ScholarBridge route error", error)
+    console.error("Fellow route error", error)
   }, [error])
 
   return (

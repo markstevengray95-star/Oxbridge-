@@ -134,7 +134,7 @@ const attachedReport = reportWithLevels([4,4,4,4,4,4])
 const attached = attachStrictEssayScoring(attachedReport, policyPrompt, strongEssay)
 assert.match(attached.report.summary, /^University-style practice mark: 100\/100 — Exceptional First/)
 assert.ok(attached.report.criteria.every(c => /^University-style weighted mark:/.test(c.judgement)))
-assert.match(attached.report.limitations[0], /deliberately strict ScholarBridge/i)
+assert.match(attached.report.limitations[0], /deliberately strict Fellow/i)
 
 const routeSource = fs.readFileSync('app/api/essay-analysis/route.ts', 'utf8')
 assert.match(routeSource, /attachStrictEssayScoring/)

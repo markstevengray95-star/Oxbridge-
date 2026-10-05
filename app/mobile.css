@@ -1,4 +1,4 @@
-/* Mobile-first refinements shared across ScholarBridge pages. */
+/* Mobile-first refinements shared across Fellow pages. */
 html[data-mobile-ui="true"] body {
   padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
   overflow-x: hidden;

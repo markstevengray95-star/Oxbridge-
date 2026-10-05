@@ -1,8 +1,8 @@
-# ScholarBridge School data-processing agreement template
+# Fellow School data-processing agreement template
 
 **Status:** Commercial template for professional/legal review before use with a school. It is deliberately not marked as an executed agreement.
 
-This document is intended to sit alongside the main ScholarBridge School subscription/order terms. The parties must identify their actual controller/processor roles for each processing purpose rather than assuming one role applies to every data flow.
+This document is intended to sit alongside the main Fellow School subscription/order terms. The parties must identify their actual controller/processor roles for each processing purpose rather than assuming one role applies to every data flow.
 
 ## 1. Parties
 
@@ -10,7 +10,7 @@ This document is intended to sit alongside the main ScholarBridge School subscri
 **Address:** ____________________  
 **School privacy/DPO contact:** ____________________
 
-**ScholarBridge operator:** use the real value configured as `NEXT_PUBLIC_DATA_CONTROLLER_NAME`.  
+**Fellow operator:** use the real value configured as `NEXT_PUBLIC_DATA_CONTROLLER_NAME`.  
 **Address:** use the real value configured as `NEXT_PUBLIC_DATA_CONTROLLER_ADDRESS`.  
 **Privacy contact:** use the monitored `NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL`.
 
@@ -18,15 +18,15 @@ Effective date: ____________________
 
 ## 2. Role allocation
 
-For pupil/student data supplied by a school solely so ScholarBridge can provide the School-plan service on the school's documented instructions, the intended starting position is:
+For pupil/student data supplied by a school solely so Fellow can provide the School-plan service on the school's documented instructions, the intended starting position is:
 - school: controller;
-- ScholarBridge: processor.
+- Fellow: processor.
 
-ScholarBridge may be an independent controller for separate purposes such as its own legal obligations, security/abuse prevention, direct consumer accounts, billing records, or handling a data-subject request addressed to ScholarBridge. These purposes must be documented and must not be disguised as processing on the school's instructions.
+Fellow may be an independent controller for separate purposes such as its own legal obligations, security/abuse prevention, direct consumer accounts, billing records, or handling a data-subject request addressed to Fellow. These purposes must be documented and must not be disguised as processing on the school's instructions.
 
 ## 3. Subject matter and duration
 
-**Subject matter:** hosting and processing authorised student/staff information to provide ScholarBridge admissions-preparation, progress, assignment, interview, written-work and reporting features.
+**Subject matter:** hosting and processing authorised student/staff information to provide Fellow admissions-preparation, progress, assignment, interview, written-work and reporting features.
 
 **Duration:** for the School subscription and any documented post-termination period required to complete export/deletion, subject to lawful retention obligations.
 
@@ -41,14 +41,14 @@ Depending on enabled features:
 - maintain account security and usage entitlements;
 - export or delete data at the end of service.
 
-ScholarBridge must not use school-controlled pupil data for unrelated advertising, public profiles, sale of personal data, or training unrelated services unless a separate lawful/controller basis and transparent arrangement has been established.
+Fellow must not use school-controlled pupil data for unrelated advertising, public profiles, sale of personal data, or training unrelated services unless a separate lawful/controller basis and transparent arrangement has been established.
 
 ## 5. Categories of data subjects
 
 - pupils/students;
 - teachers and school staff;
 - school administrators;
-- where applicable, parent/carer contact information intentionally supplied by the school (not required by the default ScholarBridge design).
+- where applicable, parent/carer contact information intentionally supplied by the school (not required by the default Fellow design).
 
 ## 6. Types of personal data
 
@@ -66,12 +66,12 @@ The school must not upload special-category or highly sensitive data unless a fe
 
 ## 7. Documented instructions
 
-ScholarBridge will process school-controlled data only:
+Fellow will process school-controlled data only:
 - to provide the contracted School service;
 - on instructions expressed through authorised product configuration, support requests or written instructions;
-- as required by applicable law, in which case ScholarBridge will inform the school unless legally prohibited.
+- as required by applicable law, in which case Fellow will inform the school unless legally prohibited.
 
-ScholarBridge should tell the school if an instruction appears to infringe applicable data-protection law rather than silently carrying it out.
+Fellow should tell the school if an instruction appears to infringe applicable data-protection law rather than silently carrying it out.
 
 ## 8. Confidentiality
 
@@ -89,7 +89,7 @@ Current technical/organisational measures include:
 - separation of service/admin keys from browser code;
 - rate limiting/concurrency protection on expensive AI endpoints;
 - encrypted HTTPS transport through production providers;
-- Stripe handling full card data rather than ScholarBridge;
+- Stripe handling full card data rather than Fellow;
 - CI build/browser regression tests;
 - restricted privacy and safeguarding queues;
 - account export/deletion functions.
@@ -106,29 +106,29 @@ The current service may use the following categories/providers where the corresp
 - OpenAI — AI feature processing;
 - ElevenLabs — voice feature processing.
 
-Before signing, ScholarBridge must maintain a current processor/sub-processor register covering purpose, data categories, location/transfer safeguards and applicable data-processing terms. The school must be told how it will be informed of material sub-processor changes.
+Before signing, Fellow must maintain a current processor/sub-processor register covering purpose, data categories, location/transfer safeguards and applicable data-processing terms. The school must be told how it will be informed of material sub-processor changes.
 
 ## 11. International transfers
 
-Where a provider processes personal data outside the UK, ScholarBridge will document the transfer mechanism/safeguards required for that provider and processing activity. This template does not itself establish that each transfer is lawful; the current provider contracts and transfer documentation must be reviewed before execution.
+Where a provider processes personal data outside the UK, Fellow will document the transfer mechanism/safeguards required for that provider and processing activity. This template does not itself establish that each transfer is lawful; the current provider contracts and transfer documentation must be reviewed before execution.
 
 ## 12. Data-subject rights
 
-Where the school is controller and ScholarBridge is processor, ScholarBridge will provide reasonable assistance for requests relating to data held in the School service, including access, correction, restriction, portability and erasure as applicable.
+Where the school is controller and Fellow is processor, Fellow will provide reasonable assistance for requests relating to data held in the School service, including access, correction, restriction, portability and erasure as applicable.
 
-ScholarBridge must not respond on the school's behalf to a school-controlled request unless authorised or legally required. Direct ScholarBridge-controller data remains subject to ScholarBridge's own Privacy Centre/process.
+Fellow must not respond on the school's behalf to a school-controlled request unless authorised or legally required. Direct Fellow-controller data remains subject to Fellow's own Privacy Centre/process.
 
 ## 13. Security incidents and breaches
 
-ScholarBridge will notify the school without undue delay after becoming aware of a personal-data breach affecting school-controlled personal data and provide available information reasonably needed for the school to assess its obligations.
+Fellow will notify the school without undue delay after becoming aware of a personal-data breach affecting school-controlled personal data and provide available information reasonably needed for the school to assess its obligations.
 
 Incident handling follows `docs/security-incident-response.md`.
 
-The school remains responsible for deciding its own regulator/data-subject notifications where it is controller, with reasonable assistance from ScholarBridge.
+The school remains responsible for deciding its own regulator/data-subject notifications where it is controller, with reasonable assistance from Fellow.
 
 ## 14. DPIAs and regulatory assistance
 
-ScholarBridge will provide reasonable information about its processing/security to help a school complete a DPIA or regulator consultation relating to the School service. ScholarBridge maintains its own child-focused DPIA working document at `docs/dpia-childrens-code-assessment.md`.
+Fellow will provide reasonable information about its processing/security to help a school complete a DPIA or regulator consultation relating to the School service. Fellow maintains its own child-focused DPIA working document at `docs/dpia-childrens-code-assessment.md`.
 
 ## 15. Return and deletion at termination
 
@@ -144,11 +144,11 @@ Deletion target after termination: ____________________
 
 ## 16. Audit and information
 
-ScholarBridge will make reasonable security/compliance information available to the school. Any audit request should protect the security/confidentiality of other customers and may use independent assurance, documentation or scoped evidence rather than unrestricted production access.
+Fellow will make reasonable security/compliance information available to the school. Any audit request should protect the security/confidentiality of other customers and may use independent assurance, documentation or scoped evidence rather than unrestricted production access.
 
 ## 17. Safeguarding boundary
 
-This DPA does not replace the school's safeguarding obligations or procedures. The School agreement must identify the appropriate school safeguarding contact and escalation route. ScholarBridge safety reports remain need-to-know and are not automatically visible to every staff member in the organisation.
+This DPA does not replace the school's safeguarding obligations or procedures. The School agreement must identify the appropriate school safeguarding contact and escalation route. Fellow safety reports remain need-to-know and are not automatically visible to every staff member in the organisation.
 
 ## 18. Sign-off schedule
 
@@ -164,4 +164,4 @@ Before executing this agreement, confirm:
 - [ ] professional/legal review completed where appropriate.
 
 For the School: ____________________  Date: __________  
-For ScholarBridge: ____________________  Date: __________
+For Fellow: ____________________  Date: __________

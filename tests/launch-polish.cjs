@@ -78,7 +78,7 @@ expectIncludes(notFound, "404 · Page not found", "not-found page")
 expectIncludes(errorPage, "reset()", "error recovery page")
 
 if (/https:\/\/[^"'`\s]*scholarbridge/i.test(siteUrl)) {
-  throw new Error("Canonical URL helper must not hard-code an unverified ScholarBridge production domain")
+  throw new Error("Canonical URL helper must not hard-code an unverified Fellow production domain")
 }
 
 console.log("PASS: public launch metadata, indexing, auth boundaries, support/status, health and recovery surfaces are wired without inventing production contact/domain details")

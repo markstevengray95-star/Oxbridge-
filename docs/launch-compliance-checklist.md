@@ -1,4 +1,4 @@
-# ScholarBridge public launch compliance checklist
+# Fellow public launch compliance checklist
 
 This checklist is an operational launch gate, not a claim that the product is legally certified. Complete the relevant legal/security reviews for the actual business, users and school contracts before going public.
 
@@ -21,14 +21,14 @@ The following working documents exist in the repository. They reduce launch-prep
 
 ## 2. UK GDPR and Children’s Code
 - [ ] Review, complete and sign off `docs/dpia-childrens-code-assessment.md`, including AI/voice processing and children’s use.
-- [ ] Sign off the Children’s Code / best-interests section because ScholarBridge is likely to be used by under-18s.
+- [ ] Sign off the Children’s Code / best-interests section because Fellow is likely to be used by under-18s.
 - [ ] Confirm the working lawful-basis map by processing purpose; do not rely on one blanket lawful basis for everything.
 - [ ] Approve the data-retention schedule and technically enforce it where possible.
 - [ ] Complete the processor/international-transfer register and safeguards for each processor.
 - [ ] Complete the ICO data-protection fee self-assessment and confirm whether the organisation must pay/register.
 - [ ] Test Privacy Centre export, correction/request and erasure flows with a real non-admin account.
 - [x] Privacy export now uses a current Oxbridge-only server-side allowlist rather than stale/nonexistent tables or unrelated tables from the shared Supabase project.
-- [x] Account deletion now cancels active ScholarBridge Stripe subscriptions before deleting the user and relies on verified `auth.users` cascade/set-null relationships for user-linked data.
+- [x] Account deletion now cancels active Fellow Stripe subscriptions before deleting the user and relies on verified `auth.users` cascade/set-null relationships for user-linked data.
 - [x] School-owner account deletion is blocked while other members would lose School workspace/cohort data.
 - [x] Under-18 privacy information now has a short age-appropriate explanation and high-privacy defaults remain part of the product design.
 - [x] Verify optional processing is off by default unless the student actively enables it.
@@ -45,7 +45,7 @@ The following working documents exist in the repository. They reduce launch-prep
 
 ## 4. Schools
 - [ ] Review and execute a written school agreement/DPA based on `docs/school-data-processing-agreement-template.md` before importing pupil data for a school customer.
-- [ ] Confirm whether ScholarBridge is controller, processor or joint controller for each school-data flow; roles can differ by processing purpose.
+- [ ] Confirm whether Fellow is controller, processor or joint controller for each school-data flow; roles can differ by processing purpose.
 - [ ] Agree school admin permissions, offboarding and deletion/export when a school contract ends.
 - [x] Technical School-route, roster and targeted-assignment isolation checks are present in CI; retain these tests as the School product changes.
 - [x] School API routes now require active School entitlement at the server boundary, not only a protected page.
@@ -73,7 +73,7 @@ The following working documents exist in the repository. They reduce launch-prep
 ## 7. Security
 - [ ] Keep Vercel production public but protect preview/admin environments appropriately; confirm this in the Vercel account.
 - [ ] Enable MFA for GitHub, Vercel, Supabase, Stripe, email and domain/DNS accounts.
-- [x] Production database audit found no public table with browser grants and RLS disabled; core ScholarBridge user tables have RLS/policies and server-only ScholarBridge tables are service-role only.
+- [x] Production database audit found no public table with browser grants and RLS disabled; core Fellow user tables have RLS/policies and server-only Fellow tables are service-role only.
 - [x] Current Supabase security-advisor “RLS enabled/no policy” notices for Oxbridge server-only tables were checked against grants: the reviewed tables expose no `anon` or `authenticated` table grants, so adding permissive policies would weaken rather than strengthen them.
 - [x] Privileged Oxbridge `SECURITY DEFINER` RPCs were previously verified service-role only in production.
 - [ ] Confirm the production `ADMIN_EMAILS` allowlist contains only intended administrator accounts.
@@ -98,11 +98,11 @@ The following working documents exist in the repository. They reduce launch-prep
 - [ ] Keyboard-test login, pricing, privacy, safeguarding and payment flows.
 - [ ] Test screen-reader labels and colour contrast.
 - [x] Browser CI covers desktop/mobile production builds; still do a human mobile/low-bandwidth launch pass.
-- [ ] Verify confirmation/reset emails use ScholarBridge branding and a production SMTP provider.
+- [ ] Verify confirmation/reset emails use Fellow branding and a production SMTP provider.
 - [ ] Verify all public links (Privacy, Cookies, Terms, Safeguarding, Account, support) work on the final public production domain without Vercel account access.
 
 ## 10. Final launch gate
-- [x] Required ScholarBridge compliance tables (`legal_acceptances`, `privacy_requests`, `safeguarding_reports`) are present in production; billing `subscriptions` is also present with RLS.
+- [x] Required Fellow compliance tables (`legal_acceptances`, `privacy_requests`, `safeguarding_reports`) are present in production; billing `subscriptions` is also present with RLS.
 - [x] Direct PostgreSQL constraint inspection confirms the current Oxbridge `auth.users` cascade/set-null relationships are present, and an orphan audit found no orphaned rows in the reviewed Oxbridge user tables.
 - [ ] Make the Admin → Launch Readiness page show no missing required Production environment settings.
 - [ ] Re-run GitHub build and real-browser CI for the 3 October hardening branch and fix any failures before merge.

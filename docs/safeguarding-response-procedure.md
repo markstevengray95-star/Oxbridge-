@@ -1,12 +1,12 @@
-# ScholarBridge safeguarding response procedure
+# Fellow safeguarding response procedure
 
 **Status:** Operational procedure ready for the named safeguarding owner to adopt and sign off before public launch.
 
-ScholarBridge is an educational preparation service, not an emergency service or a substitute for a school/parent safeguarding process. Safety reports are for human review. AI must not make the final decision about whether a safeguarding concern is genuine or what external safeguarding action is required.
+Fellow is an educational preparation service, not an emergency service or a substitute for a school/parent safeguarding process. Safety reports are for human review. AI must not make the final decision about whether a safeguarding concern is genuine or what external safeguarding action is required.
 
 ## 1. Roles to assign before launch
 
-- **Safeguarding owner:** named person with overall responsibility for the ScholarBridge safeguarding queue.
+- **Safeguarding owner:** named person with overall responsibility for the Fellow safeguarding queue.
 - **Deputy/backup:** named person able to cover absence.
 - **Technical contact:** person who can disable a feature/account, preserve relevant technical evidence and investigate product defects.
 - **Privacy contact:** person who reviews any personal-data implications or disclosure decisions.
@@ -19,7 +19,7 @@ Concerns can arrive through:
 - the in-app `/safeguarding` form;
 - the monitored safeguarding email address;
 - support/privacy channels where the content is actually a safety concern;
-- a school customer contacting ScholarBridge.
+- a school customer contacting Fellow.
 
 The in-app form stores a restricted report with category, user ID where available, brief details, follow-up preference and timestamps.
 
@@ -28,7 +28,7 @@ The in-app form stores a restricted report with category, user ID where availabl
 A human reviewer should:
 1. open the report only in the authorised admin queue;
 2. read the minimum information necessary;
-3. identify whether the concern relates to ScholarBridge content/AI, another user/account, a school use case, privacy, or an external situation;
+3. identify whether the concern relates to Fellow content/AI, another user/account, a school use case, privacy, or an external situation;
 4. avoid asking for unnecessary sensitive details;
 5. record the reviewer, time and action taken;
 6. escalate according to the organisation's safeguarding/legal responsibilities where necessary.
@@ -40,7 +40,7 @@ Do not promise confidentiality that cannot be maintained if information must law
 ### Priority A — immediate/urgent safety concern
 Examples include a credible indication that someone may be in immediate danger or a report requiring urgent real-world intervention.
 
-- Do not rely on the ScholarBridge queue as an emergency-response mechanism.
+- Do not rely on the Fellow queue as an emergency-response mechanism.
 - Direct the reporter toward an appropriate trusted adult/emergency route where relevant.
 - Escalate immediately to the named safeguarding owner.
 - Preserve only the information needed for the safeguarding response.
@@ -63,11 +63,11 @@ Examples: inappropriate wording, a confusing safety message, lower-risk school-a
 
 ## 5. School-related reports
 
-ScholarBridge does not replace a school's designated safeguarding procedures. For School-plan users:
+Fellow does not replace a school's designated safeguarding procedures. For School-plan users:
 - identify the school's agreed safeguarding contact at onboarding/contracting;
 - share only information necessary and lawful for the purpose;
 - do not expose the report to ordinary teachers/admins merely because they share a school organisation;
-- retain ScholarBridge's own audit record of the action taken;
+- retain Fellow's own audit record of the action taken;
 - do not let a school administrator suppress a student's privacy or safeguarding rights.
 
 ## 6. AI and automated systems

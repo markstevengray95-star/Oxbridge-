@@ -64,12 +64,12 @@ export async function POST(request:Request){
       }
     }
 
-    // Core ScholarBridge tables have auth.users ON DELETE CASCADE. Safeguarding reports use
+    // Core Fellow tables have auth.users ON DELETE CASCADE. Safeguarding reports use
     // ON DELETE SET NULL so a report can be retained independently where safeguarding/accountability
     // requires it, without retaining the deleted login as its owner.
     const {error}=await admin.auth.admin.deleteUser(userId)
     if(error){console.error("Account deletion failed",error);return NextResponse.json({error:"The account could not be deleted automatically. Please contact the privacy team so the request can be completed safely."},{status:500})}
-    return NextResponse.json({message:"Your active ScholarBridge billing has been cancelled and your login and user-linked cloud data have been deleted. Limited safeguarding or transaction records may remain where they must be retained independently for legal, safety, accounting or provider obligations."})
+    return NextResponse.json({message:"Your active Fellow billing has been cancelled and your login and user-linked cloud data have been deleted. Limited safeguarding or transaction records may remain where they must be retained independently for legal, safety, accounting or provider obligations."})
   }catch(error){
     console.error("Account deletion error",error)
     return NextResponse.json({error:"The account could not be deleted automatically. Please contact the privacy team."},{status:500})

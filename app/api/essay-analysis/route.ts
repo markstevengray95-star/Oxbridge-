@@ -237,7 +237,7 @@ export async function POST(request: Request) {
           : lastFailure === "request_rejected"
             ? `The Gemini API key is present, but Google rejected the analysis request configuration${lastStatus ? ` (HTTP ${lastStatus})` : ""}.${variable} The route retried with progressively simpler JSON output modes and backup models before using the offline review.`
             : lastFailure === "invalid_response"
-              ? `Gemini responded, but its report did not pass ScholarBridge's evidence/JSON verification, so the deterministic offline review was used instead.${variable}`
+              ? `Gemini responded, but its report did not pass Fellow's evidence/JSON verification, so the deterministic offline review was used instead.${variable}`
               : lastFailure === "empty_response"
                 ? `Gemini accepted the request but returned no usable report text, so the deterministic offline review was used instead.${variable}`
                 : lastFailure === "timeout"

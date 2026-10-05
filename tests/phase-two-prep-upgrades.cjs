@@ -40,7 +40,7 @@ assert.match(mistakeLayout, /\/mistake-repair-plan/)
 
 // 8. Deadline work-back checkpoints must remain separate from official deadlines.
 for (const days of [28, 14, 7, 2]) assert.match(workback, new RegExp(`days: ${days}`))
-assert.match(workback, /ScholarBridge planning checkpoint derived from the official milestone, not a university deadline/)
+assert.match(workback, /Fellow planning checkpoint derived from the official milestone, not a university deadline/)
 assert.match(workback, /CUSTOM_KEY = "oxbridge-custom-deadlines-v1"/)
 assert.match(workback, /category: "Personal"/)
 assert.match(deadlineLayout, /\/deadline-workback/)

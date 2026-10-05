@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og"
 
-export const alt = "ScholarBridge Oxford and Cambridge admissions preparation"
+export const alt = "Fellow by Orbits Education — Oxford and Cambridge admissions preparation"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -34,14 +34,14 @@ export default function OpenGraphImage() {
             fontWeight: 800,
           }}
         >
-          S
+          F
         </div>
-        <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -1 }}>ScholarBridge</div>
+        <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -1 }}>Fellow by Orbits Education</div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 940 }}>
         <div style={{ fontSize: 68, lineHeight: 1.04, fontWeight: 800, letterSpacing: -2.5 }}>
-          Oxford & Cambridge admissions preparation
+          Oxford & Cambridge Interview Preparation
         </div>
         <div style={{ fontSize: 29, lineHeight: 1.35, color: "#d9eef1" }}>
           Interviews · Admissions tests · Written work · Personalised preparation

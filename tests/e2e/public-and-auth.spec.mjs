@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 async function expectAuthenticatedShell(page) {
-  await expect(page.getByRole("link", { name: "ScholarBridge" }).first()).toBeVisible()
+  await expect(page.getByRole("link", { name: "Fellow" }).first()).toBeVisible()
   await expect(page.getByRole("link", { name: "Tutor" }).first()).toBeVisible()
   await expect(page.getByLabel("Email")).toHaveCount(0)
 }
@@ -36,7 +36,7 @@ test.describe("public launch surfaces", () => {
       await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(0)
     }
 
-    await expect(page.getByText(/ScholarBridge web application is responding/i)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(/Fellow web application is responding/i)).toBeVisible({ timeout: 10_000 })
 
     const health = await request.get("/api/health")
     expect(health.ok()).toBe(true)

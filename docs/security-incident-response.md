@@ -1,4 +1,4 @@
-# ScholarBridge security and personal-data incident response
+# Fellow security and personal-data incident response
 
 **Status:** Operational runbook ready for the named incident owner/controller to adopt before public launch.
 
@@ -120,7 +120,7 @@ Current ICO breach guidance: https://ico.org.uk/for-organisations/report-a-breac
 The privacy/controller lead decides whether affected individuals must be informed under applicable law. Communications should:
 - state what happened in plain language;
 - explain what information was involved;
-- explain what ScholarBridge has done;
+- explain what Fellow has done;
 - give practical protective actions where relevant;
 - provide a monitored contact route;
 - avoid speculation or minimising uncertainty.

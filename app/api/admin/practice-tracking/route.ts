@@ -231,7 +231,7 @@ export async function GET(request: Request) {
         })),
       })),
       scope: "managed-practice-only",
-      notice: "This dashboard contains activity completed inside ScholarBridge by a managed practice login. It does not monitor the learner's device, browser activity outside ScholarBridge, private messages or unrelated accounts.",
+      notice: "This dashboard contains activity completed inside Fellow by a managed practice login. It does not monitor the learner's device, browser activity outside Fellow, private messages or unrelated accounts.",
     }
 
     return NextResponse.json(detail, { headers: { "Cache-Control": "no-store" } })

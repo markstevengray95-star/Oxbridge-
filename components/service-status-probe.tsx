@@ -45,7 +45,7 @@ export function ServiceStatusProbe() {
     return (
       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-5" role="status">
         <LoaderCircle className="size-6 animate-spin text-[#147d91]" aria-hidden="true" />
-        <div><p className="font-bold text-[#102a43]">Checking ScholarBridge</p><p className="mt-1 text-sm text-slate-600">Testing the public application health endpoint.</p></div>
+        <div><p className="font-bold text-[#102a43]">Checking Fellow</p><p className="mt-1 text-sm text-slate-600">Testing the public application health endpoint.</p></div>
       </div>
     )
   }
@@ -63,7 +63,7 @@ export function ServiceStatusProbe() {
     <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-5" role="status">
       <CheckCircle2 className="mt-0.5 size-6 text-emerald-700" aria-hidden="true" />
       <div>
-        <p className="font-bold text-emerald-950">ScholarBridge web application is responding</p>
+        <p className="font-bold text-emerald-950">Fellow web application is responding</p>
         <p className="mt-1 text-sm leading-6 text-emerald-900">Application health check passed at <time dateTime={health.checkedAt}>{new Date(health.checkedAt).toLocaleString("en-GB")}</time>.</p>
       </div>
     </div>

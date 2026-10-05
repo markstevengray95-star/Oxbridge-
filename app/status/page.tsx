@@ -4,8 +4,8 @@ import { Activity, ExternalLink } from "lucide-react"
 import { ServiceStatusProbe } from "@/components/service-status-probe"
 
 export const metadata: Metadata = {
-  title: "Service Status | ScholarBridge",
-  description: "Check whether the ScholarBridge web application is currently responding.",
+  title: "Service Status | Fellow",
+  description: "Check whether the Fellow web application is currently responding.",
   alternates: { canonical: "/status" },
 }
 
@@ -17,8 +17,8 @@ export default function StatusPage() {
           <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#edf7f8] text-[#147d91]"><Activity /></span>
           <div>
             <p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Service status</p>
-            <h1 className="mt-1 font-serif text-4xl font-bold text-[#102a43]">Is ScholarBridge online?</h1>
-            <p className="mt-3 leading-7 text-slate-600">This check confirms that the ScholarBridge web application can answer a fresh health request. It does not claim that every external AI, payment, email or university service is available.</p>
+            <h1 className="mt-1 font-serif text-4xl font-bold text-[#102a43]">Is Fellow online?</h1>
+            <p className="mt-3 leading-7 text-slate-600">This check confirms that the Fellow web application can answer a fresh health request. It does not claim that every external AI, payment, email or university service is available.</p>
           </div>
         </div>
 

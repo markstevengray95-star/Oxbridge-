@@ -26,7 +26,7 @@ function mc(
   }
 }
 
-// Original ScholarBridge material. These items require linked constraints,
+// Original Fellow material. These items require linked constraints,
 // conditional probability, set reasoning or evaluation of arguments rather than
 // isolated arithmetic. They are designed to increase discrimination without
 // copying live or past UCAT questions.

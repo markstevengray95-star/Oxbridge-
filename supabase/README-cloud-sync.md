@@ -1,6 +1,6 @@
-# ScholarBridge cloud persistence
+# Fellow cloud persistence
 
-ScholarBridge uses `public.user_state` as the canonical per-user cloud backup for browser state whose key begins with `oxbridge-`. The root `CloudProgressSync` component restores and continuously reconciles those values for the authenticated Supabase user.
+Fellow uses `public.user_state` as the canonical per-user cloud backup for browser state whose key begins with `oxbridge-`. The root `CloudProgressSync` component restores and continuously reconciles those values for the authenticated Supabase user.
 
 Structured mirrors are also maintained for account/profile and interview data:
 

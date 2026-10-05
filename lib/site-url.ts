@@ -4,7 +4,7 @@ function normaliseUrl(value: string | undefined) {
   const raw = value?.trim()
   if (!raw) return null
 
-  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+  const candidate = /^https?:///i.test(raw) ? raw : `https://${raw}`
 
   try {
     return new URL(candidate)
@@ -15,6 +15,7 @@ function normaliseUrl(value: string | undefined) {
 
 export function getSiteUrl() {
   return (
+    normaliseUrl(process.env.NEXT_PUBLIC_APP_URL) ||
     normaliseUrl(process.env.NEXT_PUBLIC_SITE_URL) ||
     normaliseUrl(process.env.VERCEL_PROJECT_PRODUCTION_URL) ||
     normaliseUrl(process.env.VERCEL_URL) ||

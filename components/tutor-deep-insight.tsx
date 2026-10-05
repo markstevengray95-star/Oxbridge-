@@ -194,7 +194,7 @@ export function TutorDeepInsight({ intelligence }: { intelligence: StudentIntell
       <div>
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.18em] text-[#147d91]"><Radar className="size-4" />Deep tutor intelligence</div>
         <h2 id="deep-insight-title" className="mt-2 font-serif text-3xl font-bold">What the evidence actually says</h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">This is a preparation profile, not an admissions prediction. ScholarBridge separates performance, evidence depth and coverage so a high score in one activity is not mistaken for a complete picture.</p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">This is a preparation profile, not an admissions prediction. Fellow separates performance, evidence depth and coverage so a high score in one activity is not mistaken for a complete picture.</p>
       </div>
       <Button asChild variant="outline"><Link href="/progress-proof">Open full evidence timeline <ArrowRight /></Link></Button>
     </div>

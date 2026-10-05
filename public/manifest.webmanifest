@@ -1,6 +1,6 @@
 {
-  "name": "ScholarBridge",
-  "short_name": "ScholarBridge",
+  "name": "Fellow by Orbits Education",
+  "short_name": "Fellow",
   "description": "AI-powered Oxford and Cambridge interview, admissions-test and application preparation studio",
   "start_url": "/student-home",
   "display": "standalone",

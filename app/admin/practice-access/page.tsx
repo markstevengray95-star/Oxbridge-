@@ -99,7 +99,7 @@ export default function PracticeAccessAdminPage() {
   async function copyCredentials() {
     if (!created) return
     const origin = typeof window === "undefined" ? "" : window.location.origin
-    await navigator.clipboard.writeText(`ScholarBridge practice access\nSign in: ${origin}/practice-login\nUsername: ${created.username}\nPassword: ${created.password}`)
+    await navigator.clipboard.writeText(`Fellow practice access\nSign in: ${origin}/practice-login\nUsername: ${created.username}\nPassword: ${created.password}`)
     setMessage("Sign-in details copied.")
   }
 

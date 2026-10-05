@@ -46,7 +46,7 @@ export default function LoginPage() {
         setMessage("If an account uses that email address, a password-reset email has been sent. Check your inbox and spam folder.");return
       }
       if(mode==="signup"){
-        if(!ageBand)throw new Error("Choose your age band. ScholarBridge uses this only to apply age-appropriate protections; we do not need your date of birth.")
+        if(!ageBand)throw new Error("Choose your age band. Fellow uses this only to apply age-appropriate protections; we do not need your date of birth.")
         if(!acceptedTerms||!acceptedPrivacy)throw new Error("Please read and accept the Terms and acknowledge the Privacy Notice before creating an account.")
         const afterConfirm=nextPath(),acceptedAt=new Date().toISOString()
         const {data,error}=await supabase.auth.signUp({email:email.trim(),password,options:{data:{display_name:displayName.trim()||email.split("@")[0],age_band:ageBand,terms_version:TERMS_VERSION,privacy_version:PRIVACY_VERSION,legal_accepted_at:acceptedAt},emailRedirectTo:confirmationRedirect(afterConfirm)}})
@@ -74,7 +74,7 @@ export default function LoginPage() {
   const description=mode==="signin"?"Sign in to continue. New accounts choose a plan before entering the app.":mode==="signup"?"Create a private account with age-appropriate privacy protections, then choose Free, Pro or School.":"Enter your email and we’ll send a secure password-reset link."
 
   return <main className="min-h-screen bg-[#f2f5f5] px-4 py-8 text-[#172b3a] sm:px-6 lg:py-12"><div className="mx-auto max-w-5xl">
-    <div className="mb-6 flex items-center gap-2 font-serif text-lg font-bold text-[#102a43]"><GraduationCap className="size-5 text-[#147d91]"/>ScholarBridge</div>
+    <div className="mb-6 flex items-center gap-2 font-serif text-lg font-bold text-[#102a43]"><GraduationCap className="size-5 text-[#147d91]"/>Fellow by Orbits Education</div>
     <div className="grid overflow-hidden rounded-[2rem] border border-[#dbe5e7] bg-white shadow-[0_30px_90px_rgba(16,42,67,.09)] lg:grid-cols-[.9fr_1.1fr]">
       <section className="bg-[#102a43] p-7 text-white sm:p-10"><div className="grid size-12 place-items-center rounded-2xl bg-white/10 text-[#8dd7de]"><GraduationCap/></div><h1 className="mt-6 font-serif text-3xl font-bold">Private, age-appropriate admissions preparation.</h1><p className="mt-4 text-sm leading-6 text-white/70">Your interviews, test attempts, strengths, weaknesses and study plan stay linked to your own login. Optional services remain separate from essential account functions.</p><div className="mt-7 space-y-3 text-sm text-white/80"><p className="flex gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#8dd7de]"/>High-privacy defaults for younger users</p><p className="flex gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#8dd7de]"/>Self-service data export and account deletion</p><p className="flex gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#8dd7de]"/>Human safeguarding reporting route</p></div></section>
       <section className="p-6 sm:p-10"><Card className="border-0 shadow-none"><CardHeader className="px-0 pt-0"><CardTitle className="font-serif text-3xl">{heading}</CardTitle><CardDescription>{description}</CardDescription></CardHeader><CardContent className="px-0"><form onSubmit={submit} className="space-y-4">

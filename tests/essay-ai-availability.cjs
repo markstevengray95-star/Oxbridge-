@@ -61,7 +61,7 @@ assert.match(route, /Offline writing review failed validation/)
 assert.match(route, /keyVariablesDetected:\s*keys\.map/)
 assert.match(route, /This \$\{environment\} deployment cannot see a Gemini API key/)
 assert.match(route, /The Gemini API key is present, but Google rejected it/)
-assert.match(route, /Gemini responded, but its report did not pass ScholarBridge's evidence\/JSON verification/)
+assert.match(route, /Gemini responded, but its report did not pass Fellow's evidence\/JSON verification/)
 assert.doesNotMatch(route, /key\.value[\s\S]*diagnostic\s*:/, 'Diagnostics must never expose the API key value.')
 assert.match(route, /provider: "gemini"/)
 

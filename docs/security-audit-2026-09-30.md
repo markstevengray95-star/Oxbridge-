@@ -1,8 +1,8 @@
-# ScholarBridge launch security audit — 30 September 2026
+# Fellow launch security audit — 30 September 2026
 
-**Scope:** Oxbridge-/ScholarBridge application code and the production Supabase project `emjmvgginijkupwuflla` where accessible through authorised tooling.
+**Scope:** Oxbridge-/Fellow application code and the production Supabase project `emjmvgginijkupwuflla` where accessible through authorised tooling.
 
-**Outcome:** No confirmed ScholarBridge cross-account data exposure or browser-accessible privileged table was found in this pass. A small number of account/provider controls still require the account owner to complete in provider dashboards before commercial launch.
+**Outcome:** No confirmed Fellow cross-account data exposure or browser-accessible privileged table was found in this pass. A small number of account/provider controls still require the account owner to complete in provider dashboards before commercial launch.
 
 ## 1. Database access-control checks
 
@@ -12,9 +12,9 @@ Production query result: **zero** public tables had `anon`/`authenticated` table
 
 This is the most important broad exposure check for the Supabase Data API.
 
-### ScholarBridge server-only tables
+### Fellow server-only tables
 
-The following ScholarBridge/internal tables were checked because Supabase Security Advisor reports "RLS enabled, no policy":
+The following Fellow/internal tables were checked because Supabase Security Advisor reports "RLS enabled, no policy":
 
 - `ai_request_buckets`
 - `ai_request_leases`
@@ -36,7 +36,7 @@ Verified production state on 30 September 2026:
 - direct `anon` grants: **none**.
 - direct `authenticated` grants: **none**.
 
-Therefore the advisor finding is informational for these ScholarBridge tables: browser roles cannot reach them through the Data API. Keep this server-only pattern and do not add a permissive policy simply to silence the advisor.
+Therefore the advisor finding is informational for these Fellow tables: browser roles cannot reach them through the Data API. Keep this server-only pattern and do not add a permissive policy simply to silence the advisor.
 
 ### Core user-data tables
 
@@ -61,7 +61,7 @@ Some names included in the data-export compatibility list are not production tab
 
 Production `SECURITY DEFINER` permissions were enumerated.
 
-ScholarBridge privileged functions verified **not executable by `anon` or `authenticated`**, but executable by `service_role`:
+Fellow privileged functions verified **not executable by `anon` or `authenticated`**, but executable by `service_role`:
 - `guard_ai_request`
 - `oxbridge_claim_stripe_webhook_event`
 - `oxbridge_finish_stripe_webhook_event`
@@ -75,7 +75,7 @@ Supabase Advisor also reports authenticated access to four `SECURITY DEFINER` fu
 - `staff_development_has_org_role`
 - `staff_development_is_org_member`
 
-Those were **not changed by the ScholarBridge launch audit**, because changing shared-app permissions without validating their callers could break unrelated products. Their owning project should review whether authenticated execution is intentional.
+Those were **not changed by the Fellow launch audit**, because changing shared-app permissions without validating their callers could break unrelated products. Their owning project should review whether authenticated execution is intentional.
 
 ## 3. Application authorization and browser tests
 
@@ -100,7 +100,7 @@ Keep `.github/workflows/verify.yml` and `.github/workflows/e2e-browser.yml` requ
 - HSTS with a one-year max age and subdomains
 - `Cross-Origin-Opener-Policy: same-origin-allow-popups`
 
-A Content-Security-Policy was **not added automatically in this audit**. ScholarBridge integrates browser/server flows involving Next.js, Stripe and voice/AI features; a restrictive CSP should first be tested in staging/report-only mode so it does not silently break checkout, auth or live interview functionality.
+A Content-Security-Policy was **not added automatically in this audit**. Fellow integrates browser/server flows involving Next.js, Stripe and voice/AI features; a restrictive CSP should first be tested in staging/report-only mode so it does not silently break checkout, auth or live interview functionality.
 
 ## 5. Repository secret scan
 
@@ -135,7 +135,7 @@ Verified code/previous production hardening includes:
 - server-side plan/amount selection;
 - anonymous checkout rejection;
 - School seat and Gemini usage operations behind server/service-role boundaries;
-- no full payment-card storage in ScholarBridge.
+- no full payment-card storage in Fellow.
 
 Keep Stripe test/live keys separated and verify the production webhook endpoint after any domain or secret rotation.
 
@@ -151,13 +151,13 @@ Reference: https://supabase.com/docs/guides/auth/password-security#password-stre
 
 ### RLS enabled/no policy — reviewed
 
-For the ScholarBridge server-only tables listed above, the warning is expected because `anon`/`authenticated` grants are revoked. Do not add client policies unless the product architecture changes.
+For the Fellow server-only tables listed above, the warning is expected because `anon`/`authenticated` grants are revoked. Do not add client policies unless the product architecture changes.
 
 Reference: https://supabase.com/docs/guides/api/securing-your-api
 
 ### Shared-app SECURITY DEFINER warnings — separate owner review
 
-The four non-Oxbridge functions listed in section 2 should be reviewed in the products that own them. They are outside this ScholarBridge release change set.
+The four non-Oxbridge functions listed in section 2 should be reviewed in the products that own them. They are outside this Fellow release change set.
 
 ## 8. Provider/account controls that cannot be truthfully verified from code
 
@@ -189,7 +189,7 @@ Run a tabletop exercise using a hypothetical cross-account transcript exposure b
 
 ## 10. Security decision
 
-**Code/database finding:** suitable for continued launch preparation; no confirmed ScholarBridge-specific critical database authorization defect found in this audit.
+**Code/database finding:** suitable for continued launch preparation; no confirmed Fellow-specific critical database authorization defect found in this audit.
 
 **Not yet a complete security sign-off:** provider-account MFA, leaked-password protection, SMTP/auth settings, backup/recovery settings and network/SSL controls require an authorised account owner to verify in the relevant provider dashboards.
 

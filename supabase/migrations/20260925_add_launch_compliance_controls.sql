@@ -58,6 +58,6 @@ create policy "users_read_own_safeguarding_reports" on public.safeguarding_repor
 drop policy if exists "users_create_own_safeguarding_reports" on public.safeguarding_reports;
 create policy "users_create_own_safeguarding_reports" on public.safeguarding_reports for insert to authenticated with check ((select auth.uid()) = user_id);
 
-comment on table public.legal_acceptances is 'Versioned user acknowledgement of ScholarBridge terms/privacy and coarse age band. No date of birth is collected.';
+comment on table public.legal_acceptances is 'Versioned user acknowledgement of Fellow terms/privacy and coarse age band. No date of birth is collected.';
 comment on table public.privacy_requests is 'Audit trail for data-protection rights requests that need human handling.';
 comment on table public.safeguarding_reports is 'Restricted safeguarding concern queue. Users can only see their own reports; service role handles review.';

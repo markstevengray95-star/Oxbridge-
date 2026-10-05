@@ -1,9 +1,9 @@
-# ScholarBridge DPIA and Children's Code assessment
+# Fellow DPIA and Children's Code assessment
 
-**Status:** Completed product/data-protection assessment for the current ScholarBridge design. Final controller sign-off, exact legal operator identity, full geographic service address, processor contract checks and operational ownership remain required before treating this as formally approved.
+**Status:** Completed product/data-protection assessment for the current Fellow design. Final controller sign-off, exact legal operator identity, full geographic service address, processor contract checks and operational ownership remain required before treating this as formally approved.
 
 **Assessment date:** 4 October 2026  
-**Service:** ScholarBridge / Oxbridge admissions-preparation platform  
+**Service:** Fellow / Oxbridge admissions-preparation platform  
 **Current operating location supplied:** Cheshire, North West England, United Kingdom  
 **Privacy contact:** scholarbridge@gmail.com  
 **Legal operator/controller name:** To be confirmed before paid public launch  
@@ -13,7 +13,7 @@ This document records the DPIA process and Children’s Code assessment for the 
 
 ## 1. Why this DPIA is required
 
-ScholarBridge is an online educational and university-admissions preparation service. It is likely to be accessed by people under 18 and is therefore designed on the basis that the ICO Children’s Code applies.
+Fellow is an online educational and university-admissions preparation service. It is likely to be accessed by people under 18 and is therefore designed on the basis that the ICO Children’s Code applies.
 
 The service provides:
 - Oxford and Cambridge admissions preparation;
@@ -41,7 +41,7 @@ The current service may process information relating to:
 - purchasers/account holders where different from the learner;
 - people submitting privacy or safeguarding requests.
 
-ScholarBridge uses a broad age band rather than collecting a full date of birth for normal product use. Direct self-registration is intended for users aged 13 or over. Users under 13 should not use the direct self-sign-up route.
+Fellow uses a broad age band rather than collecting a full date of birth for normal product use. Direct self-registration is intended for users aged 13 or over. Users under 13 should not use the direct self-sign-up route.
 
 Paid checkout is designed to require confirmation that a purchaser is authorised to make the purchase and, for a user under 18, that an appropriate adult has approved the purchase.
 
@@ -90,17 +90,17 @@ Paid checkout is designed to require confirmation that a purchaser is authorised
 - Stripe customer/subscription identifiers;
 - subscription and payment-status information.
 
-Full payment-card details are handled by Stripe and are not intended to be stored directly in the ScholarBridge application database.
+Full payment-card details are handled by Stripe and are not intended to be stored directly in the Fellow application database.
 
 ## 4. Data-flow summary
 
 1. A user creates an account through the authentication service.
-2. Core account and learning data is stored in the ScholarBridge database.
+2. Core account and learning data is stored in the Fellow database.
 3. The user submits answers, written work or interview responses for the feature they choose to use.
 4. Where an AI or voice feature is requested, only the information needed for that request should be sent to the configured provider.
 5. Results and progress may be stored against the authenticated account so the user can return to them later.
 6. Where a School plan is used, authorised school staff may access data belonging to pupils within their permitted organisation/cohort scope.
-7. Stripe processes checkout, subscription and payment activity and ScholarBridge stores entitlement/status identifiers needed to provide access.
+7. Stripe processes checkout, subscription and payment activity and Fellow stores entitlement/status identifiers needed to provide access.
 8. Privacy and deletion tools allow authenticated users to request/export available account data and delete the account, subject to lawful exceptions and School-owner safeguards.
 
 ## 5. Purpose and lawful-basis assessment
@@ -127,14 +127,14 @@ The current design applies the following minimisation and proportionality decisi
 - broad age bands are used instead of collecting a full date of birth for normal product use;
 - there are no public student profiles;
 - there is no student-to-student messaging feature in the current product;
-- geolocation is not required for core ScholarBridge use;
+- geolocation is not required for core Fellow use;
 - users are advised not to submit unnecessary sensitive information;
 - full payment-card data remains with the payment provider;
 - premium and School API entitlement is enforced on the server, not only in the interface;
 - School access is scoped through membership/organisation controls;
 - users can request/export available account information and request account deletion;
 - AI output is presented as educational/practice feedback rather than an official admissions decision;
-- deletion cancels active ScholarBridge Stripe subscriptions before removing the login where Stripe cancellation is required;
+- deletion cancels active Fellow Stripe subscriptions before removing the login where Stripe cancellation is required;
 - School-owner deletion is blocked where deletion would improperly remove shared school/cohort data belonging to other members.
 
 The service should continue to reject new data fields or third-party sharing that cannot be tied to a clear educational, security, billing, support, privacy or safeguarding purpose.
@@ -178,7 +178,7 @@ The service should continue to reject new data fields or third-party sharing tha
 - explicit trial duration, renewal and price wording at checkout;
 - under-18 purchase acknowledgement requiring appropriate-adult approval;
 - paid checkout fails closed when required public operator/contact configuration is incomplete;
-- account-deletion workflow cancels active ScholarBridge subscriptions before account deletion;
+- account-deletion workflow cancels active Fellow subscriptions before account deletion;
 - School-owner deletion safeguards shared organisations/cohorts;
 - users are told not to submit unnecessary sensitive information.
 
@@ -217,7 +217,7 @@ The remaining identity issue is that a full legal operator/controller name and s
 
 ## 10. Processor and data-flow register
 
-The person legally operating ScholarBridge must confirm the current contractual terms, processing locations, sub-processors and transfer safeguards before launch.
+The person legally operating Fellow must confirm the current contractual terms, processing locations, sub-processors and transfer safeguards before launch.
 
 | Provider | Purpose | Typical data | Required governance check |
 | --- | --- | --- | --- |
@@ -253,7 +253,7 @@ Where required, a transfer-risk assessment should be retained with the provider 
 | Optional processing enabled without meaningful choice | High | Privacy controls and feature-triggered processing | Low/medium. Re-test whenever third-party features change. |
 | Credential/account takeover | High | Supabase Auth, protected server routes and rate limits | Medium. Enable available compromised-password protection and strong admin account controls where possible. |
 | Subscription misunderstanding by a young user | Medium/high | Price, billing interval, 5-day Pro / 7-day School trial disclosure, renewal wording and adult-purchase acknowledgement | Medium. Keep wording prominent and review consumer-law position before paid launch. |
-| Continued billing after account deletion | High | Deletion endpoint cancels active ScholarBridge Stripe subscriptions before deleting account | Low/medium. Complete controlled end-to-end billing testing before launch. |
+| Continued billing after account deletion | High | Deletion endpoint cancels active Fellow Stripe subscriptions before deleting account | Low/medium. Complete controlled end-to-end billing testing before launch. |
 | Provider/international-transfer risk | High | Provider minimisation and contractual safeguards expected | Medium until provider register and transfer mechanisms are formally recorded. |
 | Data retained longer than necessary | Medium/high | Account deletion path and documented working retention schedule | Medium until operational retention periods/automated deletion are formally approved. |
 | Business/operator identity unclear to users | Medium/high | Privacy email and regional operating location now public; paid checkout remains fail-closed when legal identity config is incomplete | Medium until legal operator name and full geographic service address are confirmed. |
@@ -276,20 +276,20 @@ An operational owner must periodically check that actual provider/database reten
 
 ## 14. Individual rights and deletion
 
-ScholarBridge must support applicable rights under UK data-protection law. The current product includes:
+Fellow must support applicable rights under UK data-protection law. The current product includes:
 - an authenticated privacy centre;
 - an available account-data export path;
 - account deletion;
 - privacy-request submission;
 - contact by scholarbridge@gmail.com.
 
-Account deletion is designed to cancel active ScholarBridge billing before deleting the user authentication record. Some limited records may lawfully remain where necessary for financial, safeguarding, security or accountability obligations.
+Account deletion is designed to cancel active Fellow billing before deleting the user authentication record. Some limited records may lawfully remain where necessary for financial, safeguarding, security or accountability obligations.
 
 School-managed data requires separate consideration because the school may be the controller for some pupil information. A school user should not be promised deletion of records the school is legally entitled or required to retain.
 
 ## 15. Automated decision-making and profiling
 
-ScholarBridge uses AI to support practice, marking, feedback and interview preparation. Current AI features are not intended to make legally significant or similarly significant decisions about whether a student is admitted to a university, allowed to attend a school or receives an official qualification.
+Fellow uses AI to support practice, marking, feedback and interview preparation. Current AI features are not intended to make legally significant or similarly significant decisions about whether a student is admitted to a university, allowed to attend a school or receives an official qualification.
 
 Controls:
 - AI results are framed as educational/practice feedback;
@@ -343,7 +343,7 @@ Privacy/security incidents can be escalated initially through scholarbridge@gmai
 - [x] The age-band approach and the risks behind it are documented.
 - [x] The Privacy Notice includes a concise under-18 explanation.
 - [x] Privacy settings are intended to be high by default.
-- [x] Geolocation is not required for core ScholarBridge use.
+- [x] Geolocation is not required for core Fellow use.
 - [x] Public student profiles are not part of the current service.
 - [x] Student-to-student messaging is not part of the current service.
 - [x] Paid-feature entitlement is enforced server-side rather than relying only on interface locks.
@@ -366,11 +366,11 @@ Privacy/security incidents can be escalated initially through scholarbridge@gmai
 
 ## 19. ICO data-protection fee
 
-The person or organisation legally operating ScholarBridge must complete the ICO data-protection-fee self-assessment. The service must not assume an exemption merely because the business is small or early stage.
+The person or organisation legally operating Fellow must complete the ICO data-protection-fee self-assessment. The service must not assume an exemption merely because the business is small or early stage.
 
 ## 20. Overall DPIA conclusion
 
-The current ScholarBridge product design includes substantial controls to reduce privacy risks to young users: high-privacy defaults, data minimisation, no public pupil social layer, age bands instead of routine full-date-of-birth collection, server-side access control, data-rights tooling, practice-only AI positioning and safer billing/deletion controls.
+The current Fellow product design includes substantial controls to reduce privacy risks to young users: high-privacy defaults, data minimisation, no public pupil social layer, age bands instead of routine full-date-of-birth collection, server-side access control, data-rights tooling, practice-only AI positioning and safer billing/deletion controls.
 
 **Technical/product assessment outcome:** The identified risks are capable of being reduced to a proportionate level for the current educational use case, provided the controls described in this DPIA remain in place and the outstanding operational/controller actions below are completed.
 

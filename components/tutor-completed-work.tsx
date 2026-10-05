@@ -311,7 +311,7 @@ export function TutorCompletedWork() {
 
         {!loading && signedIn && view === "interviews" && interviews.length === 0 ? <Card><CardContent className="p-8 text-center text-sm text-slate-500">No completed interviews have been saved yet.</CardContent></Card> : null}
 
-        {!loading && signedIn ? <div className="mt-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><ShieldCheck className="mt-0.5 size-5 shrink-0" /><p><strong>Your account only:</strong> this panel requests records using the current signed-in user ID and is additionally protected by the database row-level security already used by ScholarBridge history.</p></div> : null}
+        {!loading && signedIn ? <div className="mt-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><ShieldCheck className="mt-0.5 size-5 shrink-0" /><p><strong>Your account only:</strong> this panel requests records using the current signed-in user ID and is additionally protected by the database row-level security already used by Fellow history.</p></div> : null}
       </div>
     </section>
   )

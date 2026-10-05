@@ -41,7 +41,7 @@ export function PrivacyConsentBanner() {
       <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-[#edf7f8] text-[#147d91]"><ShieldCheck className="size-5" /></span>
       <div className="min-w-0 flex-1">
         <p className="font-serif text-lg font-bold text-[#102a43]">Your privacy choices</p>
-        <p className="mt-1 text-sm leading-6 text-slate-600">ScholarBridge uses essential storage for sign-in, security, plan access and saving your choices. Optional third-party tools, such as external voice services, are only enabled when you allow them or choose to use that feature.</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">Fellow uses essential storage for sign-in, security, plan access and saving your choices. Optional third-party tools, such as external voice services, are only enabled when you allow them or choose to use that feature.</p>
         <p className="mt-2 text-xs leading-5 text-slate-500">You can change this choice later from the Privacy Centre. Read the <Link href="/privacy" className="font-semibold text-[#147d91] hover:underline">Privacy Notice</Link> and <Link href="/cookies" className="font-semibold text-[#147d91] hover:underline">Cookie Notice</Link>.</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={() => save("essential")}>Essential only</Button>

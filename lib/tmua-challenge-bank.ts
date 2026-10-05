@@ -26,7 +26,7 @@ function mc(
   }
 }
 
-// Original ScholarBridge practice material. These questions deliberately require
+// Original Fellow practice material. These questions deliberately require
 // at least two connected steps, a domain/constraint check, or interpretation of
 // an intermediate result. They are not reproduced admissions-test questions.
 export const tmuaChallengeBank: TestQuestion[] = [

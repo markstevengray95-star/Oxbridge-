@@ -206,12 +206,12 @@ export default function PracticeTrackingPage() {
         <div>
           <div className="flex flex-wrap items-center gap-2"><Badge className="bg-[#102a43] text-white">Admin</Badge><Badge variant="outline">Managed practice accounts only</Badge></div>
           <h1 className="mt-3 font-serif text-4xl font-bold">Practice tracking</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5b707a]">See what your issued practice logins have completed inside ScholarBridge: full-paper answers, essay responses, marks, timing, AI interview transcripts and feedback.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5b707a]">See what your issued practice logins have completed inside Fellow: full-paper answers, essay responses, marks, timing, AI interview transcripts and feedback.</p>
         </div>
         <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/admin"><ArrowLeft />Admin</Link></Button><Button asChild variant="outline"><Link href="/admin/practice-access"><UserRound />Practice logins</Link></Button><Button onClick={() => void refreshAll()} disabled={loadingAccounts || loadingDetail}><RefreshCw className={loadingAccounts || loadingDetail ? "animate-spin" : ""} />Refresh</Button></div>
       </header>
 
-      <Card className="border-blue-200 bg-blue-50 shadow-none"><CardContent className="p-4 text-sm leading-6 text-blue-950"><strong>Tracking scope:</strong> this page only shows activity saved by managed ScholarBridge practice logins. It does not monitor their device, other websites, private messages or activity outside ScholarBridge.</CardContent></Card>
+      <Card className="border-blue-200 bg-blue-50 shadow-none"><CardContent className="p-4 text-sm leading-6 text-blue-950"><strong>Tracking scope:</strong> this page only shows activity saved by managed Fellow practice logins. It does not monitor their device, other websites, private messages or activity outside Fellow.</CardContent></Card>
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       {loadingAccounts && !accounts.length ? <Card><CardContent className="flex items-center gap-2 p-8 text-sm text-[#667984]"><Loader2 className="animate-spin" />Loading managed practice accounts…</CardContent></Card> : !accounts.length ? <Card><CardHeader><CardTitle>No managed practice logins yet</CardTitle><CardDescription>Create a practice login first; its in-app work will then appear here as it is saved to the cloud.</CardDescription></CardHeader><CardContent><Button asChild><Link href="/admin/practice-access">Create practice login</Link></Button></CardContent></Card> : <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">

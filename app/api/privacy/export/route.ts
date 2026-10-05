@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 
 type ExportTable = { name: string; ownerColumns: string[] }
 
-// Only ScholarBridge/Oxbridge tables are listed here. The Supabase project is shared with
+// Only Fellow/Oxbridge tables are listed here. The Supabase project is shared with
 // other products, so a schema-wide user_id scan would risk exporting unrelated application data.
 const userTables: ExportTable[] = [
   { name: "student_intelligence", ownerColumns: ["user_id"] },
@@ -51,7 +51,7 @@ export async function GET(){
   const result:Record<string,unknown>={
     exported_at:new Date().toISOString(),
     account:{id:userId,email},
-    note:"This file contains ScholarBridge account data available through the self-service export. Payment-card details are held by Stripe and are not stored by ScholarBridge. Security-only logs that cannot be safely exposed through self-service may require a separate privacy request.",
+    note:"This file contains Fellow account data available through the self-service export. Payment-card details are held by Stripe and are not stored by Fellow. Security-only logs that cannot be safely exposed through self-service may require a separate privacy request.",
   }
   const unavailable:string[]=[]
 

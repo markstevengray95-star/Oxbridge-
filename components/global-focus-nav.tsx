@@ -211,7 +211,7 @@ export function GlobalFocusNav() {
   const currentLabel = useMemo(() => {
     if (pathname === "/") return "Studio"
     if (pathMatches(pathname, "/tutor") || pathMatches(pathname, "/student-home")) return "Tutor"
-    return allItems.find(item => pathMatches(pathname, item.href))?.label ?? "ScholarBridge"
+    return allItems.find(item => pathMatches(pathname, item.href))?.label ?? "Fellow"
   }, [pathname])
 
   const filteredGroups = useMemo(() => {
@@ -263,7 +263,7 @@ export function GlobalFocusNav() {
       </nav>
 
       {mobileMenuOpen && <div className="fixed inset-0 z-[120] bg-slate-950/35 backdrop-blur-[2px]" onPointerDown={event => { if (event.currentTarget === event.target) setMobileMenuOpen(false) }}>
-        <section role="dialog" aria-modal="true" aria-label="All ScholarBridge tools" className="absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-hidden rounded-t-[1.6rem] bg-white shadow-2xl">
+        <section role="dialog" aria-modal="true" aria-label="All Fellow tools" className="absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-hidden rounded-t-[1.6rem] bg-white shadow-2xl">
           <div className="mx-auto mt-2 h-1 w-12 rounded-full bg-slate-200" />
           <div className="flex items-center justify-between gap-3 px-4 pb-3 pt-3">
             <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Navigation</p><h2 className="font-serif text-xl font-bold text-[#102a43]">All tools</h2></div>
@@ -305,7 +305,7 @@ export function GlobalFocusNav() {
     <div className="mx-auto max-w-7xl px-3 sm:px-5 lg:px-8">
       <div className="flex min-h-14 items-center gap-2 py-1">
         <Link href="/tutor" onClick={closeMenus} className="mr-1 flex shrink-0 items-center gap-2 rounded-xl px-2 py-2 font-serif text-base font-bold text-[#102a43] hover:bg-[#edf7f8] lg:text-lg">
-          <GraduationCap className="size-5 text-[#147d91]" /><span className="hidden lg:inline">ScholarBridge</span>
+          <GraduationCap className="size-5 text-[#147d91]" /><span className="hidden lg:inline">Fellow by Orbits Education</span>
         </Link>
         <div className="flex min-w-0 flex-1 items-center gap-1">
           <Link href="/tutor" onClick={closeMenus} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${pathMatches(pathname, "/tutor") || pathMatches(pathname, "/student-home") ? "bg-[#102a43] text-white" : "text-slate-600 hover:bg-[#edf7f8] hover:text-[#102a43]"}`}><Brain className="size-4" />Tutor</Link>

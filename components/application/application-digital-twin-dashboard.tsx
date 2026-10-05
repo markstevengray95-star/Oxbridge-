@@ -111,7 +111,7 @@ export function ApplicationDigitalTwinDashboard() {
       <div>
         <p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Application Digital Twin</p>
         <h2 className="mt-1 font-serif text-3xl font-bold">One evidence picture across your preparation</h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">This combines practice evidence already stored in ScholarBridge. Scores are preparation signals, not an admissions prediction or an official university judgement.</p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">This combines practice evidence already stored in Fellow. Scores are preparation signals, not an admissions prediction or an official university judgement.</p>
       </div>
       <Button variant="outline" onClick={() => void refresh()}><RefreshCw />Refresh evidence</Button>
     </div>
