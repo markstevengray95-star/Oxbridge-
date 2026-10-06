@@ -1,8 +1,11 @@
 export function configuredAdminEmails() {
-  return (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map(value => value.trim().toLowerCase())
-    .filter(Boolean)
+  return Array.from(new Set(
+    [process.env.ADMIN_EMAILS || "", process.env.ORBITS_OWNER_EMAILS || ""]
+      .join(",")
+      .split(",")
+      .map(value => value.trim().toLowerCase())
+      .filter(Boolean)
+  ))
 }
 
 export function isConfiguredAdminEmail(email: unknown) {
