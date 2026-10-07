@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { OrbitsTelemetry } from "@/components/orbits-telemetry";
 import Link from "next/link";
 import { GlobalFocusNav } from "@/components/global-focus-nav";
 import { CommandPalette } from "@/components/command-palette";
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en-GB">
       <body className="antialiased">
+        <OrbitsTelemetry />
         <CloudProgressSync />
         <AccountDataMirror />
         <HistoryCloudMirror />
