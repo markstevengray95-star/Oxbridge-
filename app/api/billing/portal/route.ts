@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     const origin = new URL(request.url).origin
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
+      configuration: process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_ID,
       return_url: `${origin}/account`,
     })
 

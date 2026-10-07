@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     const notes = String(form.get("notes") || "").replace(/[\r\n\t]+/g, " ").trim().slice(0, 450)
 
     const metadata: Record<string, string> = {
+      app: 'fellow',
       supabase_user_id: userId,
       kind,
     }
