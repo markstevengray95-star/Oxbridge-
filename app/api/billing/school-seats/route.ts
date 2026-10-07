@@ -31,6 +31,8 @@ export async function POST(request: Request) {
     const quantity = Number.isFinite(requested) ? Math.min(25, Math.max(1, Math.floor(requested))) : 1
 
     const admin = createAdminClient()
+    const {data: legalReady,error: legalError}=await admin.rpc('orbits_fellow_legal_ready')
+    if(legalError || legalReady!==true)return NextResponse.redirect(new URL('/premium?billing=legal-details-required',request.url),303)
     const [{ data: subscription }, { data: organization }] = await Promise.all([
       admin.from("subscriptions").select("tier,status,stripe_customer_id").eq("user_id", userId).maybeSingle(),
       admin.from("school_organizations").select("id,owner_user_id,status").eq("owner_user_id", userId).maybeSingle(),

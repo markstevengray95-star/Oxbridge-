@@ -36,6 +36,8 @@ export async function POST(request: Request) {
     if (!priceId) return redirectFor(request, target, "addon-not-configured")
 
     const admin = createAdminClient()
+    const {data: legalReady,error: legalError}=await admin.rpc('orbits_fellow_legal_ready')
+    if(legalError || legalReady!==true)return redirectFor(request,'/premium','legal-details-required')
     const { data: subscription } = await admin.from("subscriptions").select("stripe_customer_id").eq("user_id", userId).maybeSingle()
     const { data: userData } = await supabase.auth.getUser()
     const email = userData.user?.email || undefined
