@@ -55,6 +55,7 @@ export async function POST(request: Request) {
       success_url: `${origin}/school-seats?billing=extra-seats-success`,
       cancel_url: `${origin}/school-seats?billing=extra-seats-cancelled`,
       metadata: {
+        app: 'fellow',
         supabase_user_id: userId,
         organization_id: organization.id,
         kind: "school_seat_addon",
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
       },
       subscription_data: {
         metadata: {
+          app: 'fellow',
           supabase_user_id: userId,
           organization_id: organization.id,
           kind: "school_seat_addon",

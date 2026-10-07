@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto"
+import { isFellowSubscription } from '@/lib/billing/scope'
 import { NextResponse } from "next/server"
 import type Stripe from "stripe"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -87,6 +88,7 @@ async function ensureSchoolOrganization(userId: string, subscriptionId: string, 
 }
 
 async function syncSeatAddon(subscription: Stripe.Subscription) {
+  if(!isFellowSubscription(subscription))return
   const admin = createAdminClient()
   const userId = await resolveUserId(subscription)
   if (!userId) throw new Error(`No Supabase user found for seat add-on ${subscription.id}`)
@@ -120,10 +122,14 @@ async function syncSeatAddon(subscription: Stripe.Subscription) {
 }
 
 async function syncSubscription(subscription: Stripe.Subscription) {
+  if(!isFellowSubscription(subscription))return
   const admin = createAdminClient()
   const userId = await resolveUserId(subscription)
   if (!userId) throw new Error(`No Supabase user found for Stripe subscription ${subscription.id}`)
   const customerId = stripeId(subscription.customer)
+  const {data: existing,error: existingError}=await admin.from('subscriptions').select('stripe_subscription_id,status').eq('user_id',userId).maybeSingle()
+  if(existingError)throw existingError
+  if(existing?.stripe_subscription_id && existing.stripe_subscription_id!==subscription.id && ['active','trialing','past_due'].includes(existing.status))return
   const priceId = subscription.items.data[0]?.price?.id || ""
   const metadataTier = subscription.metadata?.tier
   const detectedTier = tierFromStripePrice(priceId)
@@ -137,6 +143,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 }
 
 async function syncPaidAddonCheckout(session: Stripe.Checkout.Session) {
+  if(session.metadata?.app && session.metadata.app!=='fellow')return true
   const kind = session.metadata?.kind || ""
   if (kind !== "live_credit_pack" && kind !== "human_interview_review") return false
   if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") return true
@@ -174,8 +181,13 @@ async function syncPaidAddonCheckout(session: Stripe.Checkout.Session) {
 }
 
 async function syncCheckoutSession(session: Stripe.Checkout.Session) {
+  if(session.metadata?.app && session.metadata.app!=='fellow')return
   if (await syncPaidAddonCheckout(session)) return
   const stripe = getStripe()
+  if(typeof session.subscription === 'string') {
+    const subscription=await stripe.subscriptions.retrieve(session.subscription)
+    if(!isFellowSubscription(subscription))return
+  } else return
   if (session.metadata?.kind === "school_seat_addon") {
     if (typeof session.subscription === "string") await syncSeatAddon(await stripe.subscriptions.retrieve(session.subscription))
     return
@@ -222,9 +234,23 @@ export async function POST(request: Request) {
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
-        const subscription = event.data.object as Stripe.Subscription
+        const snapshot = event.data.object as Stripe.Subscription
+        if(!isFellowSubscription(snapshot))break
+        const subscription = await stripe.subscriptions.retrieve(snapshot.id)
         if (isSeatAddon(subscription)) await syncSeatAddon(subscription)
         else await syncSubscription(subscription)
+        break
+      }
+      case 'invoice.paid':
+      case 'invoice.payment_failed': {
+        const invoice=event.data.object as Stripe.Invoice
+        const value=invoice.parent?.subscription_details?.subscription
+        const subscriptionId=typeof value==='string'?value:value?.id
+        if(subscriptionId) {
+          const subscription=await stripe.subscriptions.retrieve(subscriptionId)
+          if(isSeatAddon(subscription))await syncSeatAddon(subscription)
+          else await syncSubscription(subscription)
+        }
         break
       }
       default:

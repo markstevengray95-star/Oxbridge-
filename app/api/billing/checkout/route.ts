@@ -1,150 +1,27 @@
-import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
-import { getStripe, isStripeConfigured } from "@/lib/stripe/server"
-import { trialDaysForTier, type BillingInterval, type SubscriptionTier } from "@/lib/billing/plans"
-import { checkoutLineItem } from "@/lib/billing/checkout"
-
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
-
-function redirectPricing(request: Request, value: string) {
-  const url = new URL("/premium", request.url)
-  url.searchParams.set("billing", value)
-  return NextResponse.redirect(url, 303)
-}
-
-const PLACEHOLDER_MARKERS = [
-  "not yet configured",
-  "configure before",
-  "to be configured",
-  "add the controller",
-  "add a privacy",
-  "operator contact address",
-  "scholarbridge service operator",
-  "example.com",
-]
-
-function configuredPublicValue(value: string | undefined) {
-  const normalized = value?.trim()
-  if (!normalized) return false
-  const lower = normalized.toLowerCase()
-  return !PLACEHOLDER_MARKERS.some(marker => lower.includes(marker))
-}
-
-function legalIdentityReady() {
-  const name = process.env.NEXT_PUBLIC_DATA_CONTROLLER_NAME
-  const address = process.env.NEXT_PUBLIC_DATA_CONTROLLER_ADDRESS
-  const contact = process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL || process.env.NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL
-  return configuredPublicValue(name) && configuredPublicValue(address) && configuredPublicValue(contact) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact!.trim())
-}
-
-export async function POST(request: Request) {
-  try {
-    const supabase = await createClient()
-    const { data: claimsData } = await supabase.auth.getClaims()
-    const userId = claimsData?.claims?.sub
-    if (!userId) {
-      const login = new URL("/login", request.url)
-      login.searchParams.set("next", "/post-login")
-      return NextResponse.redirect(login, 303)
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+export const runtime='nodejs'
+export const dynamic='force-dynamic'
+function pricing(request:Request,value:string){const url=new URL('/premium',request.url);url.searchParams.set('billing',value);return NextResponse.redirect(url,303)}
+export async function POST(request:Request){
+  try{
+    const supabase=await createClient()
+    const {data:{user},error:authError}=await supabase.auth.getUser()
+    if(authError||!user){const url=new URL('/login',request.url);url.searchParams.set('next','/premium');return NextResponse.redirect(url,303)}
+    const form=await request.formData()
+    if(form.get('purchase_authority')!=='confirmed'||form.get('start_now')!=='confirmed')return pricing(request,'consent-required')
+    const tier=form.get('tier')==='school'?'school':'pro'
+    const interval=form.get('interval')==='annual'?'yearly':'monthly'
+    // Native and Orbitals checkout share one authenticated, serialized purchase path.
+    const {data,error}=await supabase.functions.invoke('orbits-billing',{body:{action:'checkout',code:`fellow_${tier}_${interval}`,purchase_authority:true,start_now:true,return_origin:new URL(request.url).origin,return_path:'/post-login?billing=success',cancel_path:'/premium?billing=cancelled'}})
+    if(error){
+      const response=error.context as Response|undefined
+      const detail=await response?.json().catch(()=>null) as {error?:string}|null|undefined
+      return pricing(request,detail?.error==='legal_details_required'?'legal-details-required':detail?.error==='subscription_already_exists'?'subscription-exists':'checkout-error')
     }
-
-    const formData = await request.formData()
-    const requestedTier = String(formData.get("tier") || "pro") as SubscriptionTier
-    const tier = requestedTier === "school" ? "school" : "pro"
-    const requestedInterval = String(formData.get("interval") || "monthly")
-    const interval: BillingInterval = requestedInterval === "annual" ? "annual" : "monthly"
-    const purchaseAuthority = String(formData.get("purchase_authority") || "")
-    const startNow = String(formData.get("start_now") || "")
-    if (purchaseAuthority !== "confirmed" || startNow !== "confirmed") return redirectPricing(request, "consent-required")
-
-    // Fail closed: do not start a paid/trial customer journey until the public legal identity is complete.
-    // Known placeholder/fallback text is rejected as well as empty values.
-    if (!legalIdentityReady()) return redirectPricing(request, "legal-details-required")
-    if (!isStripeConfigured()) return redirectPricing(request, "stripe-not-configured")
-    if (!hasSupabaseAdminConfig()) return redirectPricing(request, "supabase-not-configured")
-
-    const lineItem = checkoutLineItem(tier, interval)
-    const stripe = getStripe()
-    const admin = createAdminClient()
-    const { data: userData } = await supabase.auth.getUser()
-    const email = userData.user?.email || undefined
-    const [
-      { data: currentSubscription, error: subscriptionError },
-      { data: orbitsAccount, error: orbitsAccountError },
-    ] = await Promise.all([
-      admin.from("subscriptions").select("stripe_customer_id").eq("user_id", userId).maybeSingle(),
-      admin.from("orbits_accounts").select("stripe_customer_id").eq("user_id", userId).maybeSingle(),
-    ])
-    if (subscriptionError || orbitsAccountError) {
-      console.error("Billing database is not ready", subscriptionError || orbitsAccountError)
-      return redirectPricing(request, "database-not-ready")
-    }
-
-    const fellowCustomerId = currentSubscription?.stripe_customer_id || ""
-    const canonicalCustomerId = orbitsAccount?.stripe_customer_id || ""
-    // Preserve any historical Fellow customer if it already differs from the canonical
-    // Orbitals customer. New purchases otherwise reuse one shared Stripe customer.
-    let customerId = fellowCustomerId || canonicalCustomerId
-
-    if (fellowCustomerId && canonicalCustomerId && fellowCustomerId !== canonicalCustomerId) {
-      console.warn("Fellow account has a legacy split Stripe customer; preserving the existing Fellow customer", { userId })
-    }
-
-    if (!customerId) {
-      const customer = await stripe.customers.create({ email, metadata: { supabase_user_id: userId, platform: "orbits" } })
-      customerId = customer.id
-    }
-
-    if (!fellowCustomerId) {
-      const { error: customerSaveError } = await admin.from("subscriptions").upsert(
-        { user_id: userId, stripe_customer_id: customerId },
-        { onConflict: "user_id" },
-      )
-      if (customerSaveError) {
-        console.error("Could not save Fellow Stripe customer", customerSaveError)
-        return redirectPricing(request, "database-not-ready")
-      }
-    }
-
-    if (!canonicalCustomerId) {
-      const { error: canonicalSaveError } = await admin.from("orbits_accounts").upsert(
-        { user_id: userId, stripe_customer_id: customerId, updated_at: new Date().toISOString() },
-        { onConflict: "user_id" },
-      )
-      if (canonicalSaveError) {
-        console.error("Could not save canonical Orbitals Stripe customer", canonicalSaveError)
-        return redirectPricing(request, "database-not-ready")
-      }
-    }
-
-    // Trial eligibility is one-time per Stripe customer. A cancelled or expired historical subscription
-    // still counts, preventing repeated trial cycling by the same account/customer.
-    const previousSubscriptions = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 1 })
-    const trialDays = previousSubscriptions.data.length === 0 ? trialDaysForTier(tier) : 0
-
-    const origin = new URL(request.url).origin
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      client_reference_id: userId,
-      line_items: [lineItem],
-      allow_promotion_codes: true,
-      payment_method_collection: "always",
-      success_url: `${origin}/post-login?billing=success`,
-      cancel_url: `${origin}/premium?billing=cancelled`,
-      metadata: { supabase_user_id: userId, tier, interval, purchase_authority: "confirmed", immediate_access_requested: "confirmed", trial_days: String(trialDays) },
-      subscription_data: {
-        metadata: { supabase_user_id: userId, tier, interval },
-        ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
-      },
-    })
-
-    if (!session.url) throw new Error("Stripe did not return a Checkout URL.")
-    return NextResponse.redirect(session.url, 303)
-  } catch (error) {
-    console.error("Stripe Checkout error", error)
-    return redirectPricing(request, "checkout-error")
-  }
+    if(!data?.url)return pricing(request,'checkout-error')
+    const url=new URL(data.url)
+    if(url.protocol!=='https:'||url.hostname!=='checkout.stripe.com')return pricing(request,'checkout-error')
+    return NextResponse.redirect(url,303)
+  }catch{return pricing(request,'checkout-error')}
 }
