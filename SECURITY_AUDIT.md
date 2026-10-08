@@ -12,3 +12,10 @@ Full ecosystem evidence pack: markstevengray95-star/orbital-ed, branch security/
 Only synthetic data used. Live fixes: shared calendar isolation, Pulse Storage name-shadow policies, shared anonymous RPC grants, MIS egress restrictions and MFA security snapshot. Relevant migrations/tests are versioned with the owning product. Repo application changes are staged pending review, not production deployed.
 
 RLS enabled counts are not correctness proof. Full file/Realtime/API isolation, privileged MFA, backups, private-history/bundle scanning and independent pentest remain incomplete. Vercel API probes503 DEPLOYMENT_PAUSED are not application auth results. Spark full test baseline fails; Spark/Fellow HIGH dev advisories remain. Overall RED — NOT READY FOR REAL PUPIL DATA. See central SECURITY_REMEDIATION.md and FINAL_SECURITY_REPORT.md.
+
+## Continuation — 8 October 2026
+
+See central orbital-ed security branch for refreshed evidence. Spark main advanced to 84265ad and was integrated before inspection. New live migrations: Spark authenticated translation budgets, live classroom teacher revocation and class-record teacher entitlement; Pulse account AI budgets. Transactional synthetic tests passed. Fellow school analytics cross-school assignment/cohort counts were reproduced and fixed in the review branch; not production deployed. Additional document, AI and dependency fixes remain staged. No real pupil fixtures or production record deletion. All products remain RED because deployment, MFA, full tenant assurance, backups and organisational reviews are incomplete.
+
+### Next lint-chain closure — 8 October
+Scoped npm alias override replaces the Next plugin's sole fast-glob use with tinyglobby0.2.17. All Next eslint-config rules remain enabled. Tests cover directory-only matching, arrays, braces, Windows separators and actual Next no-sync-scripts rule execution. Locked install and full npm audit pass (zero known advisories). Five HIGH package entries represented this single dependency chain; no audit gate was waived.

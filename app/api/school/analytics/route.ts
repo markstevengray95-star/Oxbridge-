@@ -46,12 +46,21 @@ export async function GET() {
     return NextResponse.json({ organization, summary: { seatsUsed: 0, seatsRemaining: organization.seat_limit, extraSeats: Math.max(0, organization.seat_limit - 5), averagePreparation: 0, activeThisWeek: 0, assignmentCompletion: 0, geminiMinutesThisMonth: 0 }, members: [] })
   }
 
+  // A pupil can belong to cohorts at several schools. Service-role queries
+  // must independently scope assignments to this verified school owner.
+  const { data: ownedCohorts, error: cohortError } = await admin.from("school_cohorts").select("id").eq("owner_user_id", organization.owner_user_id)
+  if (cohortError) return NextResponse.json({ error: "School scope could not be verified" }, { status: 503 })
+  const cohortIds = (ownedCohorts ?? []).map(row => row.id)
+  const { data: assignments, error: assignmentError } = await admin.from("school_assignments").select("id,cohort_id,target_user_id").in("cohort_id", cohortIds)
+  if (assignmentError) return NextResponse.json({ error: "Assignment scope could not be verified" }, { status: 503 })
+  const assignmentIds = (assignments ?? []).map(row => row.id)
+
   const [profilesResult, intelligenceResult, usageResult, cohortMembershipResult, progressResult] = await Promise.all([
     admin.from("profiles").select("id,display_name,target_university,target_course,application_year,updated_at").in("id", userIds),
     admin.from("student_intelligence").select("user_id,snapshot,updated_at").in("user_id", userIds),
     admin.from("usage_events").select("user_id,event_type,quantity,created_at").in("user_id", userIds).gte("created_at", monthStartIso()),
-    admin.from("school_memberships").select("user_id,cohort_id,role,joined_at").in("user_id", userIds),
-    admin.from("school_assignment_progress").select("user_id,assignment_id,status,updated_at").in("user_id", userIds),
+    admin.from("school_memberships").select("user_id,cohort_id,role,joined_at").in("user_id", userIds).in("cohort_id", cohortIds),
+    admin.from("school_assignment_progress").select("user_id,assignment_id,status,updated_at").in("user_id", userIds).in("assignment_id", assignmentIds),
   ])
 
   const profiles = profilesResult.data ?? []
@@ -59,11 +68,6 @@ export async function GET() {
   const usageRows = usageResult.data ?? []
   const cohortMemberships = cohortMembershipResult.data ?? []
   const progressRows = progressResult.data ?? []
-  const cohortIds = [...new Set(cohortMemberships.map(row => row.cohort_id))]
-  const { data: assignments } = cohortIds.length
-    ? await admin.from("school_assignments").select("id,cohort_id,target_user_id").in("cohort_id", cohortIds)
-    : { data: [] as Array<{ id: string; cohort_id: string; target_user_id: string | null }> }
-
   const profileById = new Map(profiles.map(profile => [profile.id, profile]))
   const intelById = new Map(intelligenceRows.map(row => [row.user_id, row]))
   const assignmentRows = assignments ?? []

@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+let user='owner-a',scopeError=false;
+const rows={school_organizations:[{id:'school-a',owner_user_id:'owner-a',seat_limit:5},{id:'school-b',owner_user_id:'owner-b',seat_limit:5}],school_organization_members:[{organization_id:'school-a',user_id:'shared-pupil',role:'member'},{organization_id:'school-b',user_id:'shared-pupil',role:'member'}],school_cohorts:[{id:'cohort-a',owner_user_id:'owner-a'},{id:'cohort-b',owner_user_id:'owner-b'}],school_memberships:[{user_id:'shared-pupil',cohort_id:'cohort-a'},{user_id:'shared-pupil',cohort_id:'cohort-b'}],school_assignments:[{id:'assignment-a',cohort_id:'cohort-a'},{id:'assignment-b',cohort_id:'cohort-b'}],school_assignment_progress:[{user_id:'shared-pupil',assignment_id:'assignment-a',status:'completed'},{user_id:'shared-pupil',assignment_id:'assignment-b',status:'completed'}]};
+const admin={from(table){let data=[...(rows[table]||[])];const query={select(){return query;},eq(k,v){data=data.filter(r=>r[k]===v);return query;},in(k,v){data=data.filter(r=>v.includes(r[k]));return query;},gte(){return query;},order(){return query;},maybeSingle:async()=>({data:data[0]||null}),then(resolve,reject){return Promise.resolve({data,error:scopeError&&table==='school_cohorts'?{message:'synthetic'}:null}).then(resolve,reject);}};return query;},auth:{admin:{getUserById:async()=>({data:{user:{email:'synthetic@example.invalid'}}})}}};
+const loaded={};const source=ts.transpileModule(fs.readFileSync('app/api/school/analytics/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+vm.runInNewContext(source,{exports:loaded,require:name=>name==='next/server'?{NextResponse:{json:(data,options)=>Response.json(data,options)}}:name==='@/lib/supabase/admin'?{createAdminClient:()=>admin,hasSupabaseAdminConfig:()=>true}:name==='@/lib/supabase/server'?{createClient:async()=>({auth:{getClaims:async()=>({data:{claims:{sub:user,user_metadata:{role:'admin'}}}})}})}:{monthStartIso:()=>new Date(0).toISOString()},Date,Map,Set,Response});
+(async()=>{
+ for(user of ['owner-a','owner-b']){const res=await loaded.GET();assert.equal(res.status,200);const body=await res.json();assert.equal(body.members[0].cohortCount,1);assert.equal(body.members[0].assignmentTotal,1);assert.equal(body.members[0].assignmentCompleted,1,'One shared pupil must not expose another school assignment');}
+ user='forged-owner';assert.equal((await loaded.GET()).status,403);
+ user='';assert.equal((await loaded.GET()).status,401);
+ user='owner-a';scopeError=true;assert.equal((await loaded.GET()).status,503);
+ console.log('PASS: shared pupil assignment/cohort counts remain school-scoped; forged owner, missing identity and failed scope query denied');
+})().catch(error=>{console.error(error);process.exitCode=1});

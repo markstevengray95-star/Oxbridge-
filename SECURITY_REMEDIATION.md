@@ -1,3 +1,5 @@
 # Remaining security work
 
-See verified central orbital-ed repository security branch SECURITY_REMEDIATION.md. Required: full cross-school synthetic API/RPC/physical-Storage/Realtime tests, privileged MFA enrolment/recovery/enforcement, HIGH dependency resolution (Spark/Fellow), approved retention/provider agreements, verified isolated backup restore, operational monitoring and external pentest. CI workflows are prepared; branch protection/required deployment checks are not established. Do not deploy on documentation alone.
+The central verified repository is markstevengray95-star/orbital-ed, security/orbits-school-audit-2026-10-07. Its SECURITY_REMEDIATION.md and FINAL_SECURITY_REPORT.md contain current priorities and evidence.
+
+Do not release until the product's new security tests pass remotely and the deployed changes are retested with synthetic users. Fellow retains five HIGH advisory package entries in an unpatched lint dependency chain. Spark and Pulse have no HIGH/CRITICAL npm advisory entries at the continuation scan. Full tenant/API/physical Storage/Realtime testing, privileged MFA enrolment/recovery, backup restoration, processor agreements and independent testing remain open. Known current production pauses are not evidence of application authentication.
