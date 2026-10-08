@@ -49,6 +49,12 @@ for (const rel of privileged) {
       continue
     }
 
+    if (rel === 'app/api/orbits-email/inbound/route.ts') {
+      requireAll(text, ['resend.webhooks.verify({', 'svix-id', 'svix-timestamp', 'svix-signature', 'webhookSecret'], `${rel} signed provider webhook`)
+      if (text.indexOf('resend.webhooks.verify({') > text.indexOf('const supabase = createClient(')) throw new Error(`${rel}: privileged client created before signature verification`)
+      continue
+    }
+
     if (rel === 'app/api/auth/practice-login/route.ts') {
       requireAll(text, [
         'USERNAME_PATTERN',
@@ -93,7 +99,7 @@ const highRiskChecks = [
   ['app/api/school-targeted/route.ts', ['hasSchoolAccess(', 'cohort?.owner_user_id !== userId', 'target_user_id', '.eq("user_id", targetUserId)']],
   ['app/api/school/analytics/route.ts', ['getClaims(', '.eq("owner_user_id", userId)', 'School owner access required']],
   ['app/api/billing/webhook/route.ts', ['constructEvent', 'oxbridge_claim_stripe_webhook_event', 'oxbridge_fulfill_live_credit_pack', 'checkout.session.async_payment_succeeded']],
-  ['app/api/billing/checkout/route.ts', ['getClaims(', 'legalIdentityReady()', 'subscriptions.list({ customer: customerId, status: "all", limit: 1 })', 'trialDaysForTier(tier)', 'allow_promotion_codes: true']],
+  ['app/api/billing/checkout/route.ts', ['supabase.auth.getUser()', 'authError||!user', "purchase_authority')!=='confirmed'", "start_now')!=='confirmed'", "functions.invoke('orbits-billing'", "url.hostname!=='checkout.stripe.com'"]],
   ['app/api/billing/addon-checkout/route.ts', ['getClaims(']],
   ['app/api/billing/portal/route.ts', ['getClaims(']],
   ['app/api/billing/school-seats/route.ts', ['getClaims(']],

@@ -1,0 +1,30 @@
+name: Security programme
+on:
+  pull_request:
+  push:
+    branches: [main, security/orbits-school-audit-2026-10-07]
+  schedule:
+    - cron: '23 5 * * 1'
+permissions:
+  contents: read
+jobs:
+  controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Redacted credential and history scan
+        run: python3 scripts/security-secrets.py . --history
+      - name: Repeatable locked install
+        run: npm ci --ignore-scripts --legacy-peer-deps
+      - name: Type verification
+        run: npx tsc --noEmit
+      - name: API boundaries and AI guards
+        run: node tests/api-authorization-boundaries.cjs && node tests/ai-request-guard.cjs
+      - name: Block high dependency advisories including build tooling
+        run: npm audit --audit-level=high

@@ -22,7 +22,10 @@ jobs:
           node-version: "22.13"
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm ci --legacy-peer-deps
+
+      - name: Next lint dependency compatibility
+        run: node tests/next-lint-glob-compatibility.cjs
 
       - name: Mobile navigation regression checks
         run: node tests/mobile-navigation.cjs
@@ -37,10 +40,10 @@ jobs:
         run: node tests/end-to-end-hardening.cjs
 
       - name: Privileged API authorization audit
-        run: node tests/api-authorization-boundaries.cjs
+        run: node tests/api-authorization-boundaries.cjs && node tests/school-analytics-isolation.cjs
 
       - name: AI request protection checks
-        run: node tests/ai-request-guard.cjs
+        run: node tests/ai-request-guard.cjs && node tests/ai-guard-behaviour.cjs
 
       - name: Personal statement analysis checks
         run: node tests/personal-statement-analysis-v2.cjs

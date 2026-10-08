@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     const { data: email, error: receiveError } = await resend.emails.receiving.get(event.data.email_id);
     if (receiveError || !email) {
-      console.error("Unable to retrieve inbound email", receiveError);
+      console.error("Unable to retrieve inbound email");
       return new NextResponse("Error", { status: 400 });
     }
 

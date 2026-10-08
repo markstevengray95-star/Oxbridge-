@@ -6,7 +6,7 @@
     "node": "22.x"
   },
   "scripts": {
-    "install:ci": "npm install --legacy-peer-deps",
+    "install:ci": "npm ci --legacy-peer-deps",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -46,27 +46,19 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.62.5",
-    "@cloudflare/workers-types": "4.20260515.1",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.2",
-    "@vitejs/plugin-rsc": "0.5.26",
     "eslint": "9.39.4",
     "eslint-config-next": "16.3.8",
-    "react-server-dom-webpack": "19.2.8",
     "tailwindcss": "4.2.1",
-    "typescript": "5.9.3",
-    "vinext": "1.0.0",
-    "vite": "8.3.0",
-    "wrangler": "4.146.0"
+    "typescript": "5.9.3"
   },
   "type": "module",
   "overrides": {
-    "miniflare": {
-      "sharp": "0.35.4"
+    "@next/eslint-plugin-next": {
+      "fast-glob": "npm:tinyglobby@0.2.17"
     }
   }
 }

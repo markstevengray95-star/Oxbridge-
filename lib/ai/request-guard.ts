@@ -30,6 +30,10 @@ const AI_ROUTE_PREFIXES = [
   "/api/personalised-question",
   "/api/question-mutate",
   "/api/written-work-defence",
+  "/api/extract-written-work",
+  "/api/question-verify",
+  "/api/reasoning-interview-turn",
+  "/api/targeted-practice",
 ]
 
 const POLICY: Record<AccessTier, GuardPolicy> = {
@@ -56,13 +60,13 @@ async function sha256(value: string) {
 }
 
 async function anonymousActor(headers: Headers) {
-  const forwarded = firstHeaderValue(headers.get("x-forwarded-for"))
-  const real = firstHeaderValue(headers.get("x-real-ip"))
-  const connecting = firstHeaderValue(headers.get("cf-connecting-ip"))
-  const address = connecting || forwarded || real || "unknown"
-  const agent = headers.get("user-agent")?.slice(0, 160) || "unknown"
+  // Vercel overwrites its forwarding header. Arbitrary Cloudflare headers and
+  // user-agent strings are caller-controlled and cannot identify a budget.
+  const address = process.env.VERCEL === "1"
+    ? firstHeaderValue(headers.get("x-vercel-forwarded-for")) || "unknown"
+    : "local-untrusted"
   const salt = process.env.AI_RATE_LIMIT_SALT || "scholarbridge-anonymous-rate-limit"
-  return `anon:${(await sha256(`${salt}|${address}|${agent}`)).slice(0, 32)}`
+  return `anon:${(await sha256(`${salt}|${address}`)).slice(0, 32)}`
 }
 
 export async function guardAiRequest(input: {
@@ -93,7 +97,7 @@ export async function guardAiRequest(input: {
   })
 
   if (error) {
-    console.error("AI request guard failed", { scope, code: error.code, message: error.message })
+    console.error("AI request guard failed", { scope, code: error.code })
     return { allowed: false, reason: "guard_unavailable", retryAfterSeconds: 10, burstRemaining: 0, hourRemaining: 0, scope }
   }
 
