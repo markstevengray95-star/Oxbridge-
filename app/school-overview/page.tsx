@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { FREE_FULL_ACCESS } from "@/lib/billing/plans"
 import { useEffect, useMemo, useState } from "react"
 import { Activity, ArrowLeft, BookOpenCheck, Download, Gauge, Loader2, RefreshCw, School, Search, Sparkles, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -98,15 +99,15 @@ export default function SchoolOverviewPage() {
   }
 
   return <main className="min-h-screen bg-[#f5f7f7] text-[#172b3a]">
-    <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4"><Button asChild variant="ghost"><Link href="/school-seats"><ArrowLeft />School licence</Link></Button><div className="flex gap-2"><Badge variant="outline"><School className="size-3.5" />Subscription Dashboard</Badge><Button asChild size="sm" variant="outline"><Link href="/school-dashboard">Cohorts</Link></Button></div></div></header>
+    <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4"><Button asChild variant="ghost"><Link href="/school-seats"><ArrowLeft />School licence</Link></Button><div className="flex gap-2"><Badge variant="outline"><School className="size-3.5" />School Overview</Badge><Button asChild size="sm" variant="outline"><Link href="/school-dashboard">Cohorts</Link></Button></div></div></header>
 
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-      <section className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">School subscription overview</p><h1 className="mt-2 font-serif text-4xl font-bold">Track every connected account from one place.</h1><p className="mt-3 max-w-3xl text-slate-600">See high-level preparation evidence, activity, assignments, account usage and seat capacity across the whole School licence. Private Tutor conversations and full interview transcripts are not shown.</p></div><div className="flex gap-2"><Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={loading ? "animate-spin" : ""} />Refresh</Button>{data && <Button variant="outline" onClick={exportCsv}><Download />Export CSV</Button>}</div></section>
+      <section className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">School workspace overview</p><h1 className="mt-2 font-serif text-4xl font-bold">Track every connected account from one place.</h1><p className="mt-3 max-w-3xl text-slate-600">See high-level preparation evidence, activity, assignments, account usage and seat capacity across the school workspace. Private Tutor conversations and full interview transcripts are not shown.</p></div><div className="flex gap-2"><Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={loading ? "animate-spin" : ""} />Refresh</Button>{data && <Button variant="outline" onClick={exportCsv}><Download />Export CSV</Button>}</div></section>
 
       {error && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">{error}</div>}
-      {loading && !data ? <Card><CardContent className="flex items-center gap-3 p-6"><Loader2 className="animate-spin" />Loading subscription analytics…</CardContent></Card> : data ? <>
+      {loading && !data ? <Card><CardContent className="flex items-center gap-3 p-6"><Loader2 className="animate-spin" />Loading school analytics…</CardContent></Card> : data ? <>
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <Card className="border-0 bg-[#102a43] text-white"><CardHeader><Users className="size-5 text-white/75" /><CardDescription className="text-white/60">Accounts connected</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.seatsUsed}/{data.organization.seat_limit}</CardTitle><p className="text-xs text-white/60">{data.summary.extraSeats ? `${data.summary.extraSeats} paid extra seat${data.summary.extraSeats === 1 ? "" : "s"}` : "5 included seats"}</p></CardHeader></Card>
+          <Card className="border-0 bg-[#102a43] text-white"><CardHeader><Users className="size-5 text-white/75" /><CardDescription className="text-white/60">Accounts connected</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.seatsUsed}/{data.organization.seat_limit}</CardTitle><p className="text-xs text-white/60">{FREE_FULL_ACCESS ? "Free full-access period" : data.summary.extraSeats ? `${data.summary.extraSeats} paid extra seat${data.summary.extraSeats === 1 ? "" : "s"}` : "5 included seats"}</p></CardHeader></Card>
           <Card><CardHeader><Gauge className="size-5 text-[#147d91]" /><CardDescription>Average preparation</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.averagePreparation || "—"}{data.summary.averagePreparation ? "%" : ""}</CardTitle></CardHeader></Card>
           <Card><CardHeader><Activity className="size-5 text-[#147d91]" /><CardDescription>Active this week</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.activeThisWeek}/{data.summary.seatsUsed}</CardTitle></CardHeader></Card>
           <Card><CardHeader><BookOpenCheck className="size-5 text-[#147d91]" /><CardDescription>Assignment completion</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.assignmentCompletion}%</CardTitle><Progress value={data.summary.assignmentCompletion} /></CardHeader></Card>
