@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { FREE_FULL_ACCESS } from "@/lib/billing/plans"
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
 import { generateWeeklyProgramme, londonWeekStart, WEEKLY_PROGRAMME_STATE_KEY, type WeeklyProgramme } from "@/lib/weekly-programme"
 
@@ -81,6 +82,19 @@ export async function GET(request: Request) {
   if (!hasSupabaseAdminConfig()) return NextResponse.json({ error: "Supabase admin access is not configured" }, { status: 503 })
 
   const admin = createAdminClient()
+  let userIds: string[] = []
+  if (FREE_FULL_ACCESS) {
+    // Only refresh programmes for accounts which have actually started using the feature.
+    const { data: programmeStates, error } = await admin.from("user_state")
+      .select("user_id")
+      .eq("state_key", WEEKLY_PROGRAMME_STATE_KEY)
+      .limit(5000)
+    if (error) {
+      console.error("Weekly programme cron could not list active programme users", error)
+      return NextResponse.json({ error: "Programme user list unavailable" }, { status: 500 })
+    }
+    userIds = [...new Set((programmeStates ?? []).map(row => row.user_id).filter((id): id is string => typeof id === "string" && Boolean(id)))]
+  } else {
   const [{ data: subscriptions, error: subscriptionError }, { data: seats, error: seatError }] = await Promise.all([
     admin.from("subscriptions").select("user_id,tier,status").in("tier", ["pro", "school"]).in("status", ["active", "trialing"]),
     admin.from("school_seat_entitlements").select("user_id").eq("active", true),
@@ -90,7 +104,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Paid-user list could not be loaded" }, { status: 500 })
   }
 
-  const userIds = [...new Set([...(subscriptions ?? []).map(row => row.user_id), ...(seats ?? []).map(row => row.user_id)].filter(Boolean))]
+    userIds = [...new Set([...(subscriptions ?? []).map(row => row.user_id), ...(seats ?? []).map(row => row.user_id)].filter(Boolean))]
+
+  }
   const weekStart = londonWeekStart()
   let generated = 0
   let skipped = 0
