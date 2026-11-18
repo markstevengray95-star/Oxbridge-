@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import { aiScopeForPath, guardAiRequest } from "@/lib/ai/request-guard"
+import { FREE_FULL_ACCESS } from "@/lib/billing/plans"
 import { isConfiguredAdminEmail } from "@/lib/auth/admin-access"
 import { E2E_SESSION_COOKIE, E2E_USER_EMAIL, E2E_USER_ID, e2eSessionActive } from "@/lib/auth/e2e-session"
 import { FREE_PLAN_COOKIE, PLAN_ONBOARDING_STATE_KEY, onboardingCompleted } from "@/lib/onboarding"
@@ -82,6 +83,7 @@ export async function updateSession(request: NextRequest) {
   async function accessTier(): Promise<AccessTier> {
     if (resolvedTier) return resolvedTier
     if (!userId) return "free"
+    if (FREE_FULL_ACCESS) return "school"
     const [{data:subscription},{data:seat}] = await Promise.all([
       supabase.from("subscriptions").select("tier,status").eq("user_id",userId).maybeSingle(),
       supabase.from("school_seat_entitlements").select("active").eq("user_id",userId).maybeSingle(),
@@ -141,7 +143,7 @@ export async function updateSession(request: NextRequest) {
   if(adminLogin&&isAdmin) return redirectTo(request,"/admin")
   if(requiresAdmin&&!isAdmin){const url=request.nextUrl.clone();url.pathname="/admin/login";url.search="";url.searchParams.set("error","not-authorized");return NextResponse.redirect(url)}
 
-  if(!isApi&&!isPublicPage&&!isPublicAsset&&!matchesAny(pathname,PLAN_GATE_ROUTES)&&!requiresAdmin&&!isAdmin){
+  if(!FREE_FULL_ACCESS&&!isApi&&!isPublicPage&&!isPublicAsset&&!matchesAny(pathname,PLAN_GATE_ROUTES)&&!requiresAdmin&&!isAdmin){
     const [{data:onboarding}, tier] = await Promise.all([
       supabase.from("user_state").select("state_value").eq("user_id",userId).eq("state_key",PLAN_ONBOARDING_STATE_KEY).maybeSingle(),
       accessTier(),
