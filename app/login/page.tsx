@@ -5,13 +5,14 @@ import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { CheckCircle2, GraduationCap, KeyRound, Loader2, LockKeyhole, Mail, RefreshCw, UserPlus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { FREE_FULL_ACCESS } from "@/lib/billing/plans"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 
 type Mode = "signin" | "signup" | "forgot"
 type AgeBand = "13-15" | "16-17" | "18+" | ""
-const TERMS_VERSION="2026-10-03"
+const TERMS_VERSION=FREE_FULL_ACCESS?"2026-11-18":"2026-10-03"
 const PRIVACY_VERSION="2026-10-03"
 
 function nextPath() {
@@ -52,7 +53,7 @@ export default function LoginPage() {
         const {data,error}=await supabase.auth.signUp({email:email.trim(),password,options:{data:{display_name:displayName.trim()||email.split("@")[0],age_band:ageBand,terms_version:TERMS_VERSION,privacy_version:PRIVACY_VERSION,legal_accepted_at:acceptedAt},emailRedirectTo:confirmationRedirect(afterConfirm)}})
         if(error)throw error
         if(data.session){router.replace(afterConfirm);router.refresh()}
-        else{setMessage("Account created. Check your email to confirm your address; the confirmation link will continue to plan selection.");setMode("signin");setPassword("")}
+        else{setMessage(FREE_FULL_ACCESS ? "Account created. Check your email to confirm your address, then sign in for full free access." : "Account created. Check your email to confirm your address; the confirmation link will continue to plan selection.");setMode("signin");setPassword("")}
         return
       }
       const {error}=await supabase.auth.signInWithPassword({email:email.trim(),password});if(error)throw error
@@ -71,7 +72,7 @@ export default function LoginPage() {
 
   function changeMode(nextMode:Mode){setMode(nextMode);setError("");setMessage("");if(nextMode!=="signup"){setDisplayName("");setAgeBand("");setAcceptedTerms(false);setAcceptedPrivacy(false)}if(nextMode==="forgot")setPassword("")}
   const heading=mode==="signin"?"Sign in":mode==="signup"?"Create your account":"Reset your password"
-  const description=mode==="signin"?"Sign in to continue. New accounts choose a plan before entering the app.":mode==="signup"?"Create a private account with age-appropriate privacy protections, then choose Free, Pro or School.":"Enter your email and we’ll send a secure password-reset link."
+  const description=mode==="signin"?(FREE_FULL_ACCESS?"Sign in to use all preparation features for free. No subscription is required.":"Sign in to continue. New accounts choose a plan before entering the app."):mode==="signup"?(FREE_FULL_ACCESS?"Create a private account with age-appropriate protections and full free access.":"Create a private account with age-appropriate privacy protections, then choose Free, Pro or School."):"Enter your email and we’ll send a secure password-reset link."
 
   return <main className="min-h-screen bg-[#f2f5f5] px-4 py-8 text-[#172b3a] sm:px-6 lg:py-12"><div className="mx-auto max-w-5xl">
     <div className="mb-6 flex items-center gap-2 font-serif text-lg font-bold text-[#102a43]"><GraduationCap className="size-5 text-[#147d91]"/>Fellow by Orbits Education</div>
