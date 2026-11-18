@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { effectiveTier, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
+import { FREE_FULL_ACCESS, effectiveTier, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
@@ -24,6 +24,7 @@ async function currentUserId() {
 }
 
 async function hasSchoolAccess(admin: ReturnType<typeof createAdminClient>, userId: string) {
+  if (FREE_FULL_ACCESS) return true
   const [{ data: subscription }, { data: seat }] = await Promise.all([
     admin.from("subscriptions").select("tier,status").eq("user_id", userId).maybeSingle(),
     admin.from("school_seat_entitlements").select("active").eq("user_id", userId).maybeSingle(),

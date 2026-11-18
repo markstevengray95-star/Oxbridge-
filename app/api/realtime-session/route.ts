@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { FREE_FULL_ACCESS } from "@/lib/billing/plans"
 import { createClient } from "@/lib/supabase/server"
 import { createLiveSession, getLiveConfig } from "@/lib/gemini/live-session-secure"
 import { selectAvailableLiveModel } from "@/lib/gemini/live-model-fallback"
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
 
     if (!quota.allowed) {
       return NextResponse.json({
-        error: `You have used this month's Gemini Live allowance (${quota.state.limitMinutes} minutes). Upgrade your plan or wait until the monthly allowance resets.`,
+        error: `You have used this month's Gemini Live allowance (${quota.state.limitMinutes} minutes). ${FREE_FULL_ACCESS ? "Please try again after your monthly fair-use allowance resets." : "Upgrade your plan or wait until the monthly allowance resets."}`,
         code: "GEMINI_QUOTA_EXCEEDED",
         quota: quota.state,
       }, { status: 429, headers: { "Cache-Control": "no-store" } })

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { FREE_FULL_ACCESS } from "@/lib/billing/plans"
 import { generateWeeklyProgramme, londonWeekStart, WEEKLY_PROGRAMME_STATE_KEY, type WeeklyProgramme } from "@/lib/weekly-programme"
 
 export const runtime = "nodejs"
@@ -18,6 +19,7 @@ function isCurrentProgramme(value: unknown, weekStart: string): value is WeeklyP
 }
 
 function paidTier(tier: unknown, status: unknown, seatActive: unknown) {
+  if (FREE_FULL_ACCESS) return "school"
   if (seatActive === true) return "school"
   if (status !== "active" && status !== "trialing") return "free"
   return tier === "school" ? "school" : tier === "pro" ? "pro" : "free"

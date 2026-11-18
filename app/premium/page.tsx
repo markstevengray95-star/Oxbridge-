@@ -2,7 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { CheckCircle2, GraduationCap, LogOut, School, Sparkles } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
-import { annualSavingPercent, displayPrice, monthlyGeminiMinutes, schoolExtraSeatMonthlyPrice, trialDaysForTier } from "@/lib/billing/plans"
+import { FREE_FULL_ACCESS, annualSavingPercent, displayPrice, monthlyGeminiMinutes, schoolExtraSeatMonthlyPrice, trialDaysForTier } from "@/lib/billing/plans"
 import { onboardingCompleted, PLAN_ONBOARDING_STATE_KEY } from "@/lib/onboarding"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -39,6 +39,22 @@ export default async function PremiumPage({ searchParams }: PageProps) {
   const { data } = await supabase.auth.getClaims()
   const userId = typeof data?.claims?.sub === "string" ? data.claims.sub : ""
   if (!userId) redirect("/login?next=/post-login")
+
+  if (FREE_FULL_ACCESS) return (
+    <main className="min-h-screen bg-[#f5f7f7] text-[#172b3a]">
+      <div className="mx-auto max-w-4xl space-y-7 px-4 py-12 sm:px-6">
+        <div className="flex items-center gap-2 font-serif text-lg font-bold"><GraduationCap className="size-5 text-[#147d91]"/>Fellow by Orbits Education</div>
+        <section className="rounded-3xl border border-[#b9d8dd] bg-white p-8 sm:p-12">
+          <Badge variant="outline">Free access period</Badge>
+          <h1 className="mt-4 font-serif text-4xl font-bold">All preparation features are included.</h1>
+          <p className="mt-4 max-w-2xl text-slate-600">Every registered Fellow account currently has access to the full individual and school preparation tools. No subscription, payment card or plan selection is required.</p>
+          <p className="mt-3 text-sm text-slate-600">Gemini Live and other AI requests still have fair-use and security limits to protect the service. Human expert reviews and extra paid credits are not being sold during this period.</p>
+          <div className="mt-7 flex flex-wrap gap-3"><Button asChild><Link href="/student-home">Enter Fellow</Link></Button><Button asChild variant="outline"><Link href="/account">Your account</Link></Button></div>
+        </section>
+        <p className="text-sm leading-6 text-slate-600">New payments are paused. If you already had a paid subscription, it will not be cancelled automatically: use the existing billing management option in your Account page to review or cancel it.</p>
+      </div>
+    </main>
+  )
   const [{ data: subscription }, { data: seat }, { data: onboarding }] = await Promise.all([
     supabase.from("subscriptions").select("tier,status").eq("user_id", userId).maybeSingle(),
     supabase.from("school_seat_entitlements").select("active").eq("user_id", userId).maybeSingle(),

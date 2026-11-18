@@ -132,8 +132,8 @@ const groups: NavGroup[] = [
         items: [
           { href: "/school-classroom", label: "Student Classroom", description: "Join a cohort and complete assigned preparation" },
           { href: "/school-dashboard", label: "School Dashboard", description: "Cohorts, assignments, analytics and reports" },
-          { href: "/premium", label: "Plans", description: "Free, Pro and School access" },
-          { href: "/account", label: "Account & Billing", description: "Sign in, subscription and cloud progress" },
+          { href: "/premium", label: "Full access", description: "All preparation features are currently included" },
+          { href: "/account", label: "Account", description: "Sign-in, saved work and preparation progress" },
           { href: "/accessibility-profiles", label: "Accessibility", description: "Saved accessibility profiles" },
         ],
       },

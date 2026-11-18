@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { FREE_FULL_ACCESS } from "@/lib/billing/plans"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server"
@@ -13,6 +14,7 @@ function redirectSeats(request: Request, value: string) {
 }
 
 export async function POST(request: Request) {
+  if (FREE_FULL_ACCESS) return redirectSeats(request, "payments-paused")
   try {
     const supabase = await createClient()
     const { data: claimsData } = await supabase.auth.getClaims()

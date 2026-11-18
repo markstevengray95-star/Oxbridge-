@@ -13,14 +13,14 @@ const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim()
 const helpAreas = [
   {
     title: "Sign-in and account help",
-    description: "Use the normal sign-in and password-reset options first. Account and subscription controls are available from your Account page after signing in.",
+    description: "Use the normal sign-in and password-reset options first. Account and existing subscription management controls are available from your Account page after signing in.",
     icon: KeyRound,
     href: "/login",
     label: "Open sign in",
   },
   {
     title: "Billing and subscription",
-    description: "Plan access, billing status and available subscription controls are shown in Account & billing. Payment-card details are handled by Stripe rather than stored by Fellow.",
+    description: "New purchases are paused while every registered Fellow account has full access. Existing subscribers can manage or cancel recurring billing from their Account page.",
     icon: CreditCard,
     href: "/account",
     label: "Account & billing",
