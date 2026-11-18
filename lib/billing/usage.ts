@@ -1,6 +1,6 @@
 import { getAppAdminAccess } from "@/lib/auth/admin"
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
-import { effectiveTier, geminiReservationMinutes, monthStartIso, monthlyGeminiMinutes, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
+import { FREE_FULL_ACCESS, effectiveTier, geminiReservationMinutes, monthStartIso, monthlyGeminiMinutes, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
 
 type UsageState = {
   tier: SubscriptionTier
@@ -60,10 +60,11 @@ export async function getGeminiUsageState(userId: string, email?: string | null)
   if (adminAccess.isAdmin) return unlimitedState(reservationMinutes, true)
 
   if (!hasSupabaseAdminConfig()) {
-    const limit = monthlyGeminiMinutes("free")
+    const fallbackTier = FREE_FULL_ACCESS ? "school" : "free"
+    const limit = monthlyGeminiMinutes(fallbackTier)
     return {
-      tier: "free",
-      status: "inactive",
+      tier: fallbackTier,
+      status: FREE_FULL_ACCESS ? "active" : "inactive",
       usedMinutes: 0,
       limitMinutes: limit,
       baseRemainingMinutes: limit,
@@ -112,7 +113,7 @@ export async function getGeminiUsageState(userId: string, email?: string | null)
   const rawStatus = (subscription?.status ?? "inactive") as SubscriptionStatus
   const paidTier = effectiveTier(rawTier, rawStatus)
   const tier: SubscriptionTier = seat?.active ? "school" : paidTier
-  const status: SubscriptionStatus = seat?.active ? "active" : rawStatus
+  const status: SubscriptionStatus = FREE_FULL_ACCESS || seat?.active ? "active" : rawStatus
   const usedMinutes = (baseEvents ?? []).reduce((total, row) => total + numeric(row.quantity), 0)
   const limitMinutes = monthlyGeminiMinutes(tier)
   const baseRemainingMinutes = Math.max(0, limitMinutes - usedMinutes)
