@@ -6,8 +6,10 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 const headers = { "Cache-Control": "private, no-store" }
 
+async function currentUserId() { return currentSchoolUserId() }
+
 export async function GET() {
-  const userId = await currentSchoolUserId()
+  const userId = await currentUserId()
   if (!userId) return NextResponse.json({error:"Sign in required"},{status:401,headers})
   if (!hasSupabaseAdminConfig()) return NextResponse.json({error:"School connections are unavailable"},{status:503,headers})
   const admin = createAdminClient()
