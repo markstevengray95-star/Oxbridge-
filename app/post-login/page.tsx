@@ -1,7 +1,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { effectiveTier, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
+import { FREE_FULL_ACCESS, effectiveTier, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
 import { isConfiguredAdminEmail } from "@/lib/auth/admin-access"
 import { FREE_PLAN_COOKIE, onboardingCompleted, PLAN_ONBOARDING_STATE_KEY } from "@/lib/onboarding"
 
@@ -45,7 +45,7 @@ export default async function PostLoginPage({ searchParams }: PageProps) {
   }
 
   const isAdmin = isConfiguredAdminEmail(email)
-  if (isAdmin || isPracticeAccount) redirect("/student-home")
+  if (isAdmin || isPracticeAccount || FREE_FULL_ACCESS) redirect("/student-home")
 
   const cookieStore = await cookies()
   const cookieFreePlan = cookieStore.get(FREE_PLAN_COOKIE)?.value === userId
