@@ -1,3 +1,6 @@
+/** Temporary public-access release: all authenticated users get School-level features without checkout. Flip to false to restore paid-plan gates. */
+export const FREE_FULL_ACCESS = true
+
 export type SubscriptionTier = "free" | "pro" | "school"
 export type SubscriptionStatus = "inactive" | "trialing" | "active" | "past_due" | "canceled"
 export type BillingInterval = "monthly" | "annual"
@@ -63,6 +66,7 @@ export function geminiReservationMinutes() {
 }
 
 export function effectiveTier(tier: SubscriptionTier | null | undefined, status: SubscriptionStatus | null | undefined): SubscriptionTier {
+  if (FREE_FULL_ACCESS) return "school"
   if ((status === "active" || status === "trialing") && (tier === "pro" || tier === "school")) return tier
   return "free"
 }
