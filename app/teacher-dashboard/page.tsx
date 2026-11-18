@@ -1,0 +1,120 @@
+"use client"
+
+import Link from "next/link"
+import { useEffect, useMemo, useState } from "react"
+import { Activity, ArrowLeft, BarChart3, BookOpenCheck, GraduationCap, Loader2, RefreshCw, Search, Users } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+
+type Skill = { label?:string;score?:number;status?:string }
+type Student = {
+  userId:string;displayName:string;targetCourse:string|null;targetUniversity:string|null
+  applicationYear:number|null;preparationScore:number|null
+  interviewCount:number;fullPaperCount:number;essayCount:number
+  assignmentCompleted:number;assignmentTotal:number;assignmentPercent:number|null
+  currentPriority:Skill|null;strongestArea:Skill|null
+  lastActiveAt:string|null;activeThisWeek:boolean
+}
+type Data = {
+  organization:{name:string;role:"owner"|"school_admin"|"teacher"}
+  summary:{assigned:number;activeThisWeek:number;averagePreparation:number|null;needsFollowUp:number}
+  students:Student[]
+}
+function lastActive(value:string|null) {
+  if(!value)return "No activity recorded"
+  const date=new Date(value)
+  if(Number.isNaN(date.getTime()))return "No activity recorded"
+  return date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})
+}
+function csvCell(value:unknown) {return '"'+String(value??"").replaceAll('"','""')+'"'}
+
+export default function TeacherDashboardPage() {
+  const [data,setData]=useState<Data|null>(null)
+  const [error,setError]=useState("")
+  const [loading,setLoading]=useState(true)
+  const [search,setSearch]=useState("")
+  const [selectedId,setSelectedId]=useState("")
+
+  async function load() {
+    setLoading(true);setError("")
+    try{
+      const response=await fetch("/api/teacher/progress",{cache:"no-store"})
+      const payload=await response.json() as Data & {error?:string}
+      if(!response.ok)throw new Error(payload.error||"Could not load assigned students")
+      setData(payload)
+      setSelectedId(current => payload.students.some(s=>s.userId===current)?current:payload.students[0]?.userId||"")
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not load student progress");setData(null)}
+    finally{setLoading(false)}
+  }
+  useEffect(()=>{void load()},[])
+
+  const students=useMemo(()=>{
+    const term=search.trim().toLowerCase()
+    return (data?.students??[]).filter(s=>!term||[s.displayName,s.targetCourse,s.targetUniversity].some(v=>(v||"").toLowerCase().includes(term)))
+  },[search,data])
+  const selected=(data?.students??[]).find(s=>s.userId===selectedId)??students[0]??null
+
+  function exportCsv(){
+    if(!data)return
+    const rows=[
+      ["Student","University","Course","Application year","Preparation score","Interviews","Full papers","Essays","Assignments completed","Assignments total","Last active","Priority","Strength"],
+      ...students.map(s=>[s.displayName,s.targetUniversity,s.targetCourse,s.applicationYear,s.preparationScore,s.interviewCount,s.fullPaperCount,s.essayCount,s.assignmentCompleted,s.assignmentTotal,s.lastActiveAt,s.currentPriority?.label,s.strongestArea?.label]),
+    ]
+    const blob=new Blob([rows.map(row=>row.map(csvCell).join(",")).join("\n")],{type:"text/csv;charset=utf-8"})
+    const url=URL.createObjectURL(blob),a=document.createElement("a")
+    a.href=url;a.download="fellow-assigned-student-progress.csv";a.click();URL.revokeObjectURL(url)
+  }
+
+  return <main className="min-h-screen bg-[#f5f7f7] text-[#172b3a]">
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <Button asChild variant="ghost"><Link href="/student-home"><ArrowLeft/>Fellow home</Link></Button>
+        <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/school/teachers"><Users/>Manage teachers</Link></Button><Button variant="outline" disabled={loading} onClick={()=>void load()}><RefreshCw/>Refresh</Button></div>
+      </header>
+
+      <section><Badge variant="outline"><GraduationCap className="size-3.5"/>Teacher dashboard</Badge>
+        <h1 className="mt-3 font-serif text-4xl font-bold">Your students' preparation progress</h1>
+        <p className="mt-3 max-w-3xl text-slate-600">See the students assigned to your teacher account, their preparation scores, interview and exam practice, current priorities and assignment completion. Private tutor messages and interview transcripts are not shared here.</p>
+        {data&&<p className="mt-2 text-sm font-semibold text-[#147d91]">{data.organization.name} · {data.organization.role.replace("_"," ")}</p>}
+      </section>
+
+      {error&&<Card><CardHeader><CardTitle>Teacher access is not yet available</CardTitle><CardDescription>{error}</CardDescription></CardHeader><CardContent><p className="mb-3 text-sm text-slate-600">Create a Fellow account, join your school's workspace using its code, and ask the school owner to grant you Teacher access and link students.</p><Button asChild variant="outline"><Link href="/school-seats">Join a school workspace</Link></Button></CardContent></Card>}
+      {loading&&!data?<Card><CardContent className="flex items-center gap-2 p-6"><Loader2 className="animate-spin"/>Loading linked student progress…</CardContent></Card>:data?<>
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Card><CardHeader><Users className="size-5 text-[#147d91]"/><CardDescription>Assigned students</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.assigned}</CardTitle></CardHeader></Card>
+          <Card><CardHeader><Activity className="size-5 text-[#147d91]"/><CardDescription>Active this week</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.activeThisWeek}</CardTitle></CardHeader></Card>
+          <Card><CardHeader><BarChart3 className="size-5 text-[#147d91]"/><CardDescription>Average preparation</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.averagePreparation===null?"—":data.summary.averagePreparation+"%"}</CardTitle></CardHeader></Card>
+          <Card><CardHeader><BookOpenCheck className="size-5 text-[#147d91]"/><CardDescription>No activity in past week</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.needsFollowUp}</CardTitle></CardHeader></Card>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[1.45fr_.9fr]">
+          <Card><CardHeader><div className="flex flex-wrap justify-between gap-3"><div><CardTitle className="font-serif text-2xl">Assigned students</CardTitle><CardDescription>Only accounts linked to you by your school admin.</CardDescription></div><Button variant="outline" disabled={!students.length} onClick={exportCsv}>Export summary CSV</Button></div></CardHeader>
+            <CardContent className="space-y-3">
+              <label className="relative block"><Search className="absolute left-3 top-3 size-4 text-slate-400"/><input className="h-10 w-full rounded-lg border bg-white pl-9 pr-3 text-sm" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by student, course or university" /></label>
+              <div className="overflow-x-auto"><table className="w-full min-w-[670px] text-left text-sm">
+                <thead><tr className="border-b text-xs uppercase tracking-wide text-slate-500"><th className="p-3">Student</th><th className="p-3">Preparation</th><th className="p-3">Practice</th><th className="p-3">Assigned tasks</th><th className="p-3">Last activity</th></tr></thead>
+                <tbody>{students.map(s=><tr key={s.userId} onClick={()=>setSelectedId(s.userId)} className={`cursor-pointer border-b hover:bg-slate-50 ${selected?.userId===s.userId?"bg-[#edf7f8]":""}`}>
+                  <td className="p-3"><strong>{s.displayName}</strong><p className="mt-1 text-xs text-slate-500">{s.targetCourse||"Course not set"}</p></td>
+                  <td className="p-3">{s.preparationScore===null?"—":<div className="flex items-center gap-2"><Progress value={s.preparationScore} className="w-20"/><strong>{s.preparationScore}%</strong></div>}</td>
+                  <td className="p-3 text-xs">{s.interviewCount} interviews<p>{s.fullPaperCount} papers · {s.essayCount} essays</p></td>
+                  <td className="p-3">{s.assignmentCompleted}/{s.assignmentTotal}{s.assignmentPercent!==null?<Progress className="mt-1 w-20" value={s.assignmentPercent}/>:null}</td>
+                  <td className="p-3 text-xs"><Badge variant={s.activeThisWeek?"default":"outline"}>{lastActive(s.lastActiveAt)}</Badge></td>
+                </tr>)}</tbody>
+              </table></div>
+              {!students.length&&<p className="p-4 text-center text-sm text-slate-500">{data.students.length?"No matching students.":"No students have been assigned to your account yet. Ask the school owner to link them under Manage teachers."}</p>}
+            </CardContent>
+          </Card>
+
+          <Card><CardHeader><CardTitle className="font-serif text-2xl">Student progress detail</CardTitle><CardDescription>Choose a student from the list.</CardDescription></CardHeader><CardContent>{selected?<div className="space-y-5">
+            <div><h2 className="text-xl font-bold">{selected.displayName}</h2><p className="text-sm text-slate-500">{selected.targetUniversity||"University not selected"} · {selected.targetCourse||"Course not set"} {selected.applicationYear?(`· ${selected.applicationYear}`):""}</p></div>
+            <div className="rounded-2xl bg-[#edf7f8] p-4"><p className="text-xs font-bold uppercase tracking-wide text-[#234754]">Preparation score</p><p className="mt-2 font-serif text-3xl font-bold">{selected.preparationScore===null?"No baseline yet":selected.preparationScore+"%"}</p>{selected.preparationScore!==null&&<Progress className="mt-3" value={selected.preparationScore}/>}</div>
+            <div className="space-y-2 text-sm"><p><strong>Current priority:</strong> {selected.currentPriority?.label||"Building a baseline"}</p><p><strong>Strongest area:</strong> {selected.strongestArea?.label||"Not enough evidence yet"}</p><p><strong>Interviews:</strong> {selected.interviewCount}</p><p><strong>Full papers:</strong> {selected.fullPaperCount}</p><p><strong>Essays:</strong> {selected.essayCount}</p><p><strong>School assignments:</strong> {selected.assignmentCompleted} of {selected.assignmentTotal} complete</p><p><strong>Last recorded activity:</strong> {lastActive(selected.lastActiveAt)}</p></div>
+            <p className="text-xs leading-5 text-slate-500">Scores are practice indicators, not university admissions predictions. Activity depends on saved account evidence.</p>
+          </div>:<p className="text-sm text-slate-500">Assign students to begin tracking.</p>}</CardContent></Card>
+        </section>
+      </>:null}
+    </div>
+  </main>
+}
