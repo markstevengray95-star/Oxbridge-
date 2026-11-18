@@ -14,7 +14,7 @@ const PRO_ROUTES = [
   "/full-papers","/advanced-practice","/adaptive-paper","/admissions-test-courses","/preparation-report","/weekly-programme","/research-project","/knowledge-graph",
 ]
 const SCHOOL_ROUTES = [
-  "/school-classroom","/school-dashboard","/school-data","/school-differentiation","/school-insights","/school-overview","/school-reports","/school-seats",
+  "/school-classroom","/school-dashboard","/school-data","/school-differentiation","/school-insights","/school-overview","/school-reports","/school-seats","/teacher-dashboard","/school/teachers",
   "/human-review","/teacher-coach","/teacher-live-console","/human-interviewer",
 ]
 
