@@ -30,6 +30,9 @@ jobs:
       - name: Teacher and student link authorization checks
         run: node tests/teacher-access-boundaries.cjs
 
+      - name: Existing practice account roster checks
+        run: node tests/practice-account-roster.cjs
+
       - name: Mobile navigation regression checks
         run: node tests/mobile-navigation.cjs
 
