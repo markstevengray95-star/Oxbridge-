@@ -17,8 +17,10 @@ function error(message: string, status: number) {
   return NextResponse.json({ error: message }, { status, headers: noStore })
 }
 
+async function currentUserId() { return currentSchoolUserId() }
+
 async function context() {
-  const userId = await currentSchoolUserId()
+  const userId = await currentUserId()
   if (!userId || !hasSupabaseAdminConfig()) return null
   const admin = createAdminClient()
   const scope = await loadStaffScope(admin, userId)
