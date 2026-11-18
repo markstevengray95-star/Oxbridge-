@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
+import { FREE_FULL_ACCESS } from '@/lib/billing/plans'
 import { createClient } from '@/lib/supabase/server'
 export const runtime='nodejs'
 export const dynamic='force-dynamic'
 function pricing(request:Request,value:string){const url=new URL('/premium',request.url);url.searchParams.set('billing',value);return NextResponse.redirect(url,303)}
 export async function POST(request:Request){
+  if(FREE_FULL_ACCESS)return pricing(request,'payments-paused')
   try{
     const supabase=await createClient()
     const {data:{user},error:authError}=await supabase.auth.getUser()
