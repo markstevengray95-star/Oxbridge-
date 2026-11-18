@@ -16,8 +16,10 @@ function latestIso(values: (string | null | undefined)[]) {
     .sort((a,b) => Date.parse(b)-Date.parse(a))[0] ?? null
 }
 
+async function currentUserId() { return currentSchoolUserId() }
+
 export async function GET() {
-  const userId = await currentSchoolUserId()
+  const userId = await currentUserId()
   if (!userId) return NextResponse.json({error:"Sign in required"},{status:401,headers})
   if (!hasSupabaseAdminConfig()) return NextResponse.json({error:"School tracking is unavailable"},{status:503,headers})
   const admin = createAdminClient()
