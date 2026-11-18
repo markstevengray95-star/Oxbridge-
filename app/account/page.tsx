@@ -2,7 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { Brain, ClipboardCheck, CreditCard, GraduationCap, LogOut, Mic2, ShieldCheck, Sparkles } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
-import { effectiveTier, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
+import { FREE_FULL_ACCESS, effectiveTier, type SubscriptionStatus, type SubscriptionTier } from "@/lib/billing/plans"
 import { isStripeConfigured } from "@/lib/stripe/server"
 import { getGeminiUsageState } from "@/lib/billing/usage"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ type PageProps = {
 }
 
 const billingMessages: Record<string, string> = {
+  "payments-paused": "New payments are paused while every registered user has free full access.",
   success: "Checkout completed. Stripe is confirming your subscription; your plan will update automatically.",
   cancelled: "Checkout was cancelled. Your current plan has not changed.",
   "stripe-not-configured": "Checkout is temporarily unavailable. The server Stripe key is missing from this deployment.",
@@ -56,8 +57,8 @@ export default async function AccountPage({ searchParams }: PageProps) {
   const stripeConfigured = isStripeConfigured()
   const billingMessage = params.billing ? billingMessages[params.billing] : ""
   const renews = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("en-GB") : null
-  const accessLabel = usage.isAdmin ? "ADMIN" : tier.toUpperCase()
-  const accessStatus = usage.isAdmin ? "unlimited" : status
+  const accessLabel = usage.isAdmin ? "ADMIN" : FREE_FULL_ACCESS ? "FULL ACCESS" : tier.toUpperCase()
+  const accessStatus = usage.isAdmin ? "unlimited" : FREE_FULL_ACCESS ? "included free" : status
 
   return (
     <main className="min-h-screen bg-[#f2f5f5] px-4 py-7 text-[#172b3a] sm:px-6 lg:px-8 lg:py-10">
@@ -71,13 +72,30 @@ export default async function AccountPage({ searchParams }: PageProps) {
         {usage.isAdmin && <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"><ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" /><div><strong>Administrator access is active.</strong><p>All premium routes are unlocked and Gemini Live has no monthly minute cap for this account.</p></div></div>}
 
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-[#dbe5e7]"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CreditCard className="size-5 text-[#147d91]" />Plan</CardTitle><CardDescription>Your current access level</CardDescription></CardHeader><CardContent><div className="flex items-center gap-2"><Badge className="bg-[#102a43] text-white">{accessLabel}</Badge><span className="text-sm text-[#667984]">{accessStatus}</span></div>{!usage.isAdmin && renews && <p className="mt-2 text-xs text-[#7b8d96]">{subscription?.cancel_at_period_end ? `Access ends ${renews}` : `Current period ends ${renews}`}</p>}<p className="mt-3 text-sm text-[#667984]">{usage.isAdmin ? "Administrator access is independent of the normal subscription tier." : "Your saved work remains attached to this account even if your plan changes."}</p></CardContent></Card>
+          <Card className="border-[#dbe5e7]"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CreditCard className="size-5 text-[#147d91]" />Plan</CardTitle><CardDescription>Your current access level</CardDescription></CardHeader><CardContent><div className="flex items-center gap-2"><Badge className="bg-[#102a43] text-white">{accessLabel}</Badge><span className="text-sm text-[#667984]">{accessStatus}</span></div>{!FREE_FULL_ACCESS && !usage.isAdmin && renews && <p className="mt-2 text-xs text-[#7b8d96]">{subscription?.cancel_at_period_end ? `Access ends ${renews}` : `Current period ends ${renews}`}</p>}<p className="mt-3 text-sm text-[#667984]">{usage.isAdmin ? "Administrator access is independent of the normal subscription tier." : FREE_FULL_ACCESS ? "All preparation features are enabled without a subscription. Saved work remains in your account." : "Your saved work remains attached to this account even if your plan changes."}</p></CardContent></Card>
           <Card className="border-[#dbe5e7]"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Mic2 className="size-5 text-[#147d91]" />Gemini Live usage</CardTitle><CardDescription>{usage.unlimited ? "Administrator allowance" : "Monthly reserved interview minutes"}</CardDescription></CardHeader><CardContent>{usage.unlimited ? <div><p className="font-serif text-3xl font-bold">Unlimited</p><p className="mt-2 text-sm text-[#667984]">Sessions are not deducted from a monthly allowance.</p><div className="mt-3 h-2 overflow-hidden rounded-full bg-emerald-100"><div className="h-full w-full rounded-full bg-emerald-600" /></div></div> : <><div className="flex items-end justify-between gap-3"><p className="font-serif text-3xl font-bold">{usage.usedMinutes}<span className="text-base font-normal text-[#667984]"> / {usage.limitMinutes} min</span></p><span className="text-xs font-semibold text-[#667984]">{usage.remainingMinutes} left</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e2eaec]"><div className="h-full rounded-full bg-[#147d91]" style={{ width: `${geminiPercent}%` }} /></div></>}</CardContent></Card>
           <Card className="border-[#dbe5e7]"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Brain className="size-5 text-[#147d91]" />Learning memory</CardTitle><CardDescription>Active strengths, weaknesses and goals</CardDescription></CardHeader><CardContent><p className="font-serif text-4xl font-bold">{memories.count ?? 0}</p></CardContent></Card>
         </div>
 
         <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
+          {FREE_FULL_ACCESS ? (
+            <Card className="border-[#dbe5e7]">
+              <CardHeader><CardTitle className="font-serif text-2xl">Free full access</CardTitle><CardDescription>Payment subscriptions and new purchases are currently paused.</CardDescription></CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm leading-6 text-slate-600">Every signed-in account can use all student and school preparation features. No card or paid plan is required. Fair-use limits still apply to live AI services.</p>
+                {subscription?.stripe_customer_id && (
+                  <div className="rounded-xl border bg-white p-4">
+                    <p className="text-sm font-semibold">Existing Stripe subscription</p>
+                    <p className="mt-1 text-sm text-slate-600">Free access does not automatically stop previous recurring charges. You can manage or cancel an existing subscription below.</p>
+                    <form className="mt-3" action="/api/billing/portal" method="post"><Button type="submit" variant="outline"><CreditCard/>Manage existing billing</Button></form>
+                  </div>
+                )}
+                <Button asChild><Link href="/student-home">Continue preparing</Link></Button>
+              </CardContent>
+            </Card>
+          ) : (
           <Card className="border-[#dbe5e7]"><CardHeader><CardTitle className="font-serif text-2xl">Subscription & billing</CardTitle><CardDescription>{usage.isAdmin ? "Administrator access bypasses normal feature and AI quotas." : "Choose monthly or annual billing from the pricing page. Stripe handles checkout and billing management."}</CardDescription></CardHeader><CardContent className="space-y-4">{usage.isAdmin ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"><p className="font-semibold">No upgrade is required for this account.</p><p className="mt-1">You can test Free, Pro and School features through the admin console without changing the subscription record.</p></div> : <><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-[#147d91]">Free</p><p className="mt-2 text-sm leading-6 text-[#667984]">Core preparation tools, personal cloud progress and a limited monthly Gemini Live allowance.</p></div><div className="rounded-2xl border bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-[#147d91]">Pro & School</p><p className="mt-2 text-sm leading-6 text-[#667984]">Monthly and discounted annual plans are available from the pricing page.</p></div></div><div className="flex flex-wrap gap-2"><Button asChild><Link href="/premium"><CreditCard />View pricing</Link></Button>{subscription?.stripe_customer_id && <form action="/api/billing/portal" method="post"><Button type="submit" variant="outline"><CreditCard />Manage billing</Button></form>}</div>{!stripeConfigured && <p className="text-xs leading-5 text-amber-800">Paid checkout is temporarily unavailable. Please try again later.</p>}</>}</CardContent></Card>
+          )}
 
           <Card className="border-[#dbe5e7]"><CardHeader><CardTitle className="font-serif text-2xl">Continue preparing</CardTitle></CardHeader><CardContent className="space-y-2"><Button className="w-full justify-start" asChild><Link href="/tutor"><Brain />Personal tutor</Link></Button><Button className="w-full justify-start" variant="outline" asChild><Link href="/gemini-live-interview"><Mic2 />Live interview</Link></Button><Button className="w-full justify-start" variant="outline" asChild><Link href="/interviews"><Sparkles />Interview hub</Link></Button><Button className="w-full justify-start" variant="outline" asChild><Link href="/course-bank"><ClipboardCheck />Admissions tests</Link></Button>{usage.isAdmin && <Button className="w-full justify-start" variant="outline" asChild><Link href="/admin"><ShieldCheck />Admin console</Link></Button>}<Button className="w-full justify-start" variant="outline" asChild><Link href="/"><GraduationCap />Home</Link></Button></CardContent></Card>
         </div>
