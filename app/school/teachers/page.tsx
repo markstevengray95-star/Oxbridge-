@@ -55,6 +55,7 @@ export default function SchoolTeachersPage() {
       const result=await response.json() as {error?:string}
       if(!response.ok)throw new Error(result.error||"Could not update teacher access")
       setMessage(payload.action==="grantRole"?"Staff permissions updated.":payload.action==="revokeRole"?"Staff permissions removed.":"Student links updated.")
+      if (payload.action === "linkStudent") setStudentId("")
       await load()
     }catch(cause){setError(cause instanceof Error?cause.message:"Could not update teacher access")}
     finally{setBusy("")}
