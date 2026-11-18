@@ -25,7 +25,7 @@ export async function GET() {
   if (!scope) return NextResponse.json({error:"A school owner must grant you teacher access"},{status:403,headers})
 
   const [{data:memberRows,error:memberError}, {data:staffRows,error:staffError}, {data:links,error:linkError}] = await Promise.all([
-    admin.from("school_organization_members").select("user_id").eq("organization_id",scope.organizationId),
+    admin.from("school_organization_members").select("user_id,role").eq("organization_id",scope.organizationId),
     admin.from("school_staff_roles").select("user_id").eq("organization_id",scope.organizationId).eq("active",true),
     scope.isOwner ? Promise.resolve({data:[],error:null}) : admin.from("school_teacher_student_links")
       .select("student_user_id").eq("organization_id",scope.organizationId).eq("teacher_user_id",userId),
@@ -35,7 +35,8 @@ export async function GET() {
   const members = (memberRows ?? []).map(x => x.user_id)
   const staffIds = new Set((staffRows ?? []).map(x => x.user_id))
   const connected = new Set(scope.isOwner ? members : (links ?? []).map(x => x.student_user_id))
-  const candidateIds = members.filter(id => connected.has(id) && !staffIds.has(id) && id !== scope.userId)
+  const ownerIds = new Set((memberRows ?? []).filter(m => m.role === "owner").map(m => m.user_id))
+  const candidateIds = members.filter(id => connected.has(id) && !staffIds.has(id) && !ownerIds.has(id) && id !== scope.userId)
   if (!candidateIds.length) {
     return NextResponse.json({
       organization:{name:scope.organizationName,role:scope.role},
