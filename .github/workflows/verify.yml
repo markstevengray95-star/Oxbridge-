@@ -27,6 +27,9 @@ jobs:
       - name: Free full-access and checkout safety checks
         run: node tests/free-full-access.cjs
 
+      - name: Teacher and student link authorization checks
+        run: node tests/teacher-access-boundaries.cjs
+
       - name: Mobile navigation regression checks
         run: node tests/mobile-navigation.cjs
 
