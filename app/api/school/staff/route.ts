@@ -99,6 +99,10 @@ export async function POST(request: Request) {
     if (!authUser.user?.email_confirmed_at) return error("Teacher must confirm their email before receiving staff access",400)
     const { data: previous } = await admin.from("school_staff_roles").select("role")
       .eq("organization_id",scope.organizationId).eq("user_id",teacherId).maybeSingle()
+    // A promoted staff member must not remain on someone else\'s pupil roster.
+    const { error: removedStudentLinksError } = await admin.from("school_teacher_student_links").delete()
+      .eq("organization_id",scope.organizationId).eq("student_user_id",teacherId)
+    if (removedStudentLinksError) return error("Could not clear previous student links",500)
     const { error: grantError } = await admin.from("school_staff_roles").upsert({
       organization_id:scope.organizationId,user_id:teacherId,role:body.role,active:true,
       granted_by:scope.userId,updated_at:new Date().toISOString(),
