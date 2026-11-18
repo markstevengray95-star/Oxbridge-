@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { FREE_FULL_ACCESS } from "@/lib/billing/plans"
 import { AlertTriangle, GraduationCap, Scale, ShieldCheck } from "lucide-react"
 
 const operator = process.env.NEXT_PUBLIC_DATA_CONTROLLER_NAME || "Fellow"
@@ -14,7 +15,7 @@ export default function TermsPage() {
       <section className="rounded-3xl bg-[#102a43] p-7 text-white sm:p-9">
         <p className="text-xs font-bold uppercase tracking-[.18em] text-cyan-200">Terms of Service & consumer information</p>
         <h1 className="mt-3 font-serif text-4xl font-bold">Clear rules for using and buying Fellow.</h1>
-        <p className="mt-4 max-w-3xl leading-7 text-slate-200">Last updated 4 October 2026. These terms explain the educational service, free trials, subscriptions, cancellation, AI limitations and account responsibilities. Your statutory consumer rights are not excluded.</p>
+        <p className="mt-4 max-w-3xl leading-7 text-slate-200">Last updated {FREE_FULL_ACCESS ? "18 November 2026" : "4 October 2026"}. These terms explain the educational service, free trials, subscriptions, cancellation, AI limitations and account responsibilities. Your statutory consumer rights are not excluded.</p>
       </section>
 
       <Notice icon={<Scale />} title="Who provides the service"><p>Fellow is operated by <strong>{operator}</strong>. Operating location: {address}. Legal/contact email: {legalEmail}. If Fellow is a trading name rather than a separate incorporated legal entity, the underlying legal person or entity must also be identified in any disclosure where the law requires it.</p></Notice>
@@ -22,6 +23,15 @@ export default function TermsPage() {
       <Notice icon={<GraduationCap />} title="Educational service — not an admissions decision"><p>Fellow provides preparation, practice questions, writing feedback and simulated interview coaching. AI or offline scores are practice signals only. They are not official Oxford, Cambridge, UCAS, admissions-test-provider, school or university decisions, marks or guarantees of an offer.</p></Notice>
       <Notice icon={<ShieldCheck />} title="Accounts and younger users"><p>You must give accurate account information and keep login details private. Direct self-sign-up is intended for people aged 13 or over. Users under 18 receive high-privacy defaults. A user under 18 must not confirm a paid purchase unless an appropriate adult has authorised that purchase.</p></Notice>
 
+      {FREE_FULL_ACCESS ? (
+        <Section title="Temporary free access and existing subscriptions">
+          <p>From 18 November 2026, all registered Fellow accounts have access to the full individual and school preparation features without a subscription or payment card. New subscriptions and new paid add-on checkouts are paused.</p>
+          <p>AI and live voice features remain subject to fair-use allowances and security protections. Commissioned human expert reviews are not included in this free access offer.</p>
+          <p>Existing recurring Stripe subscriptions are not cancelled automatically. Customers who subscribed before the pause can manage or cancel their existing subscription from Account. Any previously agreed billing terms and applicable statutory rights continue to apply until cancellation takes effect.</p>
+          <p>School cohort membership, ownership and access to other users' data still require appropriate invitations and permissions; feature access does not grant administrator privileges.</p>
+        </Section>
+      ) : (
+        <>
       <Section title="Free trials, subscriptions, prices and renewal">
         <p>For an eligible first-time customer, an Individual Pro subscription starts with a 5-day free trial and a School subscription starts with a 7-day free trial. Trial eligibility is limited to the first subscription associated with the Stripe customer/account; a previous, expired or cancelled subscription does not create another free trial.</p>
         <p>Before checkout, Fellow shows the selected plan, price, billing interval and trial terms. Stripe collects the payment method used for the subscription. Unless you cancel before an eligible trial ends, Stripe will automatically charge the displayed monthly or annual price at the end of the trial. The subscription then renews automatically at the selected interval until cancelled.</p>
@@ -32,6 +42,10 @@ export default function TermsPage() {
       <Section title="Promo codes and School subscriptions">
         <p>Where enabled, valid Stripe promotion codes can be entered during checkout. The discount, duration and any eligibility rules shown by Stripe apply to that purchase. School subscriptions include the seats and usage stated on the pricing page; additional seats or paid add-ons may have separate prices and billing terms shown before purchase.</p>
       </Section>
+
+
+        </>
+      )}
 
       <Section title="Cooling-off, cancellation, refunds and digital-service rights">
         <p>UK consumers may have statutory cancellation, refund, repair, repeat-performance or price-reduction rights depending on what was bought, when supply began and the circumstances. Nothing in these terms removes those rights.</p>
