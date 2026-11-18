@@ -131,6 +131,7 @@ const groups: NavGroup[] = [
         label: "School & account",
         items: [
           { href: "/school-classroom", label: "Student Classroom", description: "Join a cohort and complete assigned preparation" },
+          { href: "/student/teacher-links", label: "My linked teachers", description: "See which teachers can access your progress summary" },
           { href: "/school-dashboard", label: "School Dashboard", description: "Cohorts, assignments, analytics and reports" },
           { href: "/teacher-dashboard", label: "My Students", description: "Track progress for students assigned to your teacher account" },
           { href: "/school/teachers", label: "Manage Teachers", description: "Assign school staff roles and link student accounts" },
