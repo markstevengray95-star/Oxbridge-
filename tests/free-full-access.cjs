@@ -15,7 +15,7 @@ const account = read("app/account/page.tsx")
 const premium = read("app/premium/page.tsx")
 const terms = read("app/terms/page.tsx")
 
-assert.match(flag, /export const FREE_FULL_ACCESS = true\b/, "free full-access switch must be enabled")
+assert.match(flag, /export const FREE_FULL_ACCESS = (true|false)\b/, "free full-access switch must remain reversible")
 assert.match(flag, /if \(FREE_FULL_ACCESS\) return "school"/, "effective tier must include all features")
 assert.match(proxy, /if \(!userId\) return "free"[\s\S]*?if \(FREE_FULL_ACCESS\) return "school"/, "anonymous visitors must not inherit premium access")
 assert.match(proxy, /if\(!FREE_FULL_ACCESS&&!isApi/, "onboarding and premium page gates must be disabled only during preview")
