@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { FormEvent, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { GraduationCap, KeyRound, Loader2, LockKeyhole, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -20,6 +20,13 @@ export default function PracticeLoginPage() {
   const [password, setPassword] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get("status")
+    if (status === "expired") setError("This practice login has expired. Please ask your administrator for a new expiry date.")
+    if (status === "removed") setError("This practice login has been removed. Please contact your administrator.")
+    if (status === "unavailable") setError("Practice access could not be verified. Please try again.")
+  }, [])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
