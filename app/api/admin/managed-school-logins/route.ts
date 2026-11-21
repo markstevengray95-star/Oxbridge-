@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic"
 const noStore = { "Cache-Control": "private, no-store" }
 const usernamePattern = /^[a-z0-9][a-z0-9._-]{2,31}$/
 type Role = "teacher" | "school_admin"
+type SeatJoinResult = { result?: "joined" | "full" | "already_seated" | "inactive"; school_name?: string | null; seats_used?: number; seat_limit?: number }
 type Body = {
   action?: "createTeacher" | "attachStudent" | "linkStudent" | "unlinkStudent" | "resetTeacherPassword" | "setTeacherRole"
   schoolId?: string
@@ -125,7 +126,8 @@ export async function POST(request: Request) {
     })
     if(loginError) return abort(loginError.code==="23505"?"Username already in use":"Could not save the teacher username",loginError.code==="23505"?409:500)
     const {data:seat,error:seatError}=await admin.rpc("oxbridge_join_school_seat",{p_user_id:id,p_organization_id:schoolId}).maybeSingle()
-    if(seatError||seat?.result!=="joined") return abort(seat?.result==="full"?"School has no remaining spaces":"Could not attach teacher to school",seat?.result==="full"?409:500)
+    const seatOutcome=(seat??{}) as SeatJoinResult
+    if(seatError||seatOutcome.result!=="joined") return abort(seatOutcome.result==="full"?"School has no remaining spaces":"Could not attach teacher to school",seatOutcome.result==="full"?409:500)
     const {error:staffError}=await admin.from("school_staff_roles").insert({
       organization_id:schoolId,user_id:id,role,active:true,granted_by:actor.id,
     })
@@ -162,7 +164,8 @@ export async function POST(request: Request) {
       const {data:joined,error:joinError}=await admin.rpc("oxbridge_join_school_seat",{
         p_user_id:studentId,p_organization_id:schoolId,
       }).maybeSingle()
-      if(joinError||joined?.result!=="joined") return fail(joined?.result==="full"?"School has no remaining spaces":"Could not attach practice student to school",joined?.result==="full"?409:500)
+      const joinOutcome=(joined??{}) as SeatJoinResult
+      if(joinError||joinOutcome.result!=="joined") return fail(joinOutcome.result==="full"?"School has no remaining spaces":"Could not attach practice student to school",joinOutcome.result==="full"?409:500)
     }
     const {error:auditError}=await admin.from("school_staff_audit_events").insert({
       organization_id:schoolId,actor_user_id:actor.id,subject_user_id:studentId,action:"attach_student",
