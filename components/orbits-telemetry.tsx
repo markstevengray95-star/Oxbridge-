@@ -62,7 +62,7 @@ export function OrbitsTelemetry() {
   // Navigation history is stored only for server-verified managed practice learners.
   // Pathnames only: never record query strings, form answers, or other websites.
   useEffect(() => {
-    if (document.hidden || !/^\\/[a-zA-Z0-9/_-]*$/.test(pathname) || pathname.length > 160) return;
+    if (document.hidden || !/^\/[a-zA-Z0-9/_-]*$/.test(pathname) || pathname.length > 160) return;
     void (async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session?.user?.id) return;
