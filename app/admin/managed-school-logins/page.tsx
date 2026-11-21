@@ -22,6 +22,8 @@ export default function AdminManagedSchoolLoginsPage(){
   const [username,setUsername]=useState("")
   const [displayName,setDisplayName]=useState("")
   const [password,setPassword]=useState("")
+  const [resetTarget,setResetTarget]=useState("")
+  const [resetPassword,setResetPassword]=useState("")
   const [role,setRole]=useState<"teacher"|"school_admin">("teacher")
   const [teacherId,setTeacherId]=useState("")
   const [studentId,setStudentId]=useState("")
@@ -108,10 +110,16 @@ export default function AdminManagedSchoolLoginsPage(){
     setNotice("Teacher login details copied. Share them privately with the intended teacher.")
   }
   async function resetTeacher(t:AccountRow){
-    const next=window.prompt(`Set a new password for teacher ${t.username} (8–128 characters):`)
-    if(!next)return
-    if(next.length<8||next.length>128){setError("Password must be 8–128 characters");return}
-    await doAction({action:"resetTeacherPassword",schoolId,teacherUserId:t.userId,password:next},"Teacher password updated. Share the new password securely.")
+    if(resetPassword.length<8||resetPassword.length>128){setError("Password must be 8–128 characters");return}
+    setBusy(true);setError("");setNotice("")
+    try{
+      await api({action:"resetTeacherPassword",schoolId,teacherUserId:t.userId,password:resetPassword})
+      setCreated({username:t.username,password:resetPassword,displayName:t.displayName,role:t.role||"teacher",schoolName:school?.name||""})
+      setNotice("Teacher password updated. Copy the new login details securely.")
+      setResetTarget("");setResetPassword("")
+      await load()
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not reset teacher password")}
+    finally{setBusy(false)}
   }
   async function changeRole(t:AccountRow,next:"teacher"|"school_admin"){
     if(!window.confirm(`Change ${t.username} to ${next==="teacher"?"Teacher":"School Admin"}? School Admins can manage teacher–student links.`))return
@@ -241,8 +249,12 @@ export default function AdminManagedSchoolLoginsPage(){
               <div className="flex flex-wrap gap-2">
                 {t.role!=="school_admin"&&<Button variant="outline" size="sm" disabled={busy} onClick={()=>void changeRole(t,"school_admin")}>Make School Admin</Button>}
                 {t.role==="school_admin"&&<Button variant="outline" size="sm" disabled={busy} onClick={()=>void changeRole(t,"teacher")}>Make Teacher</Button>}
-                <Button size="sm" variant="outline" disabled={busy} onClick={()=>void resetTeacher(t)}><KeyRound/>Reset password</Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={()=>{setResetTarget(resetTarget===t.userId?"":t.userId);setResetPassword("")}}><KeyRound/>Reset password</Button>
               </div>
+              {resetTarget===t.userId&&<div className="flex w-full flex-wrap items-center gap-2 border-t pt-3">
+                <label className="flex-1 space-y-1"><span className="text-xs font-semibold">New password for {t.username}</span><Input type="password" value={resetPassword} onChange={e=>setResetPassword(e.target.value)} minLength={8} maxLength={128} autoComplete="new-password" placeholder="8–128 characters"/></label>
+                <Button className="self-end" disabled={busy||resetPassword.length<8} onClick={()=>void resetTeacher(t)}>Save new password</Button>
+              </div>}
             </div>):<p className="text-sm text-slate-500">No teacher usernames have been created for this school yet.</p>}</CardContent>
           </Card>
         </>}
