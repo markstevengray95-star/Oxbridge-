@@ -85,7 +85,6 @@ export async function updateSession(request: NextRequest) {
   // JWT's practice permissions or continue using protected pages/APIs.
   // Use the service-role client only on the server; never expose its key.
   if (userId && !e2eSession && hasPracticeAccess(user)
-      && pathname !== "/practice-login" && pathname !== "/login"
       && pathname !== "/api/auth/practice-login") {
     if (!hasSupabaseAdminConfig()) {
       if (isApi) return NextResponse.json({ error: "Managed practice access is temporarily unavailable." }, { status: 503, headers: { "Cache-Control": "no-store" } })
@@ -99,6 +98,9 @@ export async function updateSession(request: NextRequest) {
     const invalid = managedError || !managed || !managed.active
       || (managed.expires_at && Date.parse(managed.expires_at) <= Date.now())
     if (invalid) {
+      // Allow users with an expired/removed session to open sign-in and replace
+      // it with a different valid account; otherwise redirects would loop.
+      if (pathname === "/practice-login" || pathname === "/login") return response
       if (isApi) return NextResponse.json({
         error: managedError ? "Could not verify practice access." : "This practice login has expired or been removed.",
         code: managedError ? "practice_access_unavailable" : "practice_access_ended",
