@@ -67,6 +67,7 @@ export default function PracticeLoginPage() {
             {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
             <Button className="h-11 w-full" disabled={busy}>{busy ? <><Loader2 className="animate-spin" />Signing in…</> : <><KeyRound />Start practising</>}</Button>
           </form>
+          <p className="mt-4 rounded-lg bg-slate-100 p-3 text-xs leading-5 text-slate-600">For issued student practice accounts, the Fellow administrator can review in-app page visits, measured time, practice answers, test scores and saved interview transcripts. Fellow does not monitor other websites or device contents. <Link href="/privacy" className="font-semibold underline">Privacy notice</Link></p>
           <div className="mt-5 border-t pt-4 text-sm"><Link href="/login" className="font-semibold text-[#147d91] hover:underline">Use a normal email account instead</Link></div>
         </CardContent>
       </Card>
