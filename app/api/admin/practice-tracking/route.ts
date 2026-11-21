@@ -77,7 +77,12 @@ function latestIso(values: Array<string | null | undefined>) {
 function answerCount(payload: unknown) {
   const data = record(payload)
   const reviews = array(data.questionReview)
-  if (reviews.length) return reviews.length
+  if (reviews.length) return reviews.filter(item => {
+    const review = record(item)
+    const answer = typeof review.answer === "string" ? review.answer : typeof review.selectedAnswer === "string" ? review.selectedAnswer : ""
+    if (!answer || answer === "Unanswered") return false
+    return !/^(?:\\d+:\\s*—(?:\\s*·\\s*)?)+$/.test(answer)
+  }).length
   return numberValue(data.answered, 0)
 }
 
