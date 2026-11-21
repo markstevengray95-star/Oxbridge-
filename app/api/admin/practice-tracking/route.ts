@@ -109,6 +109,7 @@ export async function GET(request: Request) {
   const { data: accountData, error: accountError } = await admin
     .from("practice_access_accounts")
     .select("user_id,username,display_name,active,unlimited_usage,created_by,created_at,updated_at")
+    .eq("account_type","student")
     // Platform administrators can see all managed practice logins, including
     // logins issued under a previous admin session. Auth and student evidence
     // remain scoped exclusively to verified platform administrators.
