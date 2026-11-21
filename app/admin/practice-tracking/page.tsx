@@ -146,7 +146,9 @@ function formatDate(value?: string | null) {
 }
 
 function answerText(item: QuestionReview) {
-  return item.answer ?? item.selectedAnswer ?? "Unanswered"
+  const answer = item.answer ?? item.selectedAnswer ?? "Unanswered"
+  if (!answer || /^(?:\\d+:\\s*—(?:\\s*·\\s*)?)+$/.test(answer)) return "Unanswered"
+  return answer
 }
 
 function scoreDenominator(test: TestAttempt) {
