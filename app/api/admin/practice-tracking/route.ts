@@ -347,7 +347,7 @@ export async function GET(request: Request) {
   }
 
   const [testsResult, sessionsResult, turnsResult, authResults, stateResult, usageResult, navigationResult] = await Promise.all([
-    admin.from("test_results").select("user_id,accuracy,total_questions,duration_seconds,completed_at,payload").in("user_id", userIds),
+    admin.from("test_results").select("user_id,test,accuracy,total_questions,duration_seconds,completed_at,payload").in("user_id", userIds),
     admin.from("interview_sessions").select("id,user_id,duration_seconds,created_at").in("user_id", userIds),
     admin.from("interview_turns").select("user_id,role,created_at").in("user_id", userIds),
     Promise.all(accounts.map(account => admin.auth.admin.getUserById(account.user_id))),
@@ -363,14 +363,14 @@ export async function GET(request: Request) {
   if (sessionsResult.error) return NextResponse.json({ error: `Could not load interview summaries: ${sessionsResult.error.message}` }, { status: 500 })
   if (turnsResult.error) return NextResponse.json({ error: `Could not load transcript summaries: ${turnsResult.error.message}` }, { status: 500 })
 
-  const testRows = (testsResult.data ?? []) as Array<Pick<TestResultRow, "user_id" | "accuracy" | "total_questions" | "duration_seconds" | "completed_at" | "payload">>
+  const testRows = (testsResult.data ?? []) as Array<Pick<TestResultRow, "user_id" | "test" | "accuracy" | "total_questions" | "duration_seconds" | "completed_at" | "payload">>
   const sessionRows = (sessionsResult.data ?? []) as Array<Pick<InterviewSessionRow, "id" | "user_id" | "duration_seconds" | "created_at">>
   const turnRows = (turnsResult.data ?? []) as Array<Pick<InterviewTurnRow, "user_id" | "role" | "created_at">>
 
   const summaries = accounts.map((account, index) => {
     const savedTests = testRows.filter(item => item.user_id === account.user_id)
     const states = ((stateResult.data ?? []) as StateRow[]).filter(item => item.user_id === account.user_id)
-    const recovered = recoveredPaper(states, savedTests.map((item, index) => ({ ...item, id: "summary-" + index, source_ref: "", test: "", form: null, title: null, raw_score: 0, max_raw_marks: null, total_questions: item.total_questions, accuracy: item.accuracy, completed_at: item.completed_at, duration_seconds: item.duration_seconds, payload: item.payload })), account.user_id)
+    const recovered = recoveredPaper(states, savedTests.map((item, index) => ({ ...item, id: "summary-" + index, source_ref: "", test: item.test, form: null, title: null, raw_score: 0, max_raw_marks: null, total_questions: item.total_questions, accuracy: item.accuracy, completed_at: item.completed_at, duration_seconds: item.duration_seconds, payload: item.payload })), account.user_id)
     const tests = recovered ? [...savedTests, recovered] : savedTests
     const sessions = sessionRows.filter(item => item.user_id === account.user_id)
     const accountTurns = turnRows.filter(item => item.user_id === account.user_id)
