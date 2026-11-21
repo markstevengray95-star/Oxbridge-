@@ -20,6 +20,7 @@ const userTables: ExportTable[] = [
   { name: "safeguarding_reports", ownerColumns: ["user_id"] },
   { name: "human_review_orders", ownerColumns: ["user_id"] },
   { name: "practice_access_accounts", ownerColumns: ["user_id"] },
+  { name: "fellow_practice_activity_events", ownerColumns: ["user_id"] },
   { name: "school_seat_entitlements", ownerColumns: ["user_id"] },
   { name: "school_organization_members", ownerColumns: ["user_id"] },
   { name: "school_memberships", ownerColumns: ["user_id"] },
