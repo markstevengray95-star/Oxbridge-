@@ -55,12 +55,13 @@ export async function GET() {
   if(membersResult.error||rolesResult.error||linksResult.error) return fail("Could not load school memberships",500)
 
   const memberOrg = new Map((membersResult.data??[]).map(m=>[m.user_id,m.organization_id]))
+  const ownedSchoolIds = new Set(schoolIds)
   const roleByUser = new Map((rolesResult.data??[]).filter(r=>r.active).map(r=>[r.user_id,r]))
   const students = (accounts??[]).filter(a=>a.account_type==="student").map(a=>({
     userId:a.user_id,username:a.username,displayName:a.display_name||a.username,active:a.active,
-    schoolId:memberOrg.get(a.user_id)||null,
+    schoolId:memberOrg.has(a.user_id) ? (ownedSchoolIds.has(memberOrg.get(a.user_id)!) ? memberOrg.get(a.user_id) : "other") : null,
   }))
-  const teachers = (accounts??[]).filter(a=>a.account_type==="teacher").map(a=>({
+  const teachers = (accounts??[]).filter(a=>a.account_type==="teacher"&&roleByUser.has(a.user_id)).map(a=>({
     userId:a.user_id,username:a.username,displayName:a.display_name||a.username,active:a.active,
     schoolId:roleByUser.get(a.user_id)?.organization_id||null,
     role:roleByUser.get(a.user_id)?.role||null,
@@ -201,13 +202,14 @@ export async function POST(request: Request) {
     const teacherId=body.teacherUserId||"", studentId=body.studentUserId||""
     if(!uuidPattern.test(teacherId)||!uuidPattern.test(studentId)||teacherId===studentId)
       return fail("Choose different, valid teacher and student accounts",400)
-    const [{data:staff},{data:student},{data:studentMember},{data:studentSeat}]=await Promise.all([
+    const [{data:staff},{data:teacherSeat},{data:student},{data:studentMember},{data:studentSeat}]=await Promise.all([
       admin.from("school_staff_roles").select("active").eq("organization_id",schoolId).eq("user_id",teacherId).maybeSingle(),
+      admin.from("school_seat_entitlements").select("active").eq("organization_id",schoolId).eq("user_id",teacherId).maybeSingle(),
       admin.from("practice_access_accounts").select("account_type,active").eq("user_id",studentId).maybeSingle(),
       admin.from("school_organization_members").select("user_id,role").eq("organization_id",schoolId).eq("user_id",studentId).maybeSingle(),
       admin.from("school_seat_entitlements").select("active").eq("organization_id",schoolId).eq("user_id",studentId).maybeSingle(),
     ])
-    if(!staff?.active||student?.account_type!=="student"||!student.active||!studentMember||studentMember.role==="owner"||!studentSeat?.active)
+    if(!staff?.active||!teacherSeat?.active||student?.account_type!=="student"||!student.active||!studentMember||studentMember.role==="owner"||!studentSeat?.active)
       return fail("The teacher and practice student must both be active members of this school",403)
     if(body.action==="linkStudent") {
       const {error:linkError}=await admin.from("school_teacher_student_links").upsert({
