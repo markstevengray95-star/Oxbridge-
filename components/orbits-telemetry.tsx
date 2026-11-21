@@ -59,6 +59,26 @@ export function OrbitsTelemetry() {
     };
   }, [supabase]);
 
+  // Navigation history is stored only for server-verified managed practice learners.
+  // Pathnames only: never record query strings, form answers, or other websites.
+  useEffect(() => {
+    if (document.hidden || !/^\\/[a-zA-Z0-9/_-]*$/.test(pathname) || pathname.length > 160) return;
+    void (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.user?.id) return;
+      try {
+        await fetch("/api/practice/activity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pagePath: pathname }),
+          cache: "no-store",
+        });
+      } catch {
+        // Navigation tracking must never prevent students using Fellow.
+      }
+    })();
+  }, [pathname, supabase]);
+
   useEffect(() => {
     void (async () => {
       if (document.hidden) return;
