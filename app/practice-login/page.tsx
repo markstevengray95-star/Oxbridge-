@@ -31,9 +31,10 @@ export default function PracticeLoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       })
-      const data = await response.json() as { error?: string }
+      const data = await response.json() as { error?: string; nextPath?: string }
       if (!response.ok) throw new Error(data.error || "Could not sign in.")
-      router.replace(nextPath())
+      const requested = nextPath()
+      router.replace(requested === "/student-home" && data.nextPath === "/teacher-dashboard" ? "/teacher-dashboard" : requested)
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in.")
@@ -48,10 +49,10 @@ export default function PracticeLoginPage() {
       <Card className="overflow-hidden rounded-[2rem] border-[#dbe5e7] shadow-[0_30px_90px_rgba(16,42,67,.09)]">
         <div className="bg-[#102a43] p-7 text-white sm:p-9">
           <div className="grid size-12 place-items-center rounded-2xl bg-white/10 text-[#8dd7de]"><KeyRound /></div>
-          <h1 className="mt-5 font-serif text-3xl font-bold">Practice access</h1>
-          <p className="mt-3 text-sm leading-6 text-white/70">Use the username and password your teacher or administrator gave you. Managed practice accounts have unlimited practice usage and keep progress separate for each learner.</p>
+          <h1 className="mt-5 font-serif text-3xl font-bold">Practice and teacher access</h1>
+          <p className="mt-3 text-sm leading-6 text-white/70">Use the username and password your administrator gave you. Student practice accounts keep progress saved for each learner, while teacher accounts open their own school progress dashboard.</p>
         </div>
-        <CardHeader className="pb-2"><CardTitle className="font-serif text-2xl">Sign in with a practice username</CardTitle><CardDescription>No email address is required for this managed login.</CardDescription></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="font-serif text-2xl">Sign in with your issued username</CardTitle><CardDescription>No email address is required for this managed login.</CardDescription></CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
             <label className="block space-y-1.5"><span className="text-sm font-semibold">Username</span><div className="relative"><UserRound className="absolute left-3 top-3 size-4 text-[#7b8d96]" /><Input className="pl-9" value={username} onChange={event => setUsername(event.target.value)} autoCapitalize="none" autoCorrect="off" autoComplete="username" required /></div></label>

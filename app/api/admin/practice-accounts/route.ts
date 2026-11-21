@@ -37,6 +37,7 @@ export async function GET() {
   const { data: rows, error } = await admin
     .from("practice_access_accounts")
     .select("user_id,username,display_name,active,unlimited_usage,created_at,updated_at")
+    .eq("account_type", "student")
     .order("created_at", { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -121,6 +122,7 @@ export async function POST(request: Request) {
       active: true,
       unlimited_usage: true,
       created_by: actor.userId,
+      account_type: "student",
     })
 
     if (insertError) {
@@ -145,6 +147,7 @@ export async function POST(request: Request) {
     const { data: practiceAccount, error: lookupError } = await admin
       .from("practice_access_accounts")
       .select("user_id")
+      .eq("account_type","student")
       .eq("user_id", userId)
       .maybeSingle()
     if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 })

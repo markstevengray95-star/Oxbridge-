@@ -13,13 +13,14 @@ type Student = {
   userId:string;displayName:string;targetCourse:string|null;targetUniversity:string|null
   applicationYear:number|null;preparationScore:number|null
   interviewCount:number;fullPaperCount:number;essayCount:number
+  testsCompleted:number;averageTestAccuracy:number|null
   assignmentCompleted:number;assignmentTotal:number;assignmentPercent:number|null
   currentPriority:Skill|null;strongestArea:Skill|null
   lastActiveAt:string|null;activeThisWeek:boolean
 }
 type Data = {
   organization:{name:string;role:"owner"|"school_admin"|"teacher"}
-  summary:{assigned:number;activeThisWeek:number;averagePreparation:number|null;needsFollowUp:number}
+  summary:{assigned:number;activeThisWeek:number;averagePreparation:number|null;needsFollowUp:number;testsCompleted:number}
   students:Student[]
 }
 function lastActive(value:string|null) {
@@ -59,8 +60,8 @@ export default function TeacherDashboardPage() {
   function exportCsv(){
     if(!data)return
     const rows=[
-      ["Student","University","Course","Application year","Preparation score","Interviews","Full papers","Essays","Assignments completed","Assignments total","Last active","Priority","Strength"],
-      ...students.map(s=>[s.displayName,s.targetUniversity,s.targetCourse,s.applicationYear,s.preparationScore,s.interviewCount,s.fullPaperCount,s.essayCount,s.assignmentCompleted,s.assignmentTotal,s.lastActiveAt,s.currentPriority?.label,s.strongestArea?.label]),
+      ["Student","University","Course","Application year","Preparation score","Interviews","Completed tests","Average test accuracy","Full papers","Essays","Assignments completed","Assignments total","Last active","Priority","Strength"],
+      ...students.map(s=>[s.displayName,s.targetUniversity,s.targetCourse,s.applicationYear,s.preparationScore,s.interviewCount,s.testsCompleted,s.averageTestAccuracy,s.fullPaperCount,s.essayCount,s.assignmentCompleted,s.assignmentTotal,s.lastActiveAt,s.currentPriority?.label,s.strongestArea?.label]),
     ]
     const blob=new Blob([rows.map(row=>row.map(csvCell).join(",")).join("\n")],{type:"text/csv;charset=utf-8"})
     const url=URL.createObjectURL(blob),a=document.createElement("a")
@@ -71,7 +72,7 @@ export default function TeacherDashboardPage() {
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <Button asChild variant="ghost"><Link href="/student-home"><ArrowLeft/>Fellow home</Link></Button>
-        <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/school/teachers"><Users/>Manage teachers</Link></Button><Button variant="outline" disabled={loading} onClick={()=>void load()}><RefreshCw/>Refresh</Button></div>
+        <div className="flex flex-wrap gap-2">{data&&data.organization.role!=="teacher"&&<Button asChild variant="outline"><Link href="/school/teachers"><Users/>Manage teachers</Link></Button>}<Button variant="outline" disabled={loading} onClick={()=>void load()}><RefreshCw/>Refresh</Button></div>
       </header>
 
       <section><Badge variant="outline"><GraduationCap className="size-3.5"/>Teacher dashboard</Badge>
@@ -80,13 +81,14 @@ export default function TeacherDashboardPage() {
         {data&&<p className="mt-2 text-sm font-semibold text-[#147d91]">{data.organization.name} · {data.organization.role.replace("_"," ")}</p>}
       </section>
 
-      {error&&<Card><CardHeader><CardTitle>Teacher access is not yet available</CardTitle><CardDescription>{error}</CardDescription></CardHeader><CardContent><p className="mb-3 text-sm text-slate-600">Create a Fellow account, join your school's workspace using its code, and ask the school owner to grant you Teacher access and link students.</p><Button asChild variant="outline"><Link href="/school-seats">Join a school workspace</Link></Button></CardContent></Card>}
+      {error&&<Card><CardHeader><CardTitle>Teacher access is not yet available</CardTitle><CardDescription>{error}</CardDescription></CardHeader><CardContent><p className="mb-3 text-sm text-slate-600">Ask the school administrator to issue you a teacher login or to add your existing account to the school and assign students.</p><Button asChild variant="outline"><Link href="/school-seats">Join a school workspace</Link></Button></CardContent></Card>}
       {loading&&!data?<Card><CardContent className="flex items-center gap-2 p-6"><Loader2 className="animate-spin"/>Loading linked student progress…</CardContent></Card>:data?<>
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <Card><CardHeader><Users className="size-5 text-[#147d91]"/><CardDescription>Assigned students</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.assigned}</CardTitle></CardHeader></Card>
           <Card><CardHeader><Activity className="size-5 text-[#147d91]"/><CardDescription>Active this week</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.activeThisWeek}</CardTitle></CardHeader></Card>
           <Card><CardHeader><BarChart3 className="size-5 text-[#147d91]"/><CardDescription>Average preparation</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.averagePreparation===null?"—":data.summary.averagePreparation+"%"}</CardTitle></CardHeader></Card>
           <Card><CardHeader><BookOpenCheck className="size-5 text-[#147d91]"/><CardDescription>No activity in past week</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.needsFollowUp}</CardTitle></CardHeader></Card>
+          <Card><CardHeader><GraduationCap className="size-5 text-[#147d91]"/><CardDescription>Practice tests completed</CardDescription><CardTitle className="font-serif text-4xl">{data.summary.testsCompleted}</CardTitle></CardHeader></Card>
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.45fr_.9fr]">
@@ -98,7 +100,7 @@ export default function TeacherDashboardPage() {
                 <tbody>{students.map(s=><tr key={s.userId} onClick={()=>setSelectedId(s.userId)} className={`cursor-pointer border-b hover:bg-slate-50 ${selected?.userId===s.userId?"bg-[#edf7f8]":""}`}>
                   <td className="p-3"><strong>{s.displayName}</strong><p className="mt-1 text-xs text-slate-500">{s.targetCourse||"Course not set"}</p></td>
                   <td className="p-3">{s.preparationScore===null?"—":<div className="flex items-center gap-2"><Progress value={s.preparationScore} className="w-20"/><strong>{s.preparationScore}%</strong></div>}</td>
-                  <td className="p-3 text-xs">{s.interviewCount} interviews<p>{s.fullPaperCount} papers · {s.essayCount} essays</p></td>
+                  <td className="p-3 text-xs">{s.interviewCount} interviews<p>{s.testsCompleted} tests · {s.averageTestAccuracy===null?"—":s.averageTestAccuracy+"%"} average</p><p>{s.fullPaperCount} papers · {s.essayCount} essays</p></td>
                   <td className="p-3">{s.assignmentCompleted}/{s.assignmentTotal}{s.assignmentPercent!==null?<Progress className="mt-1 w-20" value={s.assignmentPercent}/>:null}</td>
                   <td className="p-3 text-xs"><Badge variant={s.activeThisWeek?"default":"outline"}>{lastActive(s.lastActiveAt)}</Badge></td>
                 </tr>)}</tbody>
@@ -110,7 +112,7 @@ export default function TeacherDashboardPage() {
           <Card><CardHeader><CardTitle className="font-serif text-2xl">Student progress detail</CardTitle><CardDescription>Choose a student from the list.</CardDescription></CardHeader><CardContent>{selected?<div className="space-y-5">
             <div><h2 className="text-xl font-bold">{selected.displayName}</h2><p className="text-sm text-slate-500">{selected.targetUniversity||"University not selected"} · {selected.targetCourse||"Course not set"} {selected.applicationYear?(`· ${selected.applicationYear}`):""}</p></div>
             <div className="rounded-2xl bg-[#edf7f8] p-4"><p className="text-xs font-bold uppercase tracking-wide text-[#234754]">Preparation score</p><p className="mt-2 font-serif text-3xl font-bold">{selected.preparationScore===null?"No baseline yet":selected.preparationScore+"%"}</p>{selected.preparationScore!==null&&<Progress className="mt-3" value={selected.preparationScore}/>}</div>
-            <div className="space-y-2 text-sm"><p><strong>Current priority:</strong> {selected.currentPriority?.label||"Building a baseline"}</p><p><strong>Strongest area:</strong> {selected.strongestArea?.label||"Not enough evidence yet"}</p><p><strong>Interviews:</strong> {selected.interviewCount}</p><p><strong>Full papers:</strong> {selected.fullPaperCount}</p><p><strong>Essays:</strong> {selected.essayCount}</p><p><strong>School assignments:</strong> {selected.assignmentCompleted} of {selected.assignmentTotal} complete</p><p><strong>Last recorded activity:</strong> {lastActive(selected.lastActiveAt)}</p></div>
+            <div className="space-y-2 text-sm"><p><strong>Current priority:</strong> {selected.currentPriority?.label||"Building a baseline"}</p><p><strong>Strongest area:</strong> {selected.strongestArea?.label||"Not enough evidence yet"}</p><p><strong>Interviews:</strong> {selected.interviewCount}</p><p><strong>Practice tests completed:</strong> {selected.testsCompleted}</p><p><strong>Average test accuracy:</strong> {selected.averageTestAccuracy===null?"No recorded tests":selected.averageTestAccuracy+"%"}</p><p><strong>Full papers:</strong> {selected.fullPaperCount}</p><p><strong>Essays:</strong> {selected.essayCount}</p><p><strong>School assignments:</strong> {selected.assignmentCompleted} of {selected.assignmentTotal} complete</p><p><strong>Last recorded activity:</strong> {lastActive(selected.lastActiveAt)}</p></div>
             <p className="text-xs leading-5 text-slate-500">Scores are practice indicators, not university admissions predictions. Activity depends on saved account evidence.</p>
           </div>:<p className="text-sm text-slate-500">Assign students to begin tracking.</p>}</CardContent></Card>
         </section>

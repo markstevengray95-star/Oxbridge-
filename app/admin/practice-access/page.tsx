@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { FormEvent, useCallback, useEffect, useState } from "react"
-import { CheckCircle2, Copy, KeyRound, Loader2, RefreshCw, ShieldCheck, UserPlus } from "lucide-react"
+import { CheckCircle2, Copy, GraduationCap, KeyRound, Loader2, RefreshCw, ShieldCheck, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -107,7 +107,7 @@ export default function PracticeAccessAdminPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Admin</p><h1 className="mt-1 font-serif text-3xl font-bold text-[#102a43]">Practice access</h1><p className="mt-2 max-w-2xl text-sm text-[#526a75]">Create managed username/password logins with unlimited practice usage. Each login has its own account and saved progress.</p></div>
-        <Button asChild variant="outline"><Link href="/admin">Back to admin</Link></Button>
+        <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/admin/managed-school-logins"><GraduationCap/>Teacher logins & school linking</Link></Button><Button asChild variant="outline"><Link href="/admin">Back to admin</Link></Button></div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
