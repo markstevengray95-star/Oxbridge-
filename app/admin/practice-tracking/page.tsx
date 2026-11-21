@@ -147,7 +147,7 @@ function formatDate(value?: string | null) {
 
 function answerText(item: QuestionReview) {
   const answer = item.answer ?? item.selectedAnswer ?? "Unanswered"
-  if (!answer || /^(?:\\d+:\\s*—(?:\\s*·\\s*)?)+$/.test(answer)) return "Unanswered"
+  if (!answer || /^(?:\d+:\s*—(?:\s*·\s*)?)+$/.test(answer)) return "Unanswered"
   return answer
 }
 
