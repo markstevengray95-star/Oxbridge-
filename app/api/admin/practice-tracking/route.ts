@@ -412,5 +412,7 @@ export async function GET(request: Request) {
     }
   })
 
+  // Put recently active learners first so unused trial logins do not hide real activity.
+  summaries.sort((a, b) => Date.parse(b.latestActivityAt || "1970-01-01") - Date.parse(a.latestActivityAt || "1970-01-01"))
   return NextResponse.json({ accounts: summaries, scope: "managed-practice-only" }, { headers: { "Cache-Control": "no-store" } })
 }
