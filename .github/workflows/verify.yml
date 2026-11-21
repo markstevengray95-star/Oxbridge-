@@ -33,6 +33,9 @@ jobs:
       - name: Existing practice account roster checks
         run: node tests/practice-account-roster.cjs
 
+      - name: Practice login expiry and reversible removal checks
+        run: node tests/practice-access-expiry.cjs
+
       - name: Managed school teacher and practice student linking checks
         run: node tests/managed-school-logins.cjs
 

@@ -41,11 +41,11 @@ export async function POST(request: Request) {
   const admin = createAdminClient()
   const { data: account, error: accountError } = await admin
     .from("practice_access_accounts")
-    .select("user_id,active,account_type")
+    .select("user_id,active,account_type,expires_at")
     .eq("username_normalized", username)
     .maybeSingle()
 
-  if (accountError || !account?.user_id || !account.active) return invalidCredentials()
+  if (accountError || !account?.user_id || !account.active || (account.expires_at && Date.parse(account.expires_at) <= Date.now())) return invalidCredentials()
 
   const { data: userData, error: userError } = await admin.auth.admin.getUserById(account.user_id)
   const internalEmail = userData.user?.email

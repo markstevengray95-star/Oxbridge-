@@ -6,6 +6,7 @@ import { isConfiguredAdminEmail } from "@/lib/auth/admin-access"
 import { E2E_SESSION_COOKIE, E2E_USER_EMAIL, E2E_USER_ID, e2eSessionActive } from "@/lib/auth/e2e-session"
 import { FREE_PLAN_COOKIE, PLAN_ONBOARDING_STATE_KEY, onboardingCompleted } from "@/lib/onboarding"
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/supabase/config"
+import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
 
 const PRO_ROUTES = [
   "/mistake-dna","/progress-proof","/application-profile","/application-defence","/application-command-centre","/tutorial-lab","/mock-day","/supercurricular-coach","/paper-intervention","/essay-tutor","/essay-comparison","/interview-feedback","/parent-summary","/tutor-autopilot","/written-work-defence","/reading-curriculum","/preparation-readiness","/panel-interview","/video-interview",
@@ -78,6 +79,39 @@ export async function updateSession(request: NextRequest) {
   const requiresAdmin=pathname==="/admin"||(pathname.startsWith("/admin/")&&!adminLogin)
   const isAdmin=isConfiguredAdminEmail(userEmail)
   const isPractice=e2eSession||hasPracticeAccess(user)
+
+  // Managed username sessions must be checked on EVERY request, not just at
+  // sign-in. A removed account or elapsed expiry must not retain its previous
+  // JWT's practice permissions or continue using protected pages/APIs.
+  // Use the service-role client only on the server; never expose its key.
+  if (userId && !e2eSession && hasPracticeAccess(user)
+      && pathname !== "/api/auth/practice-login") {
+    if (!hasSupabaseAdminConfig()) {
+      if (isApi) return NextResponse.json({ error: "Managed practice access is temporarily unavailable." }, { status: 503, headers: { "Cache-Control": "no-store" } })
+      return redirectTo(request, "/practice-login")
+    }
+    const { data: managed, error: managedError } = await createAdminClient()
+      .from("practice_access_accounts")
+      .select("active,expires_at")
+      .eq("user_id",userId)
+      .maybeSingle()
+    const invalid = managedError || !managed || !managed.active
+      || (managed.expires_at && Date.parse(managed.expires_at) <= Date.now())
+    if (invalid) {
+      // Allow users with an expired/removed session to open sign-in and replace
+      // it with a different valid account; otherwise redirects would loop.
+      if (pathname === "/practice-login" || pathname === "/login") return response
+      if (isApi) return NextResponse.json({
+        error: managedError ? "Could not verify practice access." : "This practice login has expired or been removed.",
+        code: managedError ? "practice_access_unavailable" : "practice_access_ended",
+      }, { status: managedError ? 503 : 403, headers: { "Cache-Control": "no-store" } })
+      const url = request.nextUrl.clone()
+      url.pathname = "/practice-login"
+      url.search = ""
+      url.searchParams.set("status", managedError ? "unavailable" : managed?.active === false ? "removed" : "expired")
+      return NextResponse.redirect(url)
+    }
+  }
 
   let resolvedTier: AccessTier | null = null
   async function accessTier(): Promise<AccessTier> {
