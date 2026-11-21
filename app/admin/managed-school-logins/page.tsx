@@ -67,7 +67,7 @@ export default function AdminManagedSchoolLoginsPage(){
   }
   async function doAction(body:Action,message:string){
     setBusy(true);setError("");setNotice("")
-    try{await api(body);setNotice(message);await load()}
+    try{await api(body);setNotice(message);if(body.action==="attachStudent")setStudentId("");if(body.action==="linkStudent")setLinkStudentId("");await load()}
     catch(cause){setError(cause instanceof Error?cause.message:"Could not update school accounts")}
     finally{setBusy(false)}
   }
