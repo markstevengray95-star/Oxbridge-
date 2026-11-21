@@ -89,12 +89,12 @@ export default function PracticeAccessAdminPage() {
     } finally { setBusy(false) }
   }
 
-  async function changeAccount(account: PracticeAccount, action: AccountAction, passwordForReset?: string) {
+  async function changeAccount(account: PracticeAccount, action: AccountAction, passwordForReset?: string, expiryOverride?: string | null) {
     setBusy(true);setError("");setMessage("")
     try {
       const data = await post({
         action, userId: account.userId,
-        ...(action === "set_expiry" ? { expiresOn: expiryEdits[account.userId] || null } : {}),
+        ...(action === "set_expiry" ? { expiresOn: expiryOverride !== undefined ? expiryOverride : (expiryEdits[account.userId] || null) } : {}),
         ...(action === "set_password" ? { password: passwordForReset } : {}),
       })
       setMessage(data.message || "Account updated.")
@@ -213,12 +213,7 @@ export default function PracticeAccessAdminPage() {
                         <Input type="date" value={expiryEdits[account.userId]??""} onChange={e=>setExpiryEdits(prev=>({...prev,[account.userId]:e.target.value}))} min={new Date().toISOString().slice(0,10)} disabled={busy}/>
                       </label>
                       <Button type="button" size="sm" variant="outline" disabled={busy||((expiryEdits[account.userId]??"")===dateValue(account.expiresAt))} onClick={()=>void changeAccount(account,"set_expiry")}>Save expiry</Button>
-                      {account.expiresAt&&<Button type="button" size="sm" variant="ghost" disabled={busy} onClick={()=>{setExpiryEdits(prev=>({...prev,[account.userId]:""}));void (async()=>{
-                        setBusy(true);setError("");setMessage("")
-                        try{const data=await post({action:"set_expiry",userId:account.userId,expiresOn:null});setMessage(data.message||"Expiry cleared.");await load()}
-                        catch(err){setError(err instanceof Error?err.message:"Could not clear expiry.")}
-                        finally{setBusy(false)}
-                      })()}}>Clear expiry</Button>}
+                      {account.expiresAt&&<Button type="button" size="sm" variant="ghost" disabled={busy} onClick={()=>void changeAccount(account,"set_expiry",undefined,null)}>Clear expiry</Button>}
                     </div>
 
                     <div className="border-t pt-3">
