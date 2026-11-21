@@ -47,15 +47,16 @@ export async function GET() {
     },{headers})
   }
 
-  const [seatsResult, profilesResult, intelResult, interviewsResult, progressResult, membershipResult] = await Promise.all([
+  const [seatsResult, profilesResult, intelResult, interviewsResult, testsResult, progressResult, membershipResult] = await Promise.all([
     admin.from("school_seat_entitlements").select("user_id").eq("organization_id",scope.organizationId).eq("active",true).in("user_id",candidateIds),
     admin.from("profiles").select("id,display_name,target_course,target_university,application_year,updated_at").in("id",candidateIds),
     admin.from("student_intelligence").select("user_id,snapshot,updated_at").in("user_id",candidateIds),
     admin.from("interview_sessions").select("user_id,created_at").in("user_id",candidateIds).order("created_at",{ascending:false}).limit(2000),
+    admin.from("test_results").select("user_id,accuracy,completed_at").in("user_id",candidateIds).order("completed_at",{ascending:false}).limit(5000),
     admin.from("school_assignment_progress").select("user_id,assignment_id,status,updated_at").in("user_id",candidateIds),
     admin.from("school_memberships").select("user_id,cohort_id").in("user_id",candidateIds),
   ])
-  const failed = [seatsResult,profilesResult,intelResult,interviewsResult,progressResult,membershipResult].some(x => x.error)
+  const failed = [seatsResult,profilesResult,intelResult,interviewsResult,testsResult,progressResult,membershipResult].some(x => x.error)
   if (failed) return NextResponse.json({error:"Could not load student progress"},{status:500,headers})
   const activeIds = new Set((seatsResult.data ?? []).map(x => x.user_id))
   const studentIds = candidateIds.filter(id => activeIds.has(id))
@@ -92,8 +93,10 @@ export async function GET() {
     const assignedIds = new Set(studentAssignments.map(a => a.id))
     const completed = (progressResult.data ?? []).filter(p => p.user_id === id && assignedIds.has(p.assignment_id) && p.status === "completed").length
     const interviewEvents = (interviewsResult.data ?? []).filter(i => i.user_id === id)
+    const completedTests = (testsResult.data ?? []).filter(t => t.user_id === id)
+    const averageTestAccuracy = completedTests.length ? Math.round(completedTests.reduce((sum,t)=>sum+Math.max(0,Math.min(100,number(t.accuracy))),0)/completedTests.length) : null
     const recentProgress = (progressResult.data ?? []).filter(p => p.user_id === id).map(p => p.updated_at)
-    const lastActiveAt = latestIso([intelligence?.updated_at,profile?.updated_at,interviewEvents[0]?.created_at,...recentProgress])
+    const lastActiveAt = latestIso([intelligence?.updated_at,profile?.updated_at,interviewEvents[0]?.created_at,completedTests[0]?.completed_at,...recentProgress])
     const activeThisWeek = Boolean(lastActiveAt && Date.parse(lastActiveAt)>=weekAgo)
     const score = number(snapshot.preparationScore)
     return {
@@ -104,6 +107,8 @@ export async function GET() {
       applicationYear:profile?.application_year || null,
       preparationScore:score > 0 ? Math.min(100,Math.max(0,score)) : null,
       interviewCount:Math.max(number(snapshot.interviewCount),interviewEvents.length),
+      testsCompleted:completedTests.length,
+      averageTestAccuracy,
       fullPaperCount:number(snapshot.fullPaperCount),
       essayCount:number(snapshot.essayCount),
       assignmentCompleted:completed,
@@ -123,6 +128,7 @@ export async function GET() {
       activeThisWeek:students.filter(s => s.activeThisWeek).length,
       averagePreparation:scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : null,
       needsFollowUp:students.filter(s => s.lastActiveAt && !s.activeThisWeek).length,
+      testsCompleted:students.reduce((sum,s)=>sum+s.testsCompleted,0),
     },
     students,
   },{headers})
