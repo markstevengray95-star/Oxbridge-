@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   const admin = createAdminClient()
   const { data: account, error: accountError } = await admin
     .from("practice_access_accounts")
-    .select("user_id,active")
+    .select("user_id,active,account_type")
     .eq("username_normalized", username)
     .maybeSingle()
 
@@ -55,5 +55,5 @@ export async function POST(request: Request) {
   const { error: signInError } = await supabase.auth.signInWithPassword({ email: internalEmail, password })
   if (signInError) return invalidCredentials()
 
-  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } })
+  return NextResponse.json({ ok: true, nextPath: account.account_type === "teacher" ? "/teacher-dashboard" : "/student-home" }, { headers: { "Cache-Control": "no-store" } })
 }
