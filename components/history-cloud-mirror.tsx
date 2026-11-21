@@ -8,6 +8,7 @@ type Log = { id?: unknown; title?: unknown; date?: unknown; events?: unknown; sc
 type TestResult = { id?: unknown; test?: unknown; form?: unknown; title?: unknown; date?: unknown; rawScore?: unknown; maxRawMarks?: unknown; totalQuestions?: unknown; accuracy?: unknown; durationSeconds?: unknown; [key: string]: unknown }
 
 type Turn = { role: "candidate" | "interviewer"; content: string; feedback: string | null }
+const LAST_PAPER_KEY = "oxbridge-last-full-test-result-v1"
 
 function record(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -65,7 +66,9 @@ export function HistoryCloudMirror() {
     async function mirror(userId: string, force = false) {
       if (syncing || userId !== activeUserId || userId !== readyUserId || !navigator.onLine) return
       const raw = localStorage.getItem(PROGRESS_KEY) || "{}"
-      if (!force && raw === lastRaw) return
+      const lastPaperRaw = localStorage.getItem(LAST_PAPER_KEY) || "{}"
+      const fingerprint = raw + "\\u0000" + lastPaperRaw
+      if (!force && fingerprint === lastRaw) return
       let progress: Record<string, unknown>
       try { progress = record(JSON.parse(raw)) } catch { return }
       syncing = true
@@ -80,20 +83,31 @@ export function HistoryCloudMirror() {
           const course = title.includes("·") ? title.split("·").slice(1).join("·").trim() || "General" : "General"
           const feedback = { source: "history_cloud_mirror", title, score: typeof log.score === "number" ? log.score : null, dimensions: record(log.dimensions) }
           const existing = await supabase.from("interview_sessions").select("id").eq("user_id", userId).eq("source_ref", sourceRef).maybeSingle()
+          if (existing.error) throw existing.error
           let sessionId = existing.data?.id as string | undefined
           if (sessionId) {
-            await supabase.from("interview_sessions").update({ course, duration_seconds: duration(events), summary: title, overall_feedback: feedback, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", userId)
+            const updated = await supabase.from("interview_sessions").update({ course, duration_seconds: duration(events), summary: title, overall_feedback: feedback, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", userId)
+            if (updated.error) throw updated.error
           } else {
             const created = await supabase.from("interview_sessions").insert({ user_id: userId, course, duration_seconds: duration(events), summary: title, overall_feedback: feedback, source_ref: sourceRef, created_at: dateValue(log.date) }).select("id").single()
+            if (created.error) throw created.error
             sessionId = created.data?.id as string | undefined
           }
           if (!sessionId) continue
-          await supabase.from("interview_turns").upsert(turns.map((turn, turnIndex) => ({ session_id: sessionId, user_id: userId, turn_index: turnIndex, role: turn.role, content: turn.content, feedback: turn.feedback })), { onConflict: "session_id,turn_index" })
+          const savedTurns = await supabase.from("interview_turns").upsert(turns.map((turn, turnIndex) => ({ session_id: sessionId, user_id: userId, turn_index: turnIndex, role: turn.role, content: turn.content, feedback: turn.feedback })), { onConflict: "session_id,turn_index" })
+          if (savedTurns.error) throw savedTurns.error
         }
 
-        const results = Array.isArray(progress.fullPaperResults) ? progress.fullPaperResults as TestResult[] : []
+        const results = Array.isArray(progress.fullPaperResults) ? [...progress.fullPaperResults] as TestResult[] : []
+        try {
+          const savedLast = record(JSON.parse(lastPaperRaw)) as TestResult
+          if (typeof savedLast.id === "string" && typeof savedLast.test === "string"
+            && !results.some(item => item.id === savedLast.id)) results.unshift(savedLast)
+        } catch {
+          // A malformed older result cannot block the rest of this account's history.
+        }
         if (results.length) {
-          await supabase.from("test_results").upsert(results.slice(0, 100).map((item, index) => ({
+          const written = await supabase.from("test_results").upsert(results.slice(0, 100).map((item, index) => ({
             user_id: userId,
             source_ref: typeof item.id === "string" && item.id ? item.id : `test-${index}-${String(item.test ?? "practice")}-${String(item.date ?? "")}`,
             test: typeof item.test === "string" && item.test ? item.test : "Practice test",
@@ -108,9 +122,13 @@ export function HistoryCloudMirror() {
             payload: item,
             updated_at: new Date().toISOString(),
           })), { onConflict: "user_id,source_ref" })
+          if (written.error) throw written.error
         }
-        lastRaw = raw
+        lastRaw = fingerprint
         window.dispatchEvent(new CustomEvent("oxbridge-history-updated", { detail: { userId } }))
+      } catch (error) {
+        // Leave lastRaw unchanged so the next interval reattempts unsaved history.
+        console.warn("Oxbridge history cloud mirror will retry", error instanceof Error ? error.message : "unknown error")
       } finally { syncing = false }
     }
 
