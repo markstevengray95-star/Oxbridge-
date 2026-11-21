@@ -16,6 +16,12 @@ type AccountSummary = {
   createdAt: string
   lastSignInAt: string | null
   testsCompleted: number
+  practiceQuestionsAttempted: number
+  recoveredTests: number
+  recordedActiveSeconds: number
+  usageSessions: number
+  visitedPages: number
+  lastSavedAt: string | null
   averageAccuracy: number | null
   answersRecorded: number
   interviewSessions: number
@@ -87,6 +93,12 @@ type DetailResponse = {
   }
   summary: {
     testsCompleted: number
+    practiceQuestionsAttempted: number
+    recoveredTests: number
+    recordedActiveSeconds: number
+    usageSessions: number
+    visitedPages: number
+    lastSavedAt: string | null
     averageAccuracy: number | null
     answersRecorded: number
     essaysRecorded: number
@@ -96,6 +108,10 @@ type DetailResponse = {
     interviewSeconds: number
     latestActivityAt: string | null
   }
+  activity: Array<{ id: string; kind: string; title: string; at: string; path: string | null }>
+  navigation: Array<{ path: string | null; at: string }>
+  usage: Array<{ path: string | null; startedAt: string; lastSeenAt: string | null; activeSeconds: number; deviceClass: string | null }>
+  practiceAttempts: Array<{ test: string; section: string; difficulty: string | null; correct: boolean | null; date: string | null }>
   tests: TestAttempt[]
   interviews: InterviewAttempt[]
   scope: string
@@ -148,7 +164,7 @@ export default function PracticeTrackingPage() {
   const [loadingAccounts, setLoadingAccounts] = useState(true)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [error, setError] = useState("")
-  const [view, setView] = useState<"tests" | "interviews">("tests")
+  const [view, setView] = useState<"activity" | "tests" | "interviews">("activity")
   const [openTestId, setOpenTestId] = useState("")
   const [openInterviewId, setOpenInterviewId] = useState("")
 
@@ -219,8 +235,8 @@ export default function PracticeTrackingPage() {
           <p className="text-xs font-bold uppercase tracking-[.16em] text-[#667984]">Learners</p>
           {accounts.map(account => <button key={account.userId} onClick={() => setSelectedUserId(account.userId)} className={`w-full rounded-xl border p-4 text-left transition ${selectedUserId === account.userId ? "border-[#147d91] bg-white ring-2 ring-[#147d91]/15" : "bg-white/80 hover:border-[#9bb9bf]"}`}>
             <div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-[#102a43]">{account.displayName}</p><p className="mt-0.5 text-xs text-[#667984]">@{account.username}</p></div><span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${account.active ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{account.active ? "Active" : "Inactive"}</span></div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[#526a75]"><span>{account.testsCompleted} tests</span><span>{account.interviewSessions} interviews</span><span>{account.answersRecorded} answers</span><span>{account.transcriptTurns} transcript turns</span></div>
-            <p className="mt-3 border-t pt-2 text-[11px] text-[#7a8d95]">Latest: {formatDate(account.latestActivityAt)}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[#526a75]"><span>{account.testsCompleted} tests</span><span>{account.interviewSessions} interviews</span><span>{account.answersRecorded} answers</span><span>{account.practiceQuestionsAttempted} practice questions</span></div>
+            <p className="mt-2 text-xs text-[#526a75]">Recorded active time: {formatDuration(account.recordedActiveSeconds)}</p><p className="mt-3 border-t pt-2 text-[11px] text-[#7a8d95]">Last seen: {formatDate(account.latestActivityAt)}</p>
           </button>)}
         </aside>
 
@@ -232,12 +248,27 @@ export default function PracticeTrackingPage() {
               <StatCard icon={<Target className="size-5" />} label="Tests completed" value={detail.summary.testsCompleted} detail={`${detail.summary.answersRecorded} recorded question responses · ${detail.summary.essaysRecorded} essays`} />
               <StatCard icon={<BarChart3 className="size-5" />} label="Average accuracy" value={detail.summary.averageAccuracy === null ? "—" : `${detail.summary.averageAccuracy}%`} detail="Average raw practice accuracy across saved full papers." />
               <StatCard icon={<MessageSquareText className="size-5" />} label="Interview sessions" value={detail.summary.interviewSessions} detail={`${detail.summary.candidateResponses} candidate responses · ${detail.summary.transcriptTurns} total transcript turns`} />
-              <StatCard icon={<Clock3 className="size-5" />} label="Interview time" value={formatDuration(detail.summary.interviewSeconds)} detail="Total recorded duration across saved interview sessions." />
+              <StatCard icon={<Clock3 className="size-5" />} label="Interview time" value={formatDuration(detail.summary.interviewSeconds)} detail="Time recorded for saved interview sessions." />
+              <StatCard icon={<Clock3 className="size-5" />} label="App active time" value={formatDuration(detail.summary.recordedActiveSeconds)} detail={`${detail.summary.usageSessions} instrumented sessions. Not all historic use may have been measured.`} />
+              <StatCard icon={<Target className="size-5" />} label="Practice questions" value={detail.summary.practiceQuestionsAttempted} detail="Individual question attempts stored in the student's cloud progress." />
+              <StatCard icon={<Activity className="size-5" />} label="Pages recorded" value={detail.summary.visitedPages} detail="Distinct pages from usage sessions and navigation events." />
+              <StatCard icon={<Clock3 className="size-5" />} label="Last saved progress" value={formatDate(detail.summary.lastSavedAt)} detail="Last cloud-state update, which may include settings changes." />
             </div>
 
-            <div className="flex flex-wrap gap-2"><Button variant={view === "tests" ? "default" : "outline"} onClick={() => setView("tests")}><FileText />Tests & answers</Button><Button variant={view === "interviews" ? "default" : "outline"} onClick={() => setView("interviews")}><MessageSquareText />Interview transcripts</Button></div>
+            <div className="flex flex-wrap gap-2"><Button variant={view === "activity" ? "default" : "outline"} onClick={() => setView("activity")}><Activity />Activity & time</Button><Button variant={view === "tests" ? "default" : "outline"} onClick={() => setView("tests")}><FileText />Tests & answers</Button><Button variant={view === "interviews" ? "default" : "outline"} onClick={() => setView("interviews")}><MessageSquareText />Interview transcripts</Button></div>
 
-            {view === "tests" ? <div className="space-y-4">
+            {view === "activity" ? <div className="space-y-4">
+              <Card><CardHeader><CardTitle className="font-serif text-2xl">Account activity</CardTitle><CardDescription>Last sign-in: {formatDate(detail.account.lastSignInAt)}. Recorded time is measured by in-app telemetry, not time spent on other websites. Earlier sessions may only have their final reported page.</CardDescription></CardHeader><CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl bg-slate-100 p-4"><p className="text-xs text-slate-500">Usage sessions</p><p className="text-2xl font-bold">{detail.summary.usageSessions}</p></div>
+                  <div className="rounded-xl bg-slate-100 p-4"><p className="text-xs text-slate-500">Recorded active time</p><p className="text-2xl font-bold">{formatDuration(detail.summary.recordedActiveSeconds)}</p></div>
+                </div>
+                {!detail.usage.length ? <p className="text-sm text-slate-600">No instrumented usage sessions recorded for this account.</p> : <div><h3 className="font-semibold">Recent sessions</h3><div className="mt-2 space-y-2">{detail.usage.slice(0, 20).map((item, index) => <div key={index} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><div><p className="font-medium">{item.path || "Fellow session"}</p><p className="text-xs text-slate-500">{formatDate(item.startedAt)} – {formatDate(item.lastSeenAt)}</p></div><p className="font-semibold">{formatDuration(item.activeSeconds)}</p></div>)}</div></div>}
+              </CardContent></Card>
+              <Card><CardHeader><CardTitle className="font-serif text-2xl">Recent in-app events</CardTitle><CardDescription>Page visits, practice answers, completed tests and interviews. New navigation records begin after this update; older page histories cannot be reconstructed.</CardDescription></CardHeader><CardContent>
+                {!detail.activity.length ? <p className="text-sm text-slate-600">No saved practice activity yet. A sign-in without recorded work is not proof that no work was attempted.</p> : <div className="space-y-2">{detail.activity.slice(0, 75).map(event => <div key={event.id} className="flex items-start justify-between gap-4 rounded-lg border p-3 text-sm"><div><Badge variant="outline">{event.kind === "page" ? "Page" : event.kind === "question" ? "Question" : event.kind === "test" ? "Test" : event.kind === "interview" ? "Interview" : "Session"}</Badge><p className="mt-2 font-medium">{event.title}</p></div><p className="shrink-0 text-xs text-slate-500">{formatDate(event.at)}</p></div>)}</div>}
+              </CardContent></Card>
+            </div> : view === "tests" ? <div className="space-y-4">
               {!detail.tests.length ? <Card><CardHeader><CardTitle>No cloud-saved tests yet</CardTitle><CardDescription>When this learner submits a full practice paper while signed in, their result and question-level review will appear here.</CardDescription></CardHeader></Card> : detail.tests.map(test => {
                 const open = openTestId === test.id
                 const reviews = questionReview(test.payload)
@@ -245,7 +276,7 @@ export default function PracticeTrackingPage() {
                 const essayPrompts = stringMap(test.payload.essayPrompts)
                 const answered = reviews.filter(item => answerText(item) !== "Unanswered").length
                 return <Card key={test.id} className={open ? "border-[#147d91]" : ""}>
-                  <CardHeader className="cursor-pointer" onClick={() => setOpenTestId(open ? "" : test.id)}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap gap-2"><Badge variant="outline">{test.test}</Badge>{test.form ? <Badge variant="outline">Form {test.form}</Badge> : null}<Badge variant="outline">{reviews.length ? `${reviews.length} saved responses` : "Summary only"}</Badge></div><CardTitle className="mt-2 font-serif text-2xl">{test.title || `${test.test} practice`}</CardTitle><CardDescription>{formatDate(test.completedAt)} · {formatDuration(test.durationSeconds)}</CardDescription></div><div className="text-right"><p className="text-2xl font-bold">{test.rawScore}/{scoreDenominator(test)}</p><p className="text-sm font-semibold text-[#147d91]">{test.accuracy}% accuracy</p></div></div></CardHeader>
+                  <CardHeader className="cursor-pointer" onClick={() => setOpenTestId(open ? "" : test.id)}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap gap-2"><Badge variant="outline">{test.test}</Badge>{test.payload.recoveredFromState ? <Badge className="bg-amber-100 text-amber-900">Recovered saved result</Badge> : null}{test.form ? <Badge variant="outline">Form {test.form}</Badge> : null}<Badge variant="outline">{reviews.length ? `${reviews.length} saved responses` : "Summary only"}</Badge></div><CardTitle className="mt-2 font-serif text-2xl">{test.title || `${test.test} practice`}</CardTitle><CardDescription>{formatDate(test.completedAt)} · {formatDuration(test.durationSeconds)}</CardDescription></div><div className="text-right"><p className="text-2xl font-bold">{test.rawScore}/{scoreDenominator(test)}</p><p className="text-sm font-semibold text-[#147d91]">{test.accuracy}% accuracy</p></div></div></CardHeader>
                   {open ? <CardContent className="space-y-5 border-t pt-5">
                     <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-slate-100 p-3"><p className="text-xs text-slate-500">Questions</p><p className="text-xl font-bold">{test.totalQuestions}</p></div><div className="rounded-xl bg-slate-100 p-3"><p className="text-xs text-slate-500">Recorded answers</p><p className="text-xl font-bold">{reviews.length ? answered : "—"}</p></div><div className="rounded-xl bg-slate-100 p-3"><p className="text-xs text-slate-500">Writing responses</p><p className="text-xl font-bold">{Object.keys(essayResponses).length}</p></div></div>
 
