@@ -66,6 +66,9 @@ jobs:
       - name: Managed practice tracking checks
         run: node tests/admin-practice-tracking.cjs
 
+      - name: Practice activity timeline and history recovery checks
+        run: node tests/practice-activity-tracking.cjs
+
       - name: Digital Twin, defence and replay checks
         run: node tests/digital-twin-defence-replay.cjs
 
