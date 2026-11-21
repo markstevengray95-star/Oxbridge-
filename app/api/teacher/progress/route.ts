@@ -42,7 +42,7 @@ export async function GET() {
   if (!candidateIds.length) {
     return NextResponse.json({
       organization:{name:scope.organizationName,role:scope.role},
-      summary:{assigned:0,activeThisWeek:0,averagePreparation:null,needsFollowUp:0},
+      summary:{assigned:0,activeThisWeek:0,averagePreparation:null,needsFollowUp:0,testsCompleted:0},
       students:[],
     },{headers})
   }
@@ -62,7 +62,7 @@ export async function GET() {
   const studentIds = candidateIds.filter(id => activeIds.has(id))
   if (!studentIds.length) return NextResponse.json({
     organization:{name:scope.organizationName,role:scope.role},
-    summary:{assigned:0,activeThisWeek:0,averagePreparation:null,needsFollowUp:0},students:[],
+    summary:{assigned:0,activeThisWeek:0,averagePreparation:null,needsFollowUp:0,testsCompleted:0},students:[],
   },{headers})
 
   // Only count assignments owned by a member of this school. Other school
