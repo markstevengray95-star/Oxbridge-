@@ -25,7 +25,7 @@ export default function PrivacyPage() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Privacy & UK GDPR</p>
             <h1 className="mt-1 font-serif text-4xl font-bold">Fellow Privacy Notice</h1>
-            <p className="mt-2 text-sm text-slate-500">Last updated: 4 October 2026</p>
+            <p className="mt-2 text-sm text-slate-500">Last updated: 21 November 2026</p>
           </div>
         </div>
 
@@ -73,6 +73,7 @@ export default function PrivacyPage() {
               <li>School, cohort, assignment and authorised membership information where School-plan features are used.</li>
               <li>Subscription, entitlement and payment-status information. Full payment-card details are handled by Stripe rather than stored directly by Fellow.</li>
               <li>Technical, security and usage information reasonably needed for authentication, rate limiting, fraud or abuse prevention and service reliability.</li>
+              <li>For administrator-issued practice student accounts: in-app page visits, timestamps, measured active time, individual practice attempts and completed work. Verified Fellow platform administrators can review this activity alongside saved test answers, scores and interview transcripts to support the trial. We do not record browsing outside Fellow or the learner’s device contents.</li>
               <li>Privacy-rights requests, support messages and safeguarding reports that you choose to submit.</li>
             </ul>
           </Section>
@@ -85,6 +86,7 @@ export default function PrivacyPage() {
               <li>provide optional AI and voice features when requested;</li>
               <li>manage subscriptions, entitlements and customer support;</li>
               <li>provide authorised School-plan dashboards and assignments;</li>
+              <li>allow the verified Fellow platform administrator to monitor progress and in-app use for practice accounts they issue, without monitoring unrelated accounts or activity outside Fellow;</li>
               <li>respond to privacy-rights requests and safeguarding concerns;</li>
               <li>prevent misuse, investigate security problems and keep the service reliable; and</li>
               <li>meet legal, accounting and regulatory obligations where they apply.</li>
