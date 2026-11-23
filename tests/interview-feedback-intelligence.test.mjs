@@ -25,6 +25,8 @@ test("every observation cites a real candidate turn and preserves its quoted sou
  assert.equal(report.answerCount,2)
  assert.equal(report.ratedAnswerCount,2)
  assert.ok(report.strengths.length>=2)
+ assert.match(report.strengths[0].question,/Explain why a longer slope/)
+ assert.ok(report.strengths.every(x=>turns.some(t=>t.role==="interviewer"&&t.text===x.question)))
  for(const evidence of [...report.strengths,...report.improvements,...report.revisions,...report.recoveries]){
   assert.equal(turns[evidence.turnIndex].role,"candidate")
   assert.equal(turns[evidence.turnIndex].text.replace(/\s+/g," ").trim().startsWith(evidence.quote),true)
