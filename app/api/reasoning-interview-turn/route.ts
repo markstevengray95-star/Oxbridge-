@@ -231,8 +231,8 @@ export async function POST(request: Request) {
         supportLevel: intervention.supportLevel,
         recentTurns: turns,
         continuityBrief: interviewMemoryBrief(memory),
-        strategy: planned.strategy,
-        strategyRationale: planned.rationale,
+        strategy: extendedTreeTurn ? node.id as FollowUpStrategy : planned.strategy,
+        strategyRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
       })
       if (cloud && suitableAcademicFollowUp(cloud, memory.recentQuestions)) {
         reply = cloud
