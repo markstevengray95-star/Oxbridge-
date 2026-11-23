@@ -16,7 +16,8 @@
     "test:interview-followups": "node --experimental-strip-types --test tests/interview-followup-planner.test.mjs",
     "test:live-conversation": "node --experimental-strip-types --test tests/live-conversation-control.test.mjs tests/live-conversation-integration.test.mjs",
     "test:interview-subjects": "node --experimental-strip-types --test tests/subject-interview-pathways.test.mjs",
-    "test:interview-evidence": "node --experimental-strip-types --test tests/interview-evidence-challenges.test.mjs"
+    "test:interview-evidence": "node --experimental-strip-types --test tests/interview-evidence-challenges.test.mjs",
+    "test:full-mock-interviews": "node --experimental-strip-types --test tests/full-mock-interviews.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
