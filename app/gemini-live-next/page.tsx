@@ -26,7 +26,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import { subjectInterviewPathway, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
 import { InterviewEvidencePanel } from "@/components/interview-evidence-panel"
-import { evidenceChallengeForCourse, evidenceContext } from "@/lib/interview-evidence-challenges"
+import { evidenceChallengeForCourse, evidenceContext , canRevealNextEvidence, nextEvidenceStage } from "@/lib/interview-evidence-challenges"
 import {
   buildLiveResumePrompt,
   canSendLiveAudio,
@@ -429,9 +429,11 @@ export default function GeminiLiveNextPage() {
   function revealEvidence() {
     const ws=wsRef.current
     const candidateCount=turnsRef.current.filter(turn=>turn.role==="candidate").length
-    if(!evidenceChallenge||!ws||ws.readyState!==WebSocket.OPEN||endingRef.current||candidateCount<=evidenceLastAnswerCount||evidenceStage>=2)return
-    const next=evidenceStage+1
-    const exhibit=evidenceChallenge.stages[next]
+    if(!evidenceChallenge||!ws||ws.readyState!==WebSocket.OPEN||endingRef.current||!canRevealNextEvidence(evidenceStage,candidateCount,evidenceLastAnswerCount))return
+    const nextState=nextEvidenceStage(evidenceChallenge,evidenceStage,candidateCount,evidenceLastAnswerCount)
+    if(!nextState)return
+    const next=nextState.index
+    const exhibit=nextState.stage
     const current=evidenceContext({challengeId:evidenceChallenge.id,stage:next})
     if(!current)return
     setEvidenceStage(next)
@@ -1109,7 +1111,7 @@ export default function GeminiLiveNextPage() {
       </section>
 
       <aside className="space-y-4">
-        {evidenceChallenge ? <InterviewEvidencePanel challenge={evidenceChallenge} stageIndex={evidenceStage} canReveal={candidateTurnCount>evidenceLastAnswerCount} onReveal={revealEvidence} disabled={phase!=="live"}/> : null}
+        {evidenceChallenge ? <InterviewEvidencePanel challenge={evidenceChallenge} stageIndex={evidenceStage} canReveal={canRevealNextEvidence(evidenceStage,candidateTurnCount,evidenceLastAnswerCount)} onReveal={revealEvidence} disabled={phase!=="live"}/> : null}
         <Card className="shadow-none">
           <CardHeader><div className="flex items-center justify-between gap-3"><div><Camera className="size-5 text-[#147d91]" /><CardTitle className="mt-2 font-serif text-xl">Show your working</CardTitle></div><Button size="sm" variant="outline" onClick={() => void toggleCamera()}>{cameraOn ? <CameraOff /> : <Camera />}{cameraOn ? "Stop" : "Camera"}</Button></div><CardDescription>No continuous video is uploaded. A still image is captured only when you press Analyse working.</CardDescription></CardHeader>
           <CardContent className="space-y-3"><div className="aspect-video overflow-hidden rounded-xl border bg-slate-950"><video ref={videoRef} className="h-full w-full object-cover" muted playsInline /></div><Button className="w-full" onClick={() => void analyseCameraWorking()} disabled={!cameraOn || cameraAnalysing}>{cameraAnalysing ? <Loader2 className="animate-spin" /> : <ScanSearch />}{cameraAnalysing ? "Analysing…" : "Analyse working"}</Button>{workingAnalysis && <details className="rounded-xl bg-slate-50 p-3" open><summary className="cursor-pointer text-sm font-semibold">Latest working analysis</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">{workingAnalysis}</p></details>}</CardContent>
