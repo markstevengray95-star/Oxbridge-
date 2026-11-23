@@ -197,6 +197,7 @@ export async function POST(request: Request) {
     preferredNodeId: extendedTreeTurn ? undefined : planned.preferredNodeId,
     probes,
   })
+  const selectedNode = { ...node, prompt: extendedTreeTurn ? node.prompt : planned.prompt, branchReason: extendedTreeTurn ? node.branchReason : planned.rationale }
   const intervention = selectInterviewerIntervention({
     classification: local.classification,
     issue: local.issue,
@@ -206,7 +207,6 @@ export async function POST(request: Request) {
     previous: Array.isArray(body.previousInterventions) ? body.previousInterventions.slice(-20) : [],
   })
 
-  const selectedNode = { ...node, prompt: extendedTreeTurn ? node.prompt : planned.prompt, branchReason: extendedTreeTurn ? node.branchReason : planned.rationale }
   let reply = selectedNode.prompt
   if (intervention.kind === "silence") reply = "Take a moment. Keep thinking aloud: what would you test or establish next before I intervene?"
   if (intervention.kind === "move-on") reply = "Give me your final synthesis of this problem: conclusion, decisive step, key assumption, strongest challenge and what you would carry into a new problem."
