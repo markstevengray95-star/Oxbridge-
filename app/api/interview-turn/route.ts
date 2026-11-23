@@ -23,6 +23,7 @@ import {
   panelInterviewer,
 } from "@/lib/interview-depth-features"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
+import { planAcademicFollowUp, suitableAcademicFollowUp, type AcademicFollowUpInput, type FollowUpStrategy } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { interviewQuestions } from "@/lib/oxbridge-data"
 
@@ -92,6 +93,7 @@ type MovedEvaluation = ResolvedEvaluation & {
   hintLevel?: 1 | 2 | 3 | 4
   adaptiveLevel: number
   branchReason: string
+  followupStrategy: FollowUpStrategy
 }
 
 const classifications = new Set<InterviewAnswerClassification>(["incorrect", "vague", "irrelevant", "partial", "responsive"])
@@ -275,14 +277,20 @@ function attachQuestioningMove(input: {
   probes: string[]
   track?: string
   adaptiveLevel: number
+  planInput: Omit<AcademicFollowUpInput, "classification" | "issue">
 }) : MovedEvaluation {
-  const targetKind = chooseInterviewMove({
+  const planned = planAcademicFollowUp({ ...input.planInput, classification: input.resolved.classification, issue: input.resolved.issue })
+  const defaultKind = chooseInterviewMove({
     classification: input.resolved.classification,
     issue: input.resolved.issue,
     moveHistory: input.moveHistory,
     adaptiveLevel: input.adaptiveLevel,
     track: input.track,
   })
+  // Preserve some purpose-built multi-modal challenges, while making most turns
+  // depend on the precise idea the candidate has just expressed.
+  const keepMultimodal = input.moveHistory.length >= 3 && input.resolved.classification === "responsive" && ["whiteboard", "representation", "reveal", "error-diagnosis"].includes(defaultKind)
+  const targetKind: InterviewMoveKind = input.resolved.classification === "responsive" ? (keepMultimodal ? defaultKind : planned.preferredMove) : "repair"
   const localMove = buildLocalInterviewMove({
     classification: input.resolved.classification,
     issue: input.resolved.issue,
@@ -317,13 +325,14 @@ function attachQuestioningMove(input: {
 
   return {
     ...input.resolved,
-    reply: useCloudMove ? input.evaluated?.reply || localMove.reply : localMove.reply,
+    reply: useCloudMove ? input.evaluated?.reply || localMove.reply : targetKind === planned.preferredMove ? planned.prompt : localMove.reply,
     moveKind: targetKind,
     reveal,
     whiteboardTask: localMove.whiteboardTask,
     hintLevel: localMove.hintLevel,
     adaptiveLevel: nextLevel,
-    branchReason: localMove.branchReason,
+    branchReason: planned.rationale + " " + localMove.branchReason,
+    followupStrategy: planned.strategy,
   }
 }
 
