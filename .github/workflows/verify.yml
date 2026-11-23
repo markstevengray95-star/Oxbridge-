@@ -105,6 +105,9 @@ jobs:
       - name: Phase seven full-length mock interview checks
         run: npm run test:full-mock-interviews
 
+      - name: Phase eight interview evidence feedback checks
+        run: npm run test:interview-feedback-intelligence
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 
