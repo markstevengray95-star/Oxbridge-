@@ -562,7 +562,7 @@ export default function GeminiLiveNextPage() {
     }
 
     if (endingRef.current) {
-      window.setTimeout(() => teardown(true), 900)
+      window.setTimeout(() => { preserveUnfinishedTranscript(); teardown(true) }, 900)
       return
     }
 
@@ -628,6 +628,12 @@ export default function GeminiLiveNextPage() {
         return
       }
       streamRef.current = microphone
+      for (const audioTrack of microphone.getAudioTracks()) {
+        audioTrack.addEventListener("ended", () => {
+          if (generation === generationRef.current && !endingRef.current)
+            failConnection("The microphone stopped unexpectedly. Check your device permissions before resuming.")
+        }, { once: true })
+      }
 
       const response = await fetch("/api/realtime-session", {
         method: "POST",
@@ -822,6 +828,7 @@ export default function GeminiLiveNextPage() {
   function finishInterview() {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN || endingRef.current) {
+      preserveUnfinishedTranscript()
       teardown(true)
       return
     }
@@ -832,7 +839,7 @@ export default function GeminiLiveNextPage() {
     streamRef.current?.getAudioTracks().forEach(trackItem => { trackItem.enabled = false })
     setStatus("thinking")
 
-    finishTimerRef.current = setTimeout(() => teardown(true), 20000)
+    finishTimerRef.current = setTimeout(() => { preserveUnfinishedTranscript(); teardown(true) }, 20000)
     ws.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
     ws.send(JSON.stringify({
       clientContent: {
