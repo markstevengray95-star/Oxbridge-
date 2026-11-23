@@ -21,7 +21,7 @@ const list = allEvidenceChallenges()
 
 test("every original scenario contains exactly three nonempty progressive exhibits",()=>{
   assert.equal(list.length,17)
-  assert.equal(new Set(list.map(x=>x.id)).size,12)
+  assert.equal(new Set(list.map(x=>x.id)).size,17)
   for(const item of list){
     assert.match(item.id,/^phase6-/)
     assert.equal(item.stages.length,3,item.id)
