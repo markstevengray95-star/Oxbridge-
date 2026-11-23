@@ -1,5 +1,9 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import fs from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+import { courseInterviewProfile } from "../lib/interview-depth-features.ts"
 import {
   subjectInterviewPathway, subjectInterviewStarter, subjectPathwayList,
   subjectPathwayProbe, subjectPathwayProbes, subjectPathwayBrief,
@@ -172,4 +176,50 @@ test("subject briefs never claim official university grading authority",()=>{
   assert.match(law,/multiple defensible interpretations/)
   assert.match(physics,/correct guess without justification/)
   assert.match(law,/Academic|academic/)
+})
+
+
+test("combined and adjacent courses use a defensible course-specific route", () => {
+  assert.equal(subjectInterviewPathway("Mathematics & Computer Science","maths").id,"mathematics")
+  assert.equal(subjectInterviewPathway("Mathematics and Computer Science","maths").id,"mathematics")
+  assert.equal(subjectInterviewPathway("Biochemistry","life").id,"biology")
+  assert.equal(subjectInterviewPathway("Biomedical Sciences","life").id,"medicine")
+  assert.equal(subjectInterviewPathway("Law with Law Studies in Europe","law").id,"law")
+  assert.equal(subjectInterviewPathway("History and Economics","economics").id,"economics")
+})
+
+test("academic panel roles differ within the same broad subject track", () => {
+  const physics=courseInterviewProfile("Physics","physical")
+  const chemistry=courseInterviewProfile("Chemistry","physical")
+  const engineering=courseInterviewProfile("Engineering","physical")
+  const biology=courseInterviewProfile("Biology","life")
+  const medicine=courseInterviewProfile("Medicine","life")
+  const maths=courseInterviewProfile("Mathematics","maths")
+  const computing=courseInterviewProfile("Computer Science","maths")
+  assert.equal(new Set([physics.family,chemistry.family,engineering.family]).size,3)
+  assert.notEqual(biology.interviewerA,medicine.interviewerA)
+  assert.notEqual(maths.interviewerB,computing.interviewerB)
+  assert.match(medicine.interviewerB,/ethics/i)
+  assert.match(chemistry.interviewerB,/equilibrium/i)
+  assert.match(engineering.interviewerB,/failure/i)
+})
+
+test("course pathways are integrated into formal, reasoning and live interview entrypoints",()=>{
+  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..")
+  const read=p=>fs.readFileSync(path.join(root,p),"utf8")
+  const formal=read("app/api/interview-turn/route.ts")
+  const reasoning=read("app/api/reasoning-interview-turn/route.ts")
+  const live=read("lib/gemini/live-session-secure.ts")
+  const advanced=read("components/advanced-interview-experience.tsx")
+  const studio=read("components/reasoning-interview-experience-v2.tsx")
+  for(const text of [formal,reasoning]){
+    assert.match(text,/subjectPathwayProbes/)
+    assert.match(text,/subjectPathwayBrief/)
+  }
+  assert.match(live,/subjectInterviewStarter/)
+  assert.match(live,/subjectPathwayBrief/)
+  assert.match(advanced,/subjectInterviewStarter/)
+  assert.match(studio,/subjectInterviewStarter/)
+  assert.match(advanced,/pathway.isOpenEnded/)
+  assert.match(studio,/subjectOpenEnded/)
 })
