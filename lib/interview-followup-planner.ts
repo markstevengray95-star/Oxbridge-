@@ -150,3 +150,12 @@ export function planAcademicFollowUp(input: AcademicFollowUpInput): AcademicFoll
     needsSupport:strategy==="clarify" || strategy==="verify",
   }
 }
+
+/** Reject repeated, non-question or answer-revealing cloud replies. */
+export function suitableAcademicFollowUp(reply: string, recentQuestions: string[] = []) {
+  const trimmed = clean(reply, 650)
+  if (trimmed.length < 16 || trimmed.length > 540) return false
+  if ((trimmed.match(/\?/g) ?? []).length !== 1) return false
+  if (/\b(?:correct answer is|the solution is|the answer must be|well done|excellent answer|next unrelated question)\b/i.test(trimmed)) return false
+  return !recentQuestions.some(earlier => similar(trimmed, earlier))
+}
