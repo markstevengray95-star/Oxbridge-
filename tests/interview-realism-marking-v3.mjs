@@ -24,7 +24,8 @@ function transpile(relativePath, imports = {}) {
 }
 
 const quality = transpile("lib/interview-answer-quality.ts")
-const marking = transpile("lib/interview-marking.ts", { "@/lib/interview-answer-quality": quality })
+const process = transpile("lib/interview-process-assessment.ts")
+const marking = transpile("lib/interview-marking.ts", { "@/lib/interview-answer-quality": quality, "@/lib/interview-process-assessment": process })
 const bank = transpile("lib/realistic-interview-bank.ts")
 const { markTypedInterviewTranscript } = marking
 const { realisticInterviewQuestions } = bank
