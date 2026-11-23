@@ -17,6 +17,7 @@ import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib
 import type { InterviewMoveKind, InterviewReveal, InterviewWhiteboardTask } from "@/lib/interview-questioning-engine"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { subjectInterviewStarter, subjectInterviewPathway } from "@/lib/subject-interview-pathways"
+import { mockDurations, mockInterviewStage, mockStageInstruction, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
 import type { InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
@@ -103,6 +104,11 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   const [evidenceStage, setEvidenceStage] = useState(-1)
   const [evidenceLastAnswerCount, setEvidenceLastAnswerCount] = useState(0)
   const [subjectFocused, setSubjectFocused] = useState(true)
+  const [mockDuration, setMockDuration] = useState<MockDuration | null>(null)
+  const [mockStageIndex, setMockStageIndex] = useState(0)
+  const [mockVisited, setMockVisited] = useState<MockStageId[]>([])
+  const [mockElapsed, setMockElapsed] = useState(0)
+  const mockStartRef = useRef<number | null>(null)
   const [turns, setTurns] = useState<Turn[]>([])
   const [moveHistory, setMoveHistory] = useState<InterviewMoveKind[]>([])
   const [sessionMemory, setSessionMemory] = useState<InterviewSessionMemory | null>(null)
@@ -133,10 +139,16 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   }, [])
 
   useEffect(() => {
-    if (!running || seconds <= 0) return
-    const timer = window.setInterval(() => setSeconds(value => Math.max(0, value - 1)), 1000)
+    if (!running) return
+    const timer = window.setInterval(() => {
+      if (mockDuration && mockStartRef.current !== null) {
+        const elapsed = Math.max(0, Math.floor((Date.now() - mockStartRef.current)/1000))
+        setMockElapsed(elapsed)
+        setSeconds(Math.max(0,mockDuration*60-elapsed))
+      } else setSeconds(value => Math.max(0,value-1))
+    },1000)
     return () => window.clearInterval(timer)
-  }, [running, seconds])
+  }, [running,mockDuration])
 
   const questionsForTrack = useMemo(() => {
     const exact = realisticInterviewQuestions.filter(item => item.track === track && item.difficulty === difficulty)
@@ -146,6 +158,11 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   const subjectStarter = useMemo(() => subjectInterviewStarter(course, track, difficulty), [course, track, difficulty])
   const pathway = useMemo(() => subjectInterviewPathway(course, track), [course, track])
   const base = subjectFocused && seed % 2 === 0 ? subjectStarter : questionsForTrack[Math.floor(seed / 2) % Math.max(1, questionsForTrack.length)]
+  const secondaryProblem = useMemo(() => {
+    const candidates = realisticInterviewQuestions.filter(item => item.track === track && item.prompt !== base?.prompt)
+    return candidates[(seed+2)%Math.max(1,candidates.length)] || subjectInterviewStarter(course, track, "Challenge")
+  }, [track,course,seed,base?.prompt])
+  const activeProblem = mockDuration && mockVisited.includes("second-problem") ? secondaryProblem : base
   const persona = interviewerPersonas[personaKey]
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const courseProfile = useMemo(() => courseInterviewProfile(course, track), [course, track])
@@ -153,7 +170,8 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   const evidenceChallenge = evidenceEnabled ? evidenceChallengeForCourse(course, track) : null
   const candidateTurns = turns.filter(turn => turn.role === "candidate").length
   const recovery = recoverySignal(turns.filter(turn => turn.role === "candidate").map(turn => turn.quality || ""))
-  const sessionProgress = Math.min(100, candidateTurns * 11)
+  const mockStatus = mockDuration ? mockInterviewStage({minutes:mockDuration,elapsedSeconds:mockElapsed,candidateAnswers:candidateTurns,previousStageIndex:mockStageIndex}):null
+  const sessionProgress = mockStatus?.progressPercent ?? Math.min(100, candidateTurns * 11)
 
   function speak(text: string) {
     if (variant !== "ai" || !("speechSynthesis" in window)) return
@@ -197,6 +215,10 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
 
   function startInterview() {
     if (!base) return
+    mockStartRef.current = mockDuration ? Date.now() : null
+    setMockElapsed(0)
+    setMockStageIndex(0)
+    setMockVisited(mockDuration ? ["opening"] : [])
     setEvidenceStage(-1)
     setEvidenceLastAnswerCount(0)
     const initial = useApplicationLaunch && applicationLaunch ? applicationLaunch.prompt : base.prompt
@@ -216,7 +238,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     setScratch("")
     setResult(null)
     setNotice(applicationLaunch && useApplicationLaunch ? `Started from your saved ${applicationLaunch.source}; the interviewer will move beyond rehearsed material after the opening answer.` : "")
-    setSeconds(mode === "Stress" ? 12 * 60 : 18 * 60)
+    setSeconds(mockDuration ? mockDuration*60 : mode === "Stress" ? 12 * 60 : 18 * 60)
     setRunning(true)
     setPhase("live")
     speak(`${opener} ${initial}`)
@@ -249,10 +271,14 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
 
     const panel = panelInterviewer(candidateTurns, courseProfile)
     const chainInstruction = deepChainInstruction(candidateTurns + 1)
+    const stageTransition = mockDuration ? mockInterviewStage({minutes:mockDuration,elapsedSeconds:mockStartRef.current?Math.floor((Date.now()-mockStartRef.current)/1000):mockElapsed,candidateAnswers:candidateTurns+1,previousStageIndex:mockStageIndex}):null
+    const switchProblem = stageTransition?.stage.id === "second-problem" && !mockVisited.includes("second-problem")
+    const timedInstruction = mockDuration ? mockStageInstruction({minutes:mockDuration,elapsedSeconds:mockElapsed,candidateAnswers:candidateTurns,previousStageIndex:mockStageIndex}):""
     const extraProbes = [
       ...base.probes,
       ...courseProfile.preferredMoves.map(move => `Continue the same problem by asking the candidate to ${move}.`),
       chainInstruction,
+      ...(timedInstruction ? [timedInstruction] : []),
       ...(applicationLaunch?.followUpRule ? [applicationLaunch.followUpRule] : []),
     ].slice(0, 12)
 
@@ -267,15 +293,16 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
           persona: personaKey,
           mode: `${mode}. Deep-chain stage: ${deepChainStage(candidateTurns + 1)}. ${chainInstruction}`,
           question,
-          openingProblem: useApplicationLaunch && applicationLaunch ? applicationLaunch.prompt : base.prompt,
+          openingProblem: mockDuration && mockVisited.includes("second-problem") ? secondaryProblem.prompt : useApplicationLaunch && applicationLaunch ? applicationLaunch.prompt : base.prompt,
           memory: sessionMemory,
-          questionId: evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) ? undefined : base.id,
+          questionId: mockDuration || evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) ? undefined : activeProblem.id,
           answer: candidate,
-          concepts: evidenceStage>=0 ? [] : base.concepts,
+          concepts: evidenceStage>=0 ? [] : activeProblem.concepts,
           probes: extraProbes,
+          mock: mockDuration ? {minutes:mockDuration,elapsedSeconds:mockElapsed,stageIndex:mockStageIndex} : undefined,
           moveHistory,
           adaptiveLevel,
-          referenceAnswer: evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer,
+          referenceAnswer: mockDuration || evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : activeProblem.strongAnswer,
           stimulus: useApplicationLaunch && applicationLaunch ? applicationLaunch.excerpt : base.stimulus,
           turns: history,
           panelMode,
@@ -290,7 +317,13 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
       const data = await response.json() as AiReply
       if (data.memory) setSessionMemory(data.memory)
       const classification = data.classification ?? "partial"
-      const next = data.reply?.trim() || base.probes[candidateTurns % base.probes.length]
+      const followUp = data.reply?.trim() || activeProblem.probes[candidateTurns % activeProblem.probes.length]
+      const next = switchProblem ? "Thank you. The second academic will now explore a different problem. " + secondaryProblem.prompt : followUp
+      if (stageTransition && stageTransition.index !== mockStageIndex) {
+        setMockStageIndex(stageTransition.index)
+        setMockVisited(previous => [...new Set([...previous,stageTransition.stage.id])])
+      }
+      if (switchProblem) {setSessionMemory(null);setMoveHistory([]);setWhiteboardTask(null)}
       const classified = history.map((turn, index) => index === history.length - 1 ? { ...turn, quality: classification } : turn)
       const interviewerTurn: Turn = {
         role: "interviewer",
@@ -309,7 +342,9 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
       if (data.degraded) setNotice("Cloud evaluation was temporarily unavailable, so the built-in interviewer continued the same academic chain locally.")
       speak(`${panelMode ? `${panel.label}. ` : ""}${data.reveal?.content ? `${data.reveal.content} ` : ""}${next}`)
     } catch {
-      const next = `${chainInstruction} ${base.probes[candidateTurns % base.probes.length] ?? "Which assumption in that answer is doing the most work?"}`
+      const next = switchProblem ? "We will now consider a different problem. " + secondaryProblem.prompt : chainInstruction + " " + (activeProblem.probes[candidateTurns % activeProblem.probes.length] ?? "Which assumption in that answer is doing the most work?")
+      if (stageTransition && stageTransition.index !== mockStageIndex) {setMockStageIndex(stageTransition.index);setMockVisited(previous => [...new Set([...previous,stageTransition.stage.id])])}
+      if (switchProblem) {setSessionMemory(null);setMoveHistory([])}
       setTurns([...history, { role: "interviewer", speaker: panelMode ? panel.label : "Interviewer", text: next }])
       setQuestion(next)
       setNotice("The interview service could not be reached, so the same problem continued with the built-in deep-chain interviewer.")
@@ -324,8 +359,9 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     stopListening()
     const finalTurns = answer.trim() ? [...turns, { role: "candidate" as const, text: answer.trim() }] : turns
     if (!finalTurns.some(turn => turn.role === "candidate")) return
-    const scored = markTypedInterviewTranscript({ turns: finalTurns, concepts: base.concepts, referenceAnswer: evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer })
+    const scored = markTypedInterviewTranscript({ turns: finalTurns, concepts: mockDuration ? [...new Set([...base.concepts,...secondaryProblem.concepts])] : base.concepts, referenceAnswer: mockDuration || evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer })
     const finalRecovery = recoverySignal(finalTurns.filter(turn => turn.role === "candidate").map(turn => turn.quality || ""))
+    const completedMock = mockDuration ? mockCompletionReport({minutes:mockDuration,elapsedSeconds:mockStartRef.current?Math.floor((Date.now()-mockStartRef.current)/1000):mockElapsed,candidateAnswers:finalTurns.filter(t=>t.role==="candidate").length,visitedStages:mockVisited,endedBy:"student"}):null
     setTurns(finalTurns)
     setResult(scored)
     setRunning(false)
@@ -347,6 +383,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
         `Course-specific engine: ${courseProfile.family}`,
         `Intellectual recovery: ${finalRecovery.score}/20 · ${finalRecovery.label}`,
         `Typed rubric: ${scored.rubricVersion}`,
+        ...(completedMock ? [`Mock status: ${completedMock.status} (${completedMock.actualMinutes} of ${completedMock.targetMinutes} minutes)`] : []),
       ]
       localStorage.setItem(PROGRESS_KEY, JSON.stringify({
         ...saved,
@@ -368,6 +405,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
           adaptiveDifficultyFinal: adaptiveLevel,
           dimensions: { reasoning: scored.reasoning, accuracy: scored.accuracy, responsiveness: scored.responsiveness, adaptability: scored.adaptability, evidence: scored.evidence, communication: scored.communication },
           reasoningFirst: scored.reasoningFirst,
+          mockSession: completedMock,
         }, ...logs].slice(0, 50),
       }))
     } catch {}
@@ -375,6 +413,10 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
 
   function reset() {
     stopListening()
+    mockStartRef.current=null
+    setMockStageIndex(0)
+    setMockVisited([])
+    setMockElapsed(0)
     setPhase("lobby")
     setTurns([])
     setMoveHistory([])
@@ -413,6 +455,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
             </div>
             <p className="mt-4 rounded-xl bg-[#edf7f8] p-3 text-sm text-[#102a43]"><strong>{pathway.label} pathway.</strong> Focus: {pathway.reasoningFocus.join(", ")}. {subjectFocused ? "The opening alternates between a course-specific scenario and wider subject challenges." : "Using the wider question bank."}</p>
             <button type="button" className="mt-4 rounded-xl border bg-white px-4 py-3 text-sm" onClick={() => setEvidenceEnabled(current => !current)}>{evidenceEnabled ? "Interactive evidence enabled · click to disable" : "Add interactive graphs, unseen sources and changed scenarios"}</button>
+            <label className="mt-4 block space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Timed full mock</span><NativeSelect value={mockDuration??"standard"} onChange={event => setMockDuration(event.target.value==="standard"?null:Number(event.target.value) as MockDuration)}><NativeSelectOption value="standard">Standard interview · 18 minutes</NativeSelectOption>{mockDurations.map(minutes=><NativeSelectOption key={minutes} value={String(minutes)}>{minutes} minute academic mock</NativeSelectOption>)}</NativeSelect><span className="text-xs leading-5 text-slate-500">Stages depend on the student’s answers and approximate elapsed time, never a forced interruption. Long sessions may include a fresh second problem.</span></label>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={() => { setSubjectFocused(value => !value); setSeed(0) }} className={`rounded-2xl border p-4 text-left ${subjectFocused ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><div className="font-semibold">Course-specific pathway</div><p className="mt-1 text-xs leading-5 text-slate-500">{subjectFocused ? "On · starts with your course and uses specialised academic probes" : "Off · wider subject question bank"}</p></button>
               <button type="button" onClick={() => setPanelMode(value => !value)} className={`rounded-2xl border p-4 text-left ${panelMode ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><div className="flex items-center gap-2 font-semibold"><Users className="size-4" />Two-interviewer panel</div><p className="mt-1 text-xs leading-5 text-slate-500">{courseProfile.interviewerA} + {courseProfile.interviewerB}</p></button>
@@ -433,12 +476,13 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
       <Card className="border-[#cfe1e4]"><CardHeader><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Practice interview review</p><CardTitle className="font-serif text-3xl">{result.total}/100 · {result.band}</CardTitle><CardDescription>Reasoning-first practice diagnostic · {result.reasoningFirst.confidence} confidence · not an Oxford or Cambridge admissions score.</CardDescription></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase text-slate-500">Reasoning</p><p className="mt-1 text-3xl font-bold text-[#147d91]">{result.reasoning}/25</p></div><div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase text-slate-500">Adaptability</p><p className="mt-1 text-3xl font-bold text-[#147d91]">{result.adaptability}/20</p></div><div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase text-slate-500">Recovery</p><p className="mt-1 text-3xl font-bold text-[#147d91]">{finalRecovery.score}/20</p><p className="mt-1 text-xs text-slate-500">{finalRecovery.label}</p></div><div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase text-slate-500">Chain depth</p><p className="mt-1 text-lg font-bold text-[#147d91]">{deepChainStage(turns.filter(turn => turn.role === "candidate").length)}</p></div></CardContent></Card>
       <Card><CardHeader><CardTitle>How your thinking was assessed</CardTitle><CardDescription>Reasoning and adaptation outweigh final-answer accuracy. Supported work is recognised without being mistaken for independent reasoning.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{result.reasoningFirst.dimensions.map(item=><div key={item.key} className="rounded-xl border p-3"><p className="text-sm font-semibold">{item.label}</p><p className="mt-1 text-xl font-bold">{item.observed?`${item.score}/${item.max}`:"Not assessed"}</p></div>)}</div><p className="text-sm text-slate-600">No recorded help: {result.reasoningFirst.independentTurns} turn(s). After support: {result.reasoningFirst.supportedTurns}. Adaptation opportunities: {result.reasoningFirst.challengeOpportunities}.</p>{result.reasoningFirst.observations.slice(-3).map(item=><div key={`${item.turn}-${item.kind}`} className="rounded-xl bg-slate-50 p-3 text-sm"><p className="font-semibold">Turn {item.turn} · {item.kind}</p><p className="mt-1">“{item.quote}”</p></div>)}{result.reasoningFirst.missingEvidence.map(item=><p key={item} className="text-sm text-amber-800">{item}</p>)}</CardContent></Card>
       <div className="grid gap-5 lg:grid-cols-2"><Card><CardHeader><CheckCircle2 className="size-5 text-emerald-700" /><CardTitle>What worked</CardTitle></CardHeader><CardContent className="space-y-3">{result.strengths.map(item => <p key={item} className="rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-950">{item}</p>)}{finalRecovery.recoveries ? <p className="rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-950">You improved after challenge {finalRecovery.recoveries} time{finalRecovery.recoveries === 1 ? "" : "s"}; recovery is treated as positive evidence rather than simply preserving the earlier mistake.</p> : null}</CardContent></Card><Card><CardHeader><Target className="size-5 text-amber-700" /><CardTitle>What to work on next</CardTitle></CardHeader><CardContent className="space-y-3">{result.next.map(item => <p key={item} className="rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-950">{item}</p>)}</CardContent></Card></div>
+      {mockDuration ? <Card><CardHeader><CardTitle>Full mock status</CardTitle><CardDescription>{mockCompletionReport({minutes:mockDuration,elapsedSeconds:mockElapsed,candidateAnswers:turns.filter(t=>t.role==="candidate").length,visitedStages:mockVisited})?.status}. Actual duration: {(mockElapsed/60).toFixed(1)} minutes; target: {mockDuration} minutes. An early stop is recorded as a partial mock.</CardDescription></CardHeader></Card> : null}
       <Card><CardHeader><CardTitle className="font-serif text-2xl">Conversation trajectory</CardTitle><CardDescription>The review keeps the full sequence so you can see how the argument developed, was challenged and recovered.</CardDescription></CardHeader><CardContent className="space-y-3">{turns.map((turn, index) => <div key={`${turn.role}-${index}`} className="rounded-xl border bg-white p-4"><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{turn.role === "candidate" ? "You" : turn.speaker || "Interviewer"}</Badge>{turn.quality ? <Badge className={qualityClass(turn.quality)}>{qualityLabel(turn.quality)}</Badge> : null}</div><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{turn.text}</p></div>)}</CardContent></Card>
     </div></main>
   }
 
   return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]"><div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><Button variant="ghost" onClick={reset}><ArrowLeft />Exit interview</Button><div className="flex items-center gap-2"><Badge variant="outline"><Clock3 className="mr-1 size-3.5" />{formatTime(seconds)}</Badge><Badge className="bg-[#102a43] text-white">{course}</Badge><Badge variant="outline">{deepChainStage(candidateTurns)}</Badge></div></div>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><Button variant="ghost" onClick={reset}><ArrowLeft />Exit interview</Button>{mockStatus ? <Badge variant="outline">{mockStatus.stage.label} · {mockStatus.index+1}/{mockStatus.format.stages.length}{mockStatus.scheduledTimeReached ? " · time reached" : ""}</Badge> : null}<div className="flex items-center gap-2"><Badge variant="outline"><Clock3 className="mr-1 size-3.5" />{formatTime(seconds)}</Badge><Badge className="bg-[#102a43] text-white">{course}</Badge><Badge variant="outline">{deepChainStage(candidateTurns)}</Badge></div></div>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]"><Card className="min-h-[680px] border-[#dbe5e7]"><CardHeader><CardTitle className="font-serif text-2xl">Academic interview</CardTitle><CardDescription>Stay with the problem. Think aloud, revise when needed, and use the interviewer’s challenge as new information rather than as a verdict.</CardDescription><Progress value={sessionProgress} className="mt-2" /></CardHeader><CardContent className="space-y-4">
       {evidenceChallenge ? <InterviewEvidencePanel challenge={evidenceChallenge} stageIndex={evidenceStage} canReveal={canRevealNextEvidence(evidenceStage,candidateTurns,evidenceLastAnswerCount)} onReveal={revealEvidence} disabled={thinking} /> : null}
       {base?.stimulus && !(applicationLaunch && useApplicationLaunch) ? <div className="rounded-2xl border border-[#cfe1e4] bg-[#edf7f8] p-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Stimulus</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{base.stimulus}</p></div> : null}
