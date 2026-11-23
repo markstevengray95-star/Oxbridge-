@@ -62,7 +62,7 @@ const physical: EvidenceChallenge = {
     { label: "Unseen measurements", change: "First experimental record",
       question: "Which pattern do you see in the times, and what could explain it without assuming that final speed changes?",
       material: { kind: "graph", title: "Time to reach bottom, equal vertical drop (friction neglected)", xLabel: "Slope length (m)", yLabel: "Travel time (s)",
-        x: [1,2,3,4,5], series: [{label:"Measured time",values:[0.64,0.91,1.12,1.29,1.44]}],
+        x: [1,2,3,4,5], series: [{label:"Measured time",values:[0.64,1.28,1.92,2.56,3.19]}],
         note:"Invented data rounded to 2 decimals; all slopes have a vertical drop of 0.5 m." },
     },
     { label: "New evidence", change: "Speed measurements are now provided",
@@ -197,13 +197,60 @@ const literature: EvidenceChallenge={
       material:{kind:"excerpt",title:"Imagined second speaker",text:"'That lamp?' she said. 'It was never meant for you.'",note:"Consider unreliable narration and competing character knowledge."}},
   ],
 }
-const scenarios: EvidenceChallenge[]=[physical,medicine,law,history,maths,economics,biology,computing,literature]
+
+const chemistry: EvidenceChallenge={
+  id:"phase6-chemistry-rates",pathwayId:"chemistry",title:"The rate experiment changes",
+  introduction:"Fictional initial-rate experiments. Use numerical relationships carefully and distinguish measurements from mechanisms.",
+  stages:[
+    {label:"Initial readings",change:"Rates for varied concentrations",
+      question:"Which reaction-order hypothesis is consistent with these results, and what additional information do you need?",
+      material:{kind:"table",title:"Initial rates",headers:["Trial","[A] (mol/L)","[B] (mol/L)","Initial rate (mol/L/s)"],rows:[["1","0.10","0.10","0.020"],["2","0.20","0.10","0.040"],["3","0.10","0.20","0.080"]],note:"Temperature and catalyst conditions held fixed."}},
+    {label:"New condition",change:"Temperature is increased",
+      question:"At the original concentrations a higher temperature produces 0.050 mol/L/s. Which part of your rate model changes, and what conclusion would be unwarranted?",
+      material:{kind:"table",title:"Temperature test at trial 1 concentrations",headers:["Temperature (°C)","Initial rate (mol/L/s)"],rows:[["20","0.020"],["35","0.050"]],note:"Concentrations are unchanged; a simple concentration-order test alone cannot establish mechanism."}},
+    {label:"Mechanistic challenge",change:"A rival two-step mechanism is proposed",
+      question:"Two proposed mechanisms predict the same rate law at the tested conditions. What experiment could distinguish them?",
+      material:{kind:"excerpt",title:"Mechanistic ambiguity",text:"Mechanism X and mechanism Y both predict first order in A and second order in B under these conditions.",note:"Avoid treating a fitted rate law as proof of a unique mechanism."}},
+  ],
+}
+const engineering: EvidenceChallenge={
+  id:"phase6-engineering-beams",pathwayId:"engineering",title:"A beam design has a surprise",
+  introduction:"Illustrative beam-deflection data for equal-span, equal-mass alternatives. The support and loading arrangements are assumed identical.",
+  stages:[
+    {label:"Baseline comparison",change:"Measured deflection",
+      question:"Which design appears stiffer under this load and what must be controlled to support that comparison?",
+      material:{kind:"table",title:"Deflection at centre under 100 N",headers:["Profile","Mass (kg)","Deflection (mm)"],rows:[["Solid rectangle","2.0","4.0"],["Hollow I-shaped","2.0","1.5"]],note:"Fictional measurements at one load and orientation."}},
+    {label:"Loading changes",change:"The load rotates relative to the section",
+      question:"With the profile rotated, the I-shape now deflects 6 mm. What does this reveal about the claim that it is 'stronger'?",
+      material:{kind:"table",title:"Deflection under changed orientation",headers:["Profile","Original (mm)","Rotated (mm)"],rows:[["Solid rectangle","4.0","4.1"],["I-shaped","1.5","6.0"]],note:"Discuss bending direction and second moment of area."}},
+    {label:"Failure mode",change:"Lateral buckling is reported",
+      question:"The narrow flange starts to buckle before the expected load limit. Which failure mode does your initial bending-stiffness comparison miss?",
+      material:{kind:"excerpt",title:"Observed failure",text:"At increased load, the I-shaped section develops lateral instability before yielding in bending.",note:"Propose an appropriate bracing or test strategy without assuming unique optimal design."}},
+  ],
+}
+const geography: EvidenceChallenge={
+  id:"phase6-geography-floods",pathwayId:"geography",title:"Does the flood barrier move risk?",
+  introduction:"A fictional spatial field study; local flood frequency is not controlled by one variable alone.",
+  stages:[
+    {label:"Flood frequency",change:"Before and after data",
+      question:"What spatial pattern do you see, and what would you need before attributing it to the barrier?",
+      material:{kind:"table",title:"Reported flooded days per year",headers:["Location","Before","After"],rows:[["Protected town","12","4"],["Downstream village","6","10"]],note:"Different years have different rainfall; values are illustrative."}},
+    {label:"Changed environment",change:"Rainfall record is disclosed",
+      question:"Rainfall increased in the later period. How might this change your interpretation of the two locations?",
+      material:{kind:"table",title:"Mean annual rainfall",headers:["Period","Rainfall (mm)"],rows:[["Before","800"],["After","920"]],note:"Rainfall alone does not determine coastal or river flood hazard."}},
+    {label:"Counterfactual model",change:"A third site is measured",
+      question:"A control settlement without a barrier also experienced more floods. Which comparison best helps isolate possible barrier effects, and why?",
+      material:{kind:"table",title:"Comparison flood days",headers:["Location","Before","After"],rows:[["Unprotected reference","5","8"]],note:"A control site must be similar for a defensible comparison."}},
+  ],
+}
+
+const scenarios: EvidenceChallenge[]=[physical,medicine,law,history,maths,economics,biology,computing,literature,chemistry,engineering,geography]
 const map:Record<string,string>={
-  physics:physical.id,engineering:physical.id,chemistry:biology.id,
+  physics:physical.id,engineering:engineering.id,chemistry:chemistry.id,
   mathematics:maths.id,computing:computing.id,
   medicine:medicine.id,biology:biology.id,psychology:medicine.id,
   law:law.id,economics:economics.id,ppe:economics.id,
-  history:history.id,geography:economics.id,
+  history:history.id,geography:geography.id,
   philosophy:law.id,literature:literature.id,languages:literature.id,general:history.id,
 }
 export function allEvidenceChallenges(){return scenarios}
