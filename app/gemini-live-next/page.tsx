@@ -1130,9 +1130,9 @@ export default function GeminiLiveNextPage() {
       <div className="mx-auto max-w-4xl px-4 py-12">
         <Card className="shadow-none">
           <CardHeader><CheckCircle2 className="size-8 text-emerald-600" /><CardTitle className="font-serif text-3xl">Interview saved to Reasoning Replay</CardTitle><CardDescription>Your transcript, confidence estimates, branching path, feedback and any shared working summary are ready for review.{mockDuration ? <span className="mt-2 block font-semibold text-[#147d91]">{mockCompletionReport({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:candidateTurnCount,visitedStages:mockVisited})?.status}. Actual practice: {(seconds/60).toFixed(1)} of {mockDuration} minutes; {mockVisited.length} academic stages reached.</span> : null}</CardDescription></CardHeader>
-          {feedbackReport?<InterviewEvidenceReview report={feedbackReport}/>:null}
           <CardContent className="flex flex-wrap gap-2"><Button asChild><Link href="/reasoning-replay">Open reasoning replay</Link></Button><Button variant="outline" onClick={reset}><RefreshCw />New interview</Button></CardContent>
         </Card>
+        {feedbackReport?<InterviewEvidenceReview report={feedbackReport}/>:null}
       </div>
     </main>
   }
