@@ -24,6 +24,17 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
+import {
+  buildLiveResumePrompt,
+  canSendLiveAudio,
+  detectVoiceBargeIn,
+  liveAudioRms,
+  liveSocketErrorMessage,
+  liveSpeechDetection,
+  mergeLiveTranscription,
+  newVoiceBargeInState,
+  type InterviewVoicePace,
+} from "@/lib/gemini/live-conversation-control"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { PROFILE_KEY, PROGRESS_KEY } from "@/lib/personal-tutor"
 import {
@@ -36,7 +47,7 @@ import {
   type OralRetest,
 } from "@/lib/nextgen-prep"
 
-type Phase = "lobby" | "connecting" | "live" | "ended"
+type Phase = "lobby" | "connecting" | "live" | "reconnect" | "ended"
 type LiveState = "idle" | "connecting" | "connected" | "speaking" | "thinking" | "interviewer" | "error"
 type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
 type Turn = LiveTurnRecord
@@ -182,6 +193,8 @@ export default function GeminiLiveNextPage() {
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [voice, setVoice] = useState<GeminiVoice>("Gacrux")
   const [panelMode, setPanelMode] = useState(false)
+  const [voicePace, setVoicePace] = useState<InterviewVoicePace>("thoughtful")
+  const [allowBargeIn, setAllowBargeIn] = useState(true)
   const [muted, setMuted] = useState(false)
   const [seconds, setSeconds] = useState(0)
   const [notice, setNotice] = useState("")
@@ -222,6 +235,12 @@ export default function GeminiLiveNextPage() {
   const openingRef = useRef(true)
   const endingRef = useRef(false)
   const lastCandidateIdRef = useRef<string | null>(null)
+  const speechStateRef = useRef(newVoiceBargeInState())
+  const localInterruptionRef = useRef(false)
+  const resumeRef = useRef(false)
+  const setupReadyRef = useRef(false)
+  const bargeInRef = useRef(true)
+  const droppedAudioWarningRef = useRef(false)
 
   useEffect(() => {
     try {
@@ -284,6 +303,7 @@ export default function GeminiLiveNextPage() {
   }
 
   function stopOutput() {
+    speechStateRef.current = newVoiceBargeInState()
     playbackEpochRef.current += 1
     for (const source of outputSourcesRef.current) {
       try { source.stop() } catch { /* source already ended */ }
@@ -294,7 +314,7 @@ export default function GeminiLiveNextPage() {
   }
 
   async function playGeminiAudio(base64: string) {
-    if (panelMode) return
+    if (panelMode || localInterruptionRef.current) return
     const context = outputCtxRef.current
     const generation = generationRef.current
     const epoch = playbackEpochRef.current
@@ -306,6 +326,7 @@ export default function GeminiLiveNextPage() {
     if (!samples.length) return
     const buffer = context.createBuffer(1, samples.length, 24000)
     buffer.copyToChannel(samples, 0)
+    if (generation !== generationRef.current || epoch !== playbackEpochRef.current || localInterruptionRef.current) return
     const source = context.createBufferSource()
     source.buffer = buffer
     source.connect(context.destination)
