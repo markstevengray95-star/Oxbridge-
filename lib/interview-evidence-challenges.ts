@@ -157,7 +157,7 @@ const biology: EvidenceChallenge={
   introduction:"Fictional plant experiment, designed for cautious interpretation of measurements.",
   stages:[
     {label:"Growth data",change:"First experimental graph",
-      question:"Describe the pattern and distinguish a biological mechanism from what this graph alone demonstrates.",
+      question:"What pattern is visible in these measurements, and which biological mechanism remains unproven by this graph alone?",
       material:{kind:"graph",title:"Plant height after 4 weeks",xLabel:"Light dose (arbitrary units)",yLabel:"Mean height (cm)",x:[1,2,3,4,5],series:[{label:"Blue light",values:[4,7,10,12,12]},{label:"Red light",values:[3,6,8,9,9]}],note:"Invented averages; no uncertainty bars or sample size shown."}},
     {label:"New measurement",change:"The light sources were not equivalent",
       question:"The blue source delivered more photons at each stated setting. How does this change the claim that wavelength caused the difference?",
@@ -313,7 +313,7 @@ export function validatedEvidenceContext(course:string,track:string|undefined,se
 }
 
 export function evidenceFollowUpProbes(context:EvidenceContext){
-  const focus="exhibit "+(context.stage+1)+" of "+context.title
+  const focus="exhibit "+(context.stage+1)+" of "+context.title.replace(/[?!]/g,"")
   return {
     clarify:"Looking only at "+focus+", what is one observation that you can state with confidence?",
     justify:"Which exact number, comparison or quotation in "+focus+" supports your claim, and how?",
@@ -324,6 +324,6 @@ export function evidenceFollowUpProbes(context:EvidenceContext){
     alternative:"What other interpretation of "+focus+" is consistent with the evidence, and how could you distinguish it?",
     "stress-test":"Which boundary case or missing control could undermine your explanation of "+focus+"?",
     transfer:"Use the reasoning method from "+focus+" in a new but comparable situation. Which part survives?",
-    synthesis:"Across the evidence released so far in "+context.title+", what conclusion is justified, and what remains unresolved?",
+    synthesis:"Looking across all revealed information through "+focus+", what conclusion is justified, and what remains unresolved?",
   }
 }
