@@ -6,6 +6,7 @@ import { selectInterviewTreeNode, type InterviewTreeNodeId } from "@/lib/intervi
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { subjectPathwayBrief, subjectInterviewPathway, subjectPathwayProbes } from "@/lib/subject-interview-pathways"
+import { validatedEvidenceContext, evidenceFollowUpProbes, evidenceQuestionProbes, type EvidenceSelection } from "@/lib/interview-evidence-challenges"
 import { planAcademicFollowUp, suitableAcademicFollowUp } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { interviewQuestions, type TrackId } from "@/lib/oxbridge-data"
@@ -29,6 +30,8 @@ type RequestBody = {
   previousInterventions?: InterviewInterventionKind[]
   openingProblem?: string
   memory?: InterviewSessionMemory
+  evidence?: EvidenceSelection
+  workingEvidence?: string
 }
 
 type GeminiReply = {
@@ -100,6 +103,8 @@ async function cloudFollowUp(key: string, input: {
   continuityBrief: string
   strategy: string
   strategyRationale: string
+  evidenceBrief?: string
+  workingEvidence?: string
 }) {
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
   const transcript = input.recentTurns.slice(-12).map(turn => `${turn.role === "candidate" ? "Candidate" : "Interviewer"}: ${clean(turn.text, 800)}`).join("\n")
@@ -117,6 +122,8 @@ async function cloudFollowUp(key: string, input: {
     `Support level: ${input.supportLevel}/3. A level of 0 means preserve independence and do not scaffold content.`,
     `Course: ${input.course || "unspecified"}. Track: ${input.track || "unspecified"}. Starting difficulty: ${input.difficulty || "Stretch"}.`,
     `Original problem: ${input.originalQuestion}`,
+    input.evidenceBrief ? `Interactive evidence currently revealed to the candidate (and only these stages):\n${input.evidenceBrief}\nDo not refer to later unseen exhibits or invent measurements. Probe a claim grounded in the revealed data.` : "",
+    input.workingEvidence ? `Candidate-written working notes (unverified and not an image interpretation): ${input.workingEvidence}` : "",
     `Current interviewer question: ${input.currentQuestion}`,
     `Latest candidate answer: ${input.candidateAnswer}`,
     `Prior student reasoning evidence (quoted, not verified):\n${input.continuityBrief}`,
@@ -164,6 +171,8 @@ export async function POST(request: Request) {
   const referenceAnswer = clean(body.referenceAnswer || canonical?.strongAnswer, 3000) || undefined
   const probes = Array.isArray(body.probes) && body.probes.length ? body.probes.filter(Boolean).slice(0, 14) : canonical?.probes ?? []
 
+  const evidence = validatedEvidenceContext(body.course || "", body.track, body.evidence || {})
+  const workingEvidence = clean(body.workingEvidence, 1400)
   const memory = advanceInterviewSession(body.memory, {
     openingProblem: clean(body.openingProblem, 800) || canonical?.prompt || question,
     question,
@@ -173,7 +182,7 @@ export async function POST(request: Request) {
   const candidateTurnCount = Math.max(1, turns.filter(turn => turn.role === "candidate").length, memory.candidateTurns)
   const planned = planAcademicFollowUp({
     course: body.course,
-    subjectProbes: subjectPathwayProbes(body.course ?? "", body.track, answer),
+    subjectProbes: evidence ? {...subjectPathwayProbes(body.course ?? "", body.track, answer),...evidenceFollowUpProbes(evidence)} : subjectPathwayProbes(body.course ?? "", body.track, answer),
     openingProblem: memory.openingProblem,
     currentQuestion: question,
     candidateAnswer: answer,
@@ -199,7 +208,7 @@ export async function POST(request: Request) {
     candidateTurnCount,
     previousNodeIds: Array.isArray(body.previousNodeIds) ? body.previousNodeIds.slice(-30) : [],
     preferredNodeId: extendedTreeTurn ? undefined : planned.preferredNodeId,
-    probes,
+    probes: evidence ? [...evidenceQuestionProbes(body.evidence||{}),...probes].slice(0,14) : probes,
   })
   const selectedNode = { ...node, prompt: extendedTreeTurn ? node.prompt : planned.prompt, branchReason: extendedTreeTurn ? node.branchReason : planned.rationale }
   const intervention = selectInterviewerIntervention({
@@ -237,6 +246,8 @@ export async function POST(request: Request) {
         continuityBrief: interviewMemoryBrief(memory),
         strategy: extendedTreeTurn ? node.id : planned.strategy,
         strategyRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
+        evidenceBrief: evidence?.material,
+        workingEvidence,
       })
       if (cloud && suitableAcademicFollowUp(cloud, memory.recentQuestions)) {
         reply = cloud
@@ -270,6 +281,7 @@ export async function POST(request: Request) {
     followupRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
     intervention,
     provider,
+    evidenceStage: evidence ? {id:evidence.id,stage:evidence.stage} : undefined,
     subjectPathway: subjectInterviewPathway(body.course || "", body.track).id,
     branchCount: 22,
   }, { headers: { "Cache-Control": "no-store" } })
