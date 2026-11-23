@@ -16,6 +16,7 @@ export type InsightTurn = {
 }
 export type InsightEvidence = {
   turnIndex: number
+  question: string
   quote: string
   observation: string
   kind: "strength" | "improvement" | "revision" | "recovery"
@@ -81,7 +82,8 @@ function validQuality(value:unknown):InsightQuality|null{
   return typeof value==="string"&&QUALITY_VALUES.has(value as InsightQuality)?value as InsightQuality:null
 }
 function evidenceTurn(input:InsightTurn[],index:number,kind:InsightEvidence["kind"],observation:string,certainty:InsightEvidence["certainty"]):InsightEvidence {
-  return {turnIndex:index,quote:clean(input[index]?.text,200),kind,observation,certainty}
+  const question=[...input.slice(0,index)].reverse().find(turn=>turn.role==="interviewer"&&turn.text.trim())?.text||""
+  return {turnIndex:index,question:clean(question,240),quote:clean(input[index]?.text,200),kind,observation,certainty}
 }
 function safeDate(value:string|undefined){
   const date=Date.parse(value||"")
