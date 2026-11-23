@@ -17,7 +17,7 @@ import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib
 import type { InterviewMoveKind, InterviewReveal, InterviewWhiteboardTask } from "@/lib/interview-questioning-engine"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { subjectInterviewStarter, subjectInterviewPathway } from "@/lib/subject-interview-pathways"
-import { mockDurations, mockInterviewStage, mockStageInstruction, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
+import { mockDurations, mockInterviewFormat, mockInterviewStage, mockStageInstruction, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
 import type { InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
@@ -125,6 +125,11 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   const [notice, setNotice] = useState("")
   const [result, setResult] = useState<InterviewMarkingResult | null>(null)
   const recognitionRef = useRef<{ stop: () => void } | null>(null)
+
+  useEffect(() => {
+    const requested = mockInterviewFormat(Number(new URLSearchParams(window.location.search).get("mock")))
+    if(requested)setMockDuration(requested.minutes)
+  }, [])
 
   useEffect(() => {
     try {
