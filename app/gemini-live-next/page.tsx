@@ -26,7 +26,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import { subjectInterviewPathway, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
-import { mockDurations, mockInterviewStage, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
+import { mockDurations, mockInterviewFormat, mockInterviewStage, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
 import { InterviewEvidencePanel } from "@/components/interview-evidence-panel"
 import { evidenceChallengeForCourse, evidenceContext , canRevealNextEvidence, nextEvidenceStage } from "@/lib/interview-evidence-challenges"
 import {
@@ -255,6 +255,8 @@ export default function GeminiLiveNextPage() {
   const bargeInRef = useRef(true)
   const droppedAudioWarningRef = useRef(false)
   const lastMockAnswerCountRef = useRef(0)
+
+  useEffect(()=>{const requested=mockInterviewFormat(Number(new URLSearchParams(window.location.search).get("mock")));if(requested)setMockDuration(requested.minutes)},[])
 
   useEffect(() => {
     try {
