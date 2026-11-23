@@ -12,6 +12,16 @@ import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } fro
 import { PROGRESS_KEY, PROFILE_KEY } from "@/lib/personal-tutor"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { ReasoningFirstAssessment } from "@/lib/interview-process-assessment"
+import {
+  canSendLiveAudio,
+  detectVoiceBargeIn,
+  liveAudioRms,
+  liveSocketErrorMessage,
+  liveSpeechDetection,
+  mergeLiveTranscription,
+  newVoiceBargeInState,
+  type InterviewVoicePace,
+} from "@/lib/gemini/live-conversation-control"
 
 type LivePhase = "lobby" | "connecting" | "live" | "review"
 type TranscriptTurn = { role: "candidate" | "interviewer"; text: string }
@@ -21,7 +31,7 @@ type Feedback = { reasoningFirst?: ReasoningFirstAssessment; overallSummary?: st
 type ServerMessage = {
   setupComplete?: Record<string, unknown>
   serverContent?: {
-    modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> }
+    modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string }; text?: string }> }
     inputTranscription?: { text?: string }
     outputTranscription?: { text?: string }
     turnComplete?: boolean
@@ -35,14 +45,6 @@ const VOICES = ["Gacrux", "Sulafat", "Sadaltager", "Kore"] as const
 
 function formatTime(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
-}
-
-function appendChunk(current: string, chunk: string) {
-  const clean = chunk.replace(/\s+/g, " ").trim()
-  if (!clean) return current
-  if (!current) return clean
-  if (current.endsWith(clean)) return current
-  return `${current} ${clean}`.replace(/\s+/g, " ").trim()
 }
 
 function floatToPcm16Base64(input: Float32Array, inputRate: number) {
@@ -89,6 +91,7 @@ export function GeminiLiveInterviewExperience() {
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [panel, setPanel] = useState(true)
   const [voice, setVoice] = useState<(typeof VOICES)[number]>("Gacrux")
+  const [voicePace, setVoicePace] = useState<InterviewVoicePace>("thoughtful")
   const [status, setStatus] = useState("Ready")
   const [notice, setNotice] = useState("")
   const [seconds, setSeconds] = useState(0)
@@ -114,6 +117,10 @@ export function GeminiLiveInterviewExperience() {
   const intentionalCloseRef = useRef(false)
   const mutedRef = useRef(false)
   const startedAtRef = useRef<number | null>(null)
+  const speechStateRef = useRef(newVoiceBargeInState())
+  const locallyInterruptedRef = useRef(false)
+  const playbackEpochRef = useRef(0)
+  const streamingBacklogWarnedRef = useRef(false)
 
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const personaName = useMemo(() => interviewerPersonas[persona]?.label || persona, [persona])
@@ -141,6 +148,8 @@ export function GeminiLiveInterviewExperience() {
   }
 
   function stopPlayback() {
+    playbackEpochRef.current += 1
+    speechStateRef.current = newVoiceBargeInState()
     for (const source of playbackSourcesRef.current) {
       try { source.stop() } catch {}
     }
@@ -149,15 +158,18 @@ export function GeminiLiveInterviewExperience() {
   }
 
   async function playAudio(base64: string, mimeType?: string) {
-    if (!base64) return
+    if (!base64 || locallyInterruptedRef.current) return
+    const epoch = playbackEpochRef.current
     if (!playbackContextRef.current) playbackContextRef.current = new AudioContext()
     const context = playbackContextRef.current
     if (context.state === "suspended") await context.resume().catch(() => undefined)
+    if (epoch !== playbackEpochRef.current || locallyInterruptedRef.current) return
     const samples = decodePcm16(base64)
     if (!samples.length) return
     const rate = extractRate(mimeType)
     const buffer = context.createBuffer(1, samples.length, rate)
     buffer.copyToChannel(samples, 0)
+    if (epoch !== playbackEpochRef.current || locallyInterruptedRef.current) return
     const source = context.createBufferSource()
     source.buffer = buffer
     source.connect(context.destination)
@@ -181,9 +193,30 @@ export function GeminiLiveInterviewExperience() {
     silent.connect(context.destination)
     processor.onaudioprocess = event => {
       const socket = socketRef.current
-      if (!socket || socket.readyState !== WebSocket.OPEN || mutedRef.current || !setupCompleteRef.current) return
-      const data = floatToPcm16Base64(event.inputBuffer.getChannelData(0), context.sampleRate)
-      socket.send(JSON.stringify({ realtimeInput: { audio: { data, mimeType: "audio/pcm;rate=16000" } } }))
+      if (!socket || !setupCompleteRef.current) return
+      if (!canSendLiveAudio(socket.readyState, socket.bufferedAmount, mutedRef.current)) {
+        if (socket.readyState === WebSocket.OPEN && socket.bufferedAmount >= 524288 && !streamingBacklogWarnedRef.current) {
+          streamingBacklogWarnedRef.current = true
+          setNotice("Audio delivery is delayed by the connection. Some words may not reach the interviewer.")
+        }
+        return
+      }
+      streamingBacklogWarnedRef.current = false
+      const channel = event.inputBuffer.getChannelData(0)
+      const activity = detectVoiceBargeIn(speechStateRef.current, {
+        rms: liveAudioRms(channel),
+        nowMs: performance.now(),
+        modelAudible: playbackSourcesRef.current.size > 0,
+        enabled: true,
+      })
+      speechStateRef.current = activity.state
+      if (activity.interrupt) {
+        locallyInterruptedRef.current = true
+        stopPlayback()
+        setStatus("Listening to your interruption…")
+      }
+      const data = floatToPcm16Base64(channel, context.sampleRate)
+      try { socket.send(JSON.stringify({ realtimeInput: { audio: { data, mimeType: "audio/pcm;rate=16000" } } })) } catch {}
     }
     captureContextRef.current = context
     captureProcessorRef.current = processor
@@ -227,6 +260,7 @@ export function GeminiLiveInterviewExperience() {
 
   function switchToFallback(reason: string) {
     intentionalCloseRef.current = true
+    commitDrafts()
     cleanupLiveSession()
     setFallbackReason(reason)
     setFallback(true)
@@ -244,6 +278,9 @@ export function GeminiLiveInterviewExperience() {
     candidateDraftRef.current = ""
     interviewerDraftRef.current = ""
     intentionalCloseRef.current = false
+    locallyInterruptedRef.current = false
+    speechStateRef.current = newVoiceBargeInState()
+    streamingBacklogWarnedRef.current = false
     mutedRef.current = false
     setMuted(false)
 
@@ -254,6 +291,7 @@ export function GeminiLiveInterviewExperience() {
 
       const response = await fetch("/api/realtime-session", {
         method: "POST",
+        signal: AbortSignal.timeout(30000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ course, track, persona: personaName, mode, voice, panel }),
       })
@@ -274,12 +312,17 @@ export function GeminiLiveInterviewExperience() {
             },
             inputAudioTranscription: {},
             outputAudioTranscription: {},
+            realtimeInputConfig: {
+              automaticActivityDetection: liveSpeechDetection(voicePace),
+              activityHandling: "START_OF_ACTIVITY_INTERRUPTS",
+            },
             systemInstruction: { parts: [{ text: session.instructions }] },
           },
         }))
       }
 
       socket.onmessage = async event => {
+        if (socketRef.current !== socket) return
         let message: ServerMessage
         try { message = JSON.parse(String(event.data)) as ServerMessage } catch { return }
 
@@ -299,16 +342,26 @@ export function GeminiLiveInterviewExperience() {
 
         const content = message.serverContent
         if (!content) return
-        if (content.interrupted) stopPlayback()
+        if (content.interrupted) {
+          if (interviewerDraftRef.current.trim()) {
+            turnsRef.current = [...turnsRef.current, { role: "interviewer", text: interviewerDraftRef.current.trim() }]
+            setTurns(turnsRef.current)
+            interviewerDraftRef.current = ""
+            setInterviewerDraft("")
+          }
+          locallyInterruptedRef.current = true
+          stopPlayback()
+        }
 
         const inputText = content.inputTranscription?.text || ""
         if (inputText) {
-          candidateDraftRef.current = appendChunk(candidateDraftRef.current, inputText)
+          candidateDraftRef.current = mergeLiveTranscription(candidateDraftRef.current, inputText)
+          locallyInterruptedRef.current = false
           setCandidateDraft(candidateDraftRef.current)
         }
-        const outputText = content.outputTranscription?.text || ""
+        const outputText = content.outputTranscription?.text || (content.modelTurn?.parts || []).map(part => part.text || "").join(" ")
         if (outputText) {
-          interviewerDraftRef.current = appendChunk(interviewerDraftRef.current, outputText)
+          interviewerDraftRef.current = mergeLiveTranscription(interviewerDraftRef.current, outputText)
           setInterviewerDraft(interviewerDraftRef.current)
           setStatus("Interviewer speaking…")
         }
@@ -317,6 +370,7 @@ export function GeminiLiveInterviewExperience() {
         }
         if (content.turnComplete) {
           commitDrafts()
+          locallyInterruptedRef.current = false
           if (!captureStartedRef.current && streamRef.current) await startAudioCapture(streamRef.current)
           else setStatus(mutedRef.current ? "Microphone muted" : "Listening · Gemini Live")
         }
@@ -325,8 +379,8 @@ export function GeminiLiveInterviewExperience() {
       socket.onerror = () => {
         if (!intentionalCloseRef.current) switchToFallback("Gemini Live could not maintain a voice connection, so Fellow switched to the compatible interview mode automatically.")
       }
-      socket.onclose = () => {
-        if (!intentionalCloseRef.current) switchToFallback("The Gemini Live connection ended unexpectedly, so Fellow switched to the compatible interview mode automatically.")
+      socket.onclose = event => {
+        if (!intentionalCloseRef.current) switchToFallback(liveSocketErrorMessage(event.code, event.reason, !setupCompleteRef.current) + " Fellow switched to compatible practice.")
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gemini Live could not start."
@@ -420,6 +474,11 @@ export function GeminiLiveInterviewExperience() {
       <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-950">
         <strong>Voice fallback active.</strong> {fallbackReason}
         <button type="button" className="ml-2 font-semibold underline" onClick={() => { setFallback(false); setFallbackReason(""); reset() }}>Try Gemini Live again</button>
+        {turns.length > 0 && <details className="mx-auto mt-3 max-w-4xl rounded-lg border border-amber-200 bg-white p-3 text-left">
+          <summary className="cursor-pointer font-semibold">Preserved voice transcript ({turns.length} turns)</summary>
+          <p className="my-2 text-xs">This transcript is retained on this page during fallback; the compatible interview starts a separate session.</p>
+          {turns.map((turn, index) => <p key={index} className="mt-2 text-sm"><strong>{turn.role === "candidate" ? "Candidate" : "Interviewer"}:</strong> {turn.text}</p>)}
+        </details>}
       </div>
       <AdvancedInterviewExperience variant="ai" />
     </>
@@ -450,7 +509,8 @@ export function GeminiLiveInterviewExperience() {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
       <div className="mb-7 flex flex-wrap items-center justify-between gap-3"><Button asChild variant="ghost"><Link href="/interviews"><ArrowLeft />Interview Hub</Link></Button><Badge className="border-0 bg-[#102a43] text-white"><Volume2 className="mr-1 size-3.5" />Gemini Live voice</Badge></div>
       <section className="grid overflow-hidden rounded-[2rem] border border-[#dbe5e7] bg-white shadow-[0_28px_80px_rgba(16,42,67,.08)] lg:grid-cols-[1.08fr_.92fr]">
-        <div className="p-6 sm:p-9 lg:p-12"><div className="flex items-start gap-4"><span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#102a43] text-[#8dd7de]"><Sparkles className="size-5" /></span><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Gemini Live interviewer</p><h1 className="mt-1 font-serif text-3xl font-bold sm:text-4xl">Have the interview as a real spoken academic conversation.</h1></div></div><p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">The primary voice mode now connects your microphone directly to Gemini Live using a short-lived secure token. It listens continuously, responds with native audio, follows your reasoning and provides a transcript for review.</p><div className="mt-7 grid gap-3 sm:grid-cols-2">{["Native two-way voice", "Live input transcription", "Spoken interviewer output", "Natural interruption / barge-in", "Automatic compatible fallback", "Saved transcript + analysis"].map(item => <div key={item} className="rounded-xl border border-[#dbe5e7] bg-[#f8fafb] px-4 py-3 text-sm font-semibold text-[#526a75]">{item}</div>)}</div><div className="mt-8 grid gap-4 sm:grid-cols-2"><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Subject family</span><NativeSelect value={track} onChange={event => chooseTrack(event.target.value as TrackId)}>{tracks.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.short}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Course</span><NativeSelect value={course} onChange={event => setCourse(event.target.value)}>{courses.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interview mode</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Realistic", "Tutor", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interviewer style</span><NativeSelect value={persona} onChange={event => setPersona(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as typeof voice)}>{VOICES.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label><button type="button" onClick={() => setPanel(value => !value)} className={`rounded-xl border px-4 py-3 text-left text-sm ${panel ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><span className="font-semibold">Two-interviewer panel</span><span className="mt-1 block text-xs text-slate-500">{panel ? "On · Gemini alternates A/B academic roles" : "Off · single interviewer"}</span></button></div><div className="mt-8 flex flex-wrap gap-3"><Button size="lg" onClick={startInterview}><Mic />Start live interview</Button><Button variant="outline" size="lg" onClick={() => switchToFallback("You selected the compatible interview mode.")}><Brain />Use compatible mode</Button></div></div>
+        <div className="p-6 sm:p-9 lg:p-12"><div className="flex items-start gap-4"><span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#102a43] text-[#8dd7de]"><Sparkles className="size-5" /></span><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Gemini Live interviewer</p><h1 className="mt-1 font-serif text-3xl font-bold sm:text-4xl">Have the interview as a real spoken academic conversation.</h1></div></div><p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">The primary voice mode now connects your microphone directly to Gemini Live using a short-lived secure token. It listens continuously, responds with native audio, follows your reasoning and provides a transcript for review.</p><div className="mt-7 grid gap-3 sm:grid-cols-2">{["Native two-way voice", "Live input transcription", "Spoken interviewer output", "Natural interruption / barge-in", "Automatic compatible fallback", "Saved transcript + analysis"].map(item => <div key={item} className="rounded-xl border border-[#dbe5e7] bg-[#f8fafb] px-4 py-3 text-sm font-semibold text-[#526a75]">{item}</div>)}</div><div className="mt-8 grid gap-4 sm:grid-cols-2"><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Subject family</span><NativeSelect value={track} onChange={event => chooseTrack(event.target.value as TrackId)}>{tracks.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.short}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Course</span><NativeSelect value={course} onChange={event => setCourse(event.target.value)}>{courses.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interview mode</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Realistic", "Tutor", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interviewer style</span><NativeSelect value={persona} onChange={event => setPersona(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as typeof voice)}>{VOICES.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
+        <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Thinking time</span><NativeSelect value={voicePace} onChange={event => setVoicePace(event.target.value as InterviewVoicePace)}><NativeSelectOption value="thoughtful">Thoughtful · longer pauses</NativeSelectOption><NativeSelectOption value="balanced">Natural pace</NativeSelectOption><NativeSelectOption value="quick">Quick responses</NativeSelectOption></NativeSelect></label><button type="button" onClick={() => setPanel(value => !value)} className={`rounded-xl border px-4 py-3 text-left text-sm ${panel ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><span className="font-semibold">Two-interviewer panel</span><span className="mt-1 block text-xs text-slate-500">{panel ? "On · Gemini alternates A/B academic roles" : "Off · single interviewer"}</span></button></div><div className="mt-8 flex flex-wrap gap-3"><Button size="lg" onClick={startInterview}><Mic />Start live interview</Button><Button variant="outline" size="lg" onClick={() => switchToFallback("You selected the compatible interview mode.")}><Brain />Use compatible mode</Button></div></div>
         <aside className="bg-[#102a43] p-6 text-white sm:p-8 lg:p-10"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#8dd7de]">How it behaves</p><h2 className="mt-2 font-serif text-2xl font-bold">Conversation first, not push-to-talk.</h2><div className="mt-6 space-y-4 text-sm leading-6 text-white/75"><p>Gemini opens with one academic question, listens to your spoken reasoning and makes the next challenge depend on what you actually said.</p><p>When your reasoning is strong it can deepen the problem; when a step is weak it should test that exact assumption rather than immediately reveal the answer.</p><p>If Live voice cannot connect, the page automatically switches to the existing Fellow interviewer so practice can continue.</p></div><div className="mt-7 rounded-xl bg-white/10 p-4 text-sm leading-6 text-white/75"><ShieldCheck className="mb-2 size-5 text-[#8dd7de]" />Microphone access is used for the live session. The app stores the resulting practice transcript in your local interview history for review.</div></aside>
       </section>
     </div>

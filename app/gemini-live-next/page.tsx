@@ -24,6 +24,17 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
+import {
+  buildLiveResumePrompt,
+  canSendLiveAudio,
+  detectVoiceBargeIn,
+  liveAudioRms,
+  liveSocketErrorMessage,
+  liveSpeechDetection,
+  mergeLiveTranscription,
+  newVoiceBargeInState,
+  type InterviewVoicePace,
+} from "@/lib/gemini/live-conversation-control"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { PROFILE_KEY, PROGRESS_KEY } from "@/lib/personal-tutor"
 import {
@@ -36,7 +47,7 @@ import {
   type OralRetest,
 } from "@/lib/nextgen-prep"
 
-type Phase = "lobby" | "connecting" | "live" | "ended"
+type Phase = "lobby" | "connecting" | "live" | "reconnect" | "ended"
 type LiveState = "idle" | "connecting" | "connected" | "speaking" | "thinking" | "interviewer" | "error"
 type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
 type Turn = LiveTurnRecord
@@ -59,7 +70,7 @@ type GeminiMessage = {
   error?: { message?: string }
   setupComplete?: Record<string, never>
   serverContent?: {
-    modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> }
+    modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string }; text?: string }> }
     interimInputTranscription?: { text?: string }
     inputTranscription?: { text?: string }
     outputTranscription?: { text?: string }
@@ -133,14 +144,15 @@ function parsePanelPrefix(text: string) {
 function splitFeedbackAndQuestion(text: string) {
   const panel = parsePanelPrefix(text.replace(/\s+/g, " ").trim())
   const sentence = panel.text.match(/^(.+?[.!])\s+([\s\S]+)$/)
-  if (sentence) {
+  if (sentence && /^(?:your|the) (?:reasoning|answer|argument|assumption|conclusion|method|explanation|idea)\b|^that (?:claim|assumption|step|reasoning)\b/i.test(sentence[1])) {
     return {
       feedback: sentence[1].trim(),
       followUp: sentence[2].trim(),
       interviewer: panel.interviewer,
     }
   }
-  const questionIndex = panel.text.indexOf("?")
+  // A question's conversational lead-in is not necessarily marking feedback.
+  const questionIndex = panel.text.lastIndexOf("?")
   if (questionIndex > 0) {
     return {
       feedback: "",
@@ -182,6 +194,8 @@ export default function GeminiLiveNextPage() {
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [voice, setVoice] = useState<GeminiVoice>("Gacrux")
   const [panelMode, setPanelMode] = useState(false)
+  const [voicePace, setVoicePace] = useState<InterviewVoicePace>("thoughtful")
+  const [allowBargeIn, setAllowBargeIn] = useState(true)
   const [muted, setMuted] = useState(false)
   const [seconds, setSeconds] = useState(0)
   const [notice, setNotice] = useState("")
@@ -222,6 +236,12 @@ export default function GeminiLiveNextPage() {
   const openingRef = useRef(true)
   const endingRef = useRef(false)
   const lastCandidateIdRef = useRef<string | null>(null)
+  const speechStateRef = useRef(newVoiceBargeInState())
+  const localInterruptionRef = useRef(false)
+  const resumeRef = useRef(false)
+  const setupReadyRef = useRef(false)
+  const bargeInRef = useRef(true)
+  const droppedAudioWarningRef = useRef(false)
 
   useEffect(() => {
     try {
@@ -284,6 +304,7 @@ export default function GeminiLiveNextPage() {
   }
 
   function stopOutput() {
+    speechStateRef.current = newVoiceBargeInState()
     playbackEpochRef.current += 1
     for (const source of outputSourcesRef.current) {
       try { source.stop() } catch { /* source already ended */ }
@@ -294,7 +315,7 @@ export default function GeminiLiveNextPage() {
   }
 
   async function playGeminiAudio(base64: string) {
-    if (panelMode) return
+    if (panelMode || localInterruptionRef.current) return
     const context = outputCtxRef.current
     const generation = generationRef.current
     const epoch = playbackEpochRef.current
@@ -306,6 +327,7 @@ export default function GeminiLiveNextPage() {
     if (!samples.length) return
     const buffer = context.createBuffer(1, samples.length, 24000)
     buffer.copyToChannel(samples, 0)
+    if (generation !== generationRef.current || epoch !== playbackEpochRef.current || localInterruptionRef.current) return
     const source = context.createBufferSource()
     source.buffer = buffer
     source.connect(context.destination)
@@ -354,14 +376,40 @@ export default function GeminiLiveNextPage() {
     silentGainRef.current = silent
 
     processor.onaudioprocess = event => {
-      if (ws.readyState !== WebSocket.OPEN || mutedRef.current || endingRef.current) return
-      const pcm = resample16k(event.inputBuffer.getChannelData(0), context!.sampleRate)
+      if (wsRef.current !== ws || endingRef.current) return
+      if (!canSendLiveAudio(ws.readyState, ws.bufferedAmount, mutedRef.current)) {
+        if (ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 524288 && !droppedAudioWarningRef.current) {
+          droppedAudioWarningRef.current = true
+          setNotice("Your connection is struggling to send audio. Please check your connection; the interviewer may miss part of your response.")
+        }
+        return
+      }
+      droppedAudioWarningRef.current = false
+      const channel = event.inputBuffer.getChannelData(0)
+      const audible = outputSourcesRef.current.size > 0 || (panelMode && Boolean(window.speechSynthesis?.speaking))
+      const activity = detectVoiceBargeIn(speechStateRef.current, {
+        rms: liveAudioRms(channel),
+        nowMs: performance.now(),
+        modelAudible: audible,
+        enabled: bargeInRef.current && !openingRef.current,
+      })
+      speechStateRef.current = activity.state
+      if (activity.interrupt) {
+        localInterruptionRef.current = true
+        stopOutput()
+        setStatus("speaking")
+      }
+      const pcm = resample16k(channel, context!.sampleRate)
       if (!pcm.length) return
-      ws.send(JSON.stringify({
-        realtimeInput: {
-          audio: { data: pcmToBase64(pcm), mimeType: "audio/pcm;rate=16000" },
-        },
-      }))
+      try {
+        ws.send(JSON.stringify({
+          realtimeInput: {
+            audio: { data: pcmToBase64(pcm), mimeType: "audio/pcm;rate=16000" },
+          },
+        }))
+      } catch {
+        // The socket closing is handled by the connection lifecycle.
+      }
     }
 
     source.connect(processor)
@@ -374,24 +422,40 @@ export default function GeminiLiveNextPage() {
     const materialHint = interviewContext.material
       ? " Start with the unseen or supercurricular material supplied in your system instructions."
       : ""
+    const prompt = resumeRef.current
+      ? buildLiveResumePrompt(course, turnsRef.current)
+      : `Begin the formal ${course} practice interview now.${materialHint} Give a brief natural greeting and ask exactly one challenging but accessible opening question.`
     ws.send(JSON.stringify({
       clientContent: {
         turns: [{
           role: "user",
-          parts: [{
-            text: `Begin the formal ${course} practice interview now.${materialHint} Give a brief natural greeting and ask exactly one challenging but accessible opening question.`,
-          }],
+          parts: [{ text: prompt }],
         }],
         turnComplete: true,
       },
     }))
   }
 
+  function preserveUnfinishedTranscript() {
+    if (inputTextRef.current.trim()) {
+      addTurn("candidate", inputTextRef.current)
+      inputTextRef.current = ""
+      setCandidateLive("")
+    }
+    if (outputTextRef.current.trim()) {
+      addTurn("interviewer", outputTextRef.current)
+      outputTextRef.current = ""
+      setInterviewerLive("")
+    }
+  }
+
   function failConnection(message: string) {
+    preserveUnfinishedTranscript()
+    const canResume = turnsRef.current.some(turn => turn.role === "candidate" || turn.role === "interviewer")
     teardown(false)
-    setPhase("lobby")
+    setPhase(canResume ? "reconnect" : "lobby")
     setStatus("error")
-    setNotice(message)
+    setNotice(canResume ? message + " Your transcript is preserved. Resume or save this interview." : message)
   }
 
   function handleGeminiMessage(message: GeminiMessage, ws: WebSocket) {
@@ -403,11 +467,14 @@ export default function GeminiLiveNextPage() {
 
     if (message.setupComplete) {
       if (setupTimerRef.current) clearTimeout(setupTimerRef.current)
+      setupReadyRef.current = true
       setStatus("connected")
       setPhase("live")
-      startedAtRef.current = Date.now()
+      startedAtRef.current = startedAtRef.current ?? Date.now()
       setConnectedAt(startedAtRef.current)
-      addTurn("system", `Gemini Live connected using ${serverModel}. Camera images are captured only when you press Analyse working.`)
+      addTurn("system", resumeRef.current
+        ? "A new secure voice connection was established and the previous academic discussion was restored."
+        : `Gemini Live connected using ${serverModel}. Camera images are captured only when you press Analyse working.`)
       void startMicrophone(ws)
         .then(() => {
           if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) sendOpening(ws)
@@ -417,14 +484,17 @@ export default function GeminiLiveNextPage() {
     }
 
     if (message.goAway) {
-      setNotice("Gemini Live is preparing to end this session. Finish the current turn or start a new interview.")
+      setNotice("Gemini Live may close this voice connection soon. Your transcript will be preserved so you can resume if needed.")
     }
 
     const content = message.serverContent
     if (!content) return
 
     if (content.interrupted) {
+      // Keep the words actually spoken before the candidate interrupted.
+      if (outputTextRef.current.trim()) addTurn("interviewer", outputTextRef.current.trim())
       stopOutput()
+      localInterruptionRef.current = true
       outputTextRef.current = ""
       setInterviewerLive("")
     }
@@ -437,7 +507,7 @@ export default function GeminiLiveNextPage() {
 
     const input = content.inputTranscription?.text
     if (input) {
-      inputTextRef.current += input
+      inputTextRef.current = mergeLiveTranscription(inputTextRef.current, input)
       setCandidateLive(inputTextRef.current)
       setStatus("speaking")
     }
@@ -447,13 +517,15 @@ export default function GeminiLiveNextPage() {
       lastCandidateIdRef.current = candidateId
       setConfidenceTarget(candidateId)
       inputTextRef.current = ""
+      localInterruptionRef.current = false
+      speechStateRef.current = newVoiceBargeInState()
       setCandidateLive("")
     }
 
     const output = content.outputTranscription?.text
+      || (content.modelTurn?.parts ?? []).map(part => part.text || "").join(" ")
     if (output) {
-      const previous = outputTextRef.current
-      outputTextRef.current = output.startsWith(previous) ? output : `${previous}${output}`
+      outputTextRef.current = mergeLiveTranscription(outputTextRef.current, output)
       setInterviewerLive(outputTextRef.current)
       setStatus("interviewer")
     }
@@ -467,6 +539,7 @@ export default function GeminiLiveNextPage() {
     }
 
     if (!content.turnComplete) return
+    localInterruptionRef.current = false
 
     const finalOutput = outputTextRef.current.replace(/\s+/g, " ").trim()
     if (finalOutput) {
@@ -491,14 +564,14 @@ export default function GeminiLiveNextPage() {
     }
 
     if (endingRef.current) {
-      window.setTimeout(() => teardown(true), 900)
+      window.setTimeout(() => { preserveUnfinishedTranscript(); teardown(true) }, 900)
       return
     }
 
     setStatus("connected")
   }
 
-  async function startInterview() {
+  async function startInterview(resume = false) {
     if (phase === "connecting") return
     if (configured === false) {
       setStatus("error")
@@ -506,23 +579,32 @@ export default function GeminiLiveNextPage() {
       return
     }
 
+    const restore = resume && turnsRef.current.some(turn => turn.role === "candidate" || turn.role === "interviewer")
     teardown(false)
     const generation = generationRef.current
+    resumeRef.current = restore
+    setupReadyRef.current = false
+    localInterruptionRef.current = false
+    speechStateRef.current = newVoiceBargeInState()
+    bargeInRef.current = allowBargeIn
+    droppedAudioWarningRef.current = false
     savedRef.current = false
     mutedRef.current = false
     setMuted(false)
     inputTextRef.current = ""
     outputTextRef.current = ""
-    startedAtRef.current = null
-    setConnectedAt(null)
+    if (!restore) {
+      startedAtRef.current = null
+      setConnectedAt(null)
+    }
     setPhase("connecting")
     setStatus("connecting")
     setNotice("")
-    syncTurns([])
+    if (!restore) syncTurns([])
     setCandidateLive("")
     setInterviewerLive("")
-    setSeconds(0)
-    setWorkingAnalysis("")
+    if (!restore) setSeconds(0)
+    if (!restore) setWorkingAnalysis("")
     setConfidenceTarget(null)
     openingRef.current = true
     endingRef.current = false
@@ -548,6 +630,12 @@ export default function GeminiLiveNextPage() {
         return
       }
       streamRef.current = microphone
+      for (const audioTrack of microphone.getAudioTracks()) {
+        audioTrack.addEventListener("ended", () => {
+          if (generation === generationRef.current && !endingRef.current)
+            failConnection("The microphone stopped unexpectedly. Check your device permissions before resuming.")
+        }, { once: true })
+      }
 
       const response = await fetch("/api/realtime-session", {
         method: "POST",
@@ -560,6 +648,7 @@ export default function GeminiLiveNextPage() {
           mode,
           voice,
           panel: panelMode,
+          resume: restore,
           material: interviewContext.material || "",
           preparationNotes: interviewContext.notes || "",
           focus: retestFocus,
@@ -579,7 +668,7 @@ export default function GeminiLiveNextPage() {
       ws.binaryType = "arraybuffer"
 
       setupTimerRef.current = setTimeout(() => {
-        if (wsRef.current === ws) failConnection("Gemini did not finish connecting. Please retry.")
+        if (wsRef.current === ws && !setupReadyRef.current) failConnection("Gemini did not finish connecting. Please retry.")
       }, 20000)
 
       ws.onopen = () => {
@@ -598,13 +687,7 @@ export default function GeminiLiveNextPage() {
             },
             systemInstruction: { parts: [{ text: data.instructions }] },
             realtimeInputConfig: {
-              automaticActivityDetection: {
-                disabled: false,
-                startOfSpeechSensitivity: "START_SENSITIVITY_LOW",
-                endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
-                prefixPaddingMs: 300,
-                silenceDurationMs: 1200,
-              },
+              automaticActivityDetection: liveSpeechDetection(voicePace),
               activityHandling: "START_OF_ACTIVITY_INTERRUPTS",
             },
             inputAudioTranscription: {},
@@ -634,17 +717,18 @@ export default function GeminiLiveNextPage() {
       ws.onclose = event => {
         if (wsRef.current !== ws) return
         if (endingRef.current) {
+          preserveUnfinishedTranscript()
           teardown(true)
           return
         }
-        failConnection(event.reason || `Gemini Live disconnected (code ${event.code}).`)
+        failConnection(liveSocketErrorMessage(event.code, event.reason, !setupReadyRef.current))
       }
     } catch (error) {
       if (generation !== generationRef.current) return
       teardown(false)
-      setPhase("lobby")
+      setPhase(restore ? "reconnect" : "lobby")
       setStatus("error")
-      setNotice(error instanceof Error ? error.message : "Could not start Gemini Live voice.")
+      setNotice((error instanceof Error ? error.message : "Could not start Gemini Live voice.") + (restore ? " Your previous transcript is preserved." : ""))
     }
   }
 
@@ -748,6 +832,7 @@ export default function GeminiLiveNextPage() {
   function finishInterview() {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN || endingRef.current) {
+      preserveUnfinishedTranscript()
       teardown(true)
       return
     }
@@ -758,7 +843,7 @@ export default function GeminiLiveNextPage() {
     streamRef.current?.getAudioTracks().forEach(trackItem => { trackItem.enabled = false })
     setStatus("thinking")
 
-    finishTimerRef.current = setTimeout(() => teardown(true), 20000)
+    finishTimerRef.current = setTimeout(() => { preserveUnfinishedTranscript(); teardown(true) }, 20000)
     ws.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
     ws.send(JSON.stringify({
       clientContent: {
@@ -838,6 +923,7 @@ export default function GeminiLiveNextPage() {
     setupTimerRef.current = null
     finishTimerRef.current = null
     endingRef.current = true
+    setupReadyRef.current = false
 
     const ws = wsRef.current
     wsRef.current = null
@@ -898,7 +984,7 @@ export default function GeminiLiveNextPage() {
               ? "Connection issue"
               : "Ready"
 
-  if (phase === "lobby" || phase === "connecting") {
+  if (phase === "lobby" || phase === "connecting" || phase === "reconnect") {
     return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]">
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6 flex items-center justify-between gap-3">
@@ -917,6 +1003,8 @@ export default function GeminiLiveNextPage() {
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Interviewer style</span><NativeSelect value={personaKey} onChange={event => setPersonaKey(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Session style</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Tutor", "Realistic", "No-hint", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as GeminiVoice)}>{(Object.keys(voiceLabels) as GeminiVoice[]).map(item => <NativeSelectOption key={item} value={item}>{voiceLabels[item]}</NativeSelectOption>)}</NativeSelect></label>
+              <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Time to think</span><NativeSelect value={voicePace} onChange={event => setVoicePace(event.target.value as InterviewVoicePace)}><NativeSelectOption value="thoughtful">Thoughtful · longer pauses</NativeSelectOption><NativeSelectOption value="balanced">Natural conversation</NativeSelectOption><NativeSelectOption value="quick">Quick responses</NativeSelectOption></NativeSelect></label>
+              <button type="button" onClick={() => setAllowBargeIn(value => !value)} className="rounded-xl border bg-white p-3 text-left"><strong>{allowBargeIn ? "Interruptions allowed" : "Interruptions disabled"}</strong><p className="mt-1 text-xs text-slate-500">Let the student speak over the interviewer naturally. Headphones recommended.</p></button>
 
               <button onClick={() => setPanelMode(value => !value)} className={`sm:col-span-2 rounded-xl border p-4 text-left ${panelMode ? "border-cyan-500 bg-cyan-50" : "bg-white"}`}>
                 <div className="flex items-center gap-2"><Users className="size-4" /><strong>Two-interviewer panel</strong></div>
@@ -926,9 +1014,11 @@ export default function GeminiLiveNextPage() {
               {interviewContext.material && <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-4"><strong>Interview context loaded: {interviewContext.title || "unseen material"}</strong><p className="mt-1 text-sm text-blue-900">The interviewer will use the material and your preparation notes.</p></div>}
               {retestFocus && <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4"><strong>Delayed oral retest due</strong><p className="mt-1 text-sm text-amber-900">The same reasoning habit will return through a fresh problem without revealing the target first.</p></div>}
               {notice && <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div>}
+              {phase === "reconnect" && <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">Your interview transcript is still here. Resuming creates a fresh secure voice connection and recaps the academic discussion; you do not need to start over.</div>}
 
               <div className="sm:col-span-2 flex flex-wrap gap-2">
-                <Button size="lg" onClick={() => void startInterview()} disabled={phase === "connecting" || configured === false}>{phase === "connecting" ? <Loader2 className="animate-spin" /> : <Mic />}{phase === "connecting" ? "Connecting…" : "Start live interview"}</Button>
+                <Button size="lg" onClick={() => void startInterview(phase === "reconnect")} disabled={phase === "connecting" || configured === false}>{phase === "connecting" ? <Loader2 className="animate-spin" /> : <Mic />}{phase === "connecting" ? "Connecting…" : phase === "reconnect" ? "Resume interview" : "Start live interview"}</Button>
+                {phase === "reconnect" && <><Button variant="outline" onClick={() => teardown(true)}>Save & finish</Button><Button variant="ghost" onClick={reset}>Start a new interview</Button></>}
                 <Button asChild variant="outline"><Link href="/pre-interview-material">Prepare unseen material first</Link></Button>
               </div>
             </CardContent>

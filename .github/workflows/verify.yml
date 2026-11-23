@@ -93,6 +93,9 @@ jobs:
       - name: Phase three adaptive followup checks
         run: npm run test:interview-followups
 
+      - name: Phase four live voice conversation checks
+        run: npm run test:live-conversation
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 
