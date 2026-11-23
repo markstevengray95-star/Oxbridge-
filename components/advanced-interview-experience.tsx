@@ -14,6 +14,7 @@ import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } fro
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
 import type { InterviewMoveKind, InterviewReveal, InterviewWhiteboardTask } from "@/lib/interview-questioning-engine"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
+import { subjectInterviewStarter, subjectInterviewPathway } from "@/lib/subject-interview-pathways"
 import type { InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
@@ -96,6 +97,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   const [useApplicationLaunch, setUseApplicationLaunch] = useState(true)
   const [applicationContext, setApplicationContext] = useState<ApplicationInterviewContext | null>(null)
   const [seed, setSeed] = useState(0)
+  const [subjectFocused, setSubjectFocused] = useState(true)
   const [turns, setTurns] = useState<Turn[]>([])
   const [moveHistory, setMoveHistory] = useState<InterviewMoveKind[]>([])
   const [sessionMemory, setSessionMemory] = useState<InterviewSessionMemory | null>(null)
@@ -136,7 +138,9 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     return exact.length ? exact : realisticInterviewQuestions.filter(item => item.track === track)
   }, [track, difficulty])
 
-  const base = questionsForTrack[seed % Math.max(1, questionsForTrack.length)]
+  const subjectStarter = useMemo(() => subjectInterviewStarter(course, track, difficulty), [course, track, difficulty])
+  const pathway = useMemo(() => subjectInterviewPathway(course, track), [course, track])
+  const base = subjectFocused && seed % 2 === 0 ? subjectStarter : questionsForTrack[Math.floor(seed / 2) % Math.max(1, questionsForTrack.length)]
   const persona = interviewerPersonas[personaKey]
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const courseProfile = useMemo(() => courseInterviewProfile(course, track), [course, track])
@@ -248,7 +252,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
           probes: extraProbes,
           moveHistory,
           adaptiveLevel,
-          referenceAnswer: useApplicationLaunch && applicationLaunch ? undefined : base.strongAnswer,
+          referenceAnswer: useApplicationLaunch && applicationLaunch || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer,
           stimulus: useApplicationLaunch && applicationLaunch ? applicationLaunch.excerpt : base.stimulus,
           turns: history,
           panelMode,
@@ -295,7 +299,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     stopListening()
     const finalTurns = answer.trim() ? [...turns, { role: "candidate" as const, text: answer.trim() }] : turns
     if (!finalTurns.some(turn => turn.role === "candidate")) return
-    const scored = markTypedInterviewTranscript({ turns: finalTurns, concepts: base.concepts, referenceAnswer: useApplicationLaunch && applicationLaunch ? undefined : base.strongAnswer })
+    const scored = markTypedInterviewTranscript({ turns: finalTurns, concepts: base.concepts, referenceAnswer: useApplicationLaunch && applicationLaunch || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer })
     const finalRecovery = recoverySignal(finalTurns.filter(turn => turn.role === "candidate").map(turn => turn.quality || ""))
     setTurns(finalTurns)
     setResult(scored)
@@ -382,13 +386,15 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
               <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interview mode</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Realistic", "Tutor", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label className="space-y-1.5 sm:col-span-2"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interviewer style</span><NativeSelect value={personaKey} onChange={event => setPersonaKey(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
             </div>
+            <p className="mt-4 rounded-xl bg-[#edf7f8] p-3 text-sm text-[#102a43]"><strong>{pathway.label} pathway.</strong> Focus: {pathway.reasoningFocus.join(", ")}. {subjectFocused ? "The opening alternates between a course-specific scenario and wider subject challenges." : "Using the wider question bank."}</p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => { setSubjectFocused(value => !value); setSeed(0) }} className={`rounded-2xl border p-4 text-left ${subjectFocused ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><div className="font-semibold">Course-specific pathway</div><p className="mt-1 text-xs leading-5 text-slate-500">{subjectFocused ? "On · starts with your course and uses specialised academic probes" : "Off · wider subject question bank"}</p></button>
               <button type="button" onClick={() => setPanelMode(value => !value)} className={`rounded-2xl border p-4 text-left ${panelMode ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><div className="flex items-center gap-2 font-semibold"><Users className="size-4" />Two-interviewer panel</div><p className="mt-1 text-xs leading-5 text-slate-500">{courseProfile.interviewerA} + {courseProfile.interviewerB}</p></button>
               <button type="button" disabled={!applicationLaunch} onClick={() => setUseApplicationLaunch(value => !value)} className={`rounded-2xl border p-4 text-left disabled:opacity-50 ${useApplicationLaunch && applicationLaunch ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><div className="font-semibold">Launch from application</div><p className="mt-1 text-xs leading-5 text-slate-500">{applicationLaunch ? `Use your saved ${applicationLaunch.source}, then move beyond rehearsed material.` : "Add books, projects, EPQ, written work or interests in Application Context first."}</p></button>
             </div>
             <div className="mt-8 flex flex-wrap gap-3"><Button onClick={startInterview} disabled={!base}><Brain />Start deep interview</Button><Button variant="outline" onClick={() => setSeed(value => value + 1)}><RefreshCw />Different problem</Button></div>
           </div>
-          <aside className="bg-[#102a43] p-6 text-white sm:p-8 lg:p-10"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#8dd7de]">Course engine</p><h2 className="mt-2 font-serif text-2xl font-bold">{courseProfile.family}</h2><div className="mt-6 space-y-2 text-sm leading-6 text-white/75">{courseProfile.priorities.map(item => <p key={item}>• {item}</p>)}</div><div className="mt-6 rounded-xl bg-white/10 p-4 text-sm leading-6 text-white/75">The two interviewers have different jobs: one develops your line of thought, the other tests it from a different academic angle.</div></aside>
+          <aside className="bg-[#102a43] p-6 text-white sm:p-8 lg:p-10"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#8dd7de]">Academic pathway</p><h2 className="mt-2 font-serif text-2xl font-bold">{pathway.label}</h2><div className="mt-6 space-y-2 text-sm leading-6 text-white/75">{pathway.reasoningFocus.map(item => <p key={item}>• {item}</p>)}</div><div className="mt-6 rounded-xl bg-white/10 p-4 text-sm leading-6 text-white/75">The two interviewers have different jobs: one develops your line of thought, the other tests it from a different academic angle.</div></aside>
         </section>
       </div>
     </main>
