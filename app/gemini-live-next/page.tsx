@@ -421,24 +421,40 @@ export default function GeminiLiveNextPage() {
     const materialHint = interviewContext.material
       ? " Start with the unseen or supercurricular material supplied in your system instructions."
       : ""
+    const prompt = resumeRef.current
+      ? buildLiveResumePrompt(course, turnsRef.current)
+      : `Begin the formal ${course} practice interview now.${materialHint} Give a brief natural greeting and ask exactly one challenging but accessible opening question.`
     ws.send(JSON.stringify({
       clientContent: {
         turns: [{
           role: "user",
-          parts: [{
-            text: `Begin the formal ${course} practice interview now.${materialHint} Give a brief natural greeting and ask exactly one challenging but accessible opening question.`,
-          }],
+          parts: [{ text: prompt }],
         }],
         turnComplete: true,
       },
     }))
   }
 
+  function preserveUnfinishedTranscript() {
+    if (inputTextRef.current.trim()) {
+      addTurn("candidate", inputTextRef.current)
+      inputTextRef.current = ""
+      setCandidateLive("")
+    }
+    if (outputTextRef.current.trim()) {
+      addTurn("interviewer", outputTextRef.current)
+      outputTextRef.current = ""
+      setInterviewerLive("")
+    }
+  }
+
   function failConnection(message: string) {
+    preserveUnfinishedTranscript()
+    const canResume = turnsRef.current.some(turn => turn.role === "candidate" || turn.role === "interviewer")
     teardown(false)
-    setPhase("lobby")
+    setPhase(canResume ? "reconnect" : "lobby")
     setStatus("error")
-    setNotice(message)
+    setNotice(canResume ? message + " Your transcript is preserved. Resume or save this interview." : message)
   }
 
   function handleGeminiMessage(message: GeminiMessage, ws: WebSocket) {
@@ -450,11 +466,14 @@ export default function GeminiLiveNextPage() {
 
     if (message.setupComplete) {
       if (setupTimerRef.current) clearTimeout(setupTimerRef.current)
+      setupReadyRef.current = true
       setStatus("connected")
       setPhase("live")
-      startedAtRef.current = Date.now()
+      startedAtRef.current = startedAtRef.current ?? Date.now()
       setConnectedAt(startedAtRef.current)
-      addTurn("system", `Gemini Live connected using ${serverModel}. Camera images are captured only when you press Analyse working.`)
+      addTurn("system", resumeRef.current
+        ? "A new secure voice connection was established and the previous academic discussion was restored."
+        : `Gemini Live connected using ${serverModel}. Camera images are captured only when you press Analyse working.`)
       void startMicrophone(ws)
         .then(() => {
           if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) sendOpening(ws)
@@ -550,7 +569,7 @@ export default function GeminiLiveNextPage() {
     setStatus("connected")
   }
 
-  async function startInterview() {
+  async function startInterview(resume = false) {
     if (phase === "connecting") return
     if (configured === false) {
       setStatus("error")
@@ -558,23 +577,32 @@ export default function GeminiLiveNextPage() {
       return
     }
 
+    const restore = resume && turnsRef.current.some(turn => turn.role === "candidate" || turn.role === "interviewer")
     teardown(false)
     const generation = generationRef.current
+    resumeRef.current = restore
+    setupReadyRef.current = false
+    localInterruptionRef.current = false
+    speechStateRef.current = newVoiceBargeInState()
+    bargeInRef.current = allowBargeIn
+    droppedAudioWarningRef.current = false
     savedRef.current = false
     mutedRef.current = false
     setMuted(false)
     inputTextRef.current = ""
     outputTextRef.current = ""
-    startedAtRef.current = null
-    setConnectedAt(null)
+    if (!restore) {
+      startedAtRef.current = null
+      setConnectedAt(null)
+    }
     setPhase("connecting")
     setStatus("connecting")
     setNotice("")
-    syncTurns([])
+    if (!restore) syncTurns([])
     setCandidateLive("")
     setInterviewerLive("")
-    setSeconds(0)
-    setWorkingAnalysis("")
+    if (!restore) setSeconds(0)
+    if (!restore) setWorkingAnalysis("")
     setConfidenceTarget(null)
     openingRef.current = true
     endingRef.current = false
@@ -631,7 +659,7 @@ export default function GeminiLiveNextPage() {
       ws.binaryType = "arraybuffer"
 
       setupTimerRef.current = setTimeout(() => {
-        if (wsRef.current === ws) failConnection("Gemini did not finish connecting. Please retry.")
+        if (wsRef.current === ws && !setupReadyRef.current) failConnection("Gemini did not finish connecting. Please retry.")
       }, 20000)
 
       ws.onopen = () => {
@@ -650,13 +678,7 @@ export default function GeminiLiveNextPage() {
             },
             systemInstruction: { parts: [{ text: data.instructions }] },
             realtimeInputConfig: {
-              automaticActivityDetection: {
-                disabled: false,
-                startOfSpeechSensitivity: "START_SENSITIVITY_LOW",
-                endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
-                prefixPaddingMs: 300,
-                silenceDurationMs: 1200,
-              },
+              automaticActivityDetection: liveSpeechDetection(voicePace),
               activityHandling: "START_OF_ACTIVITY_INTERRUPTS",
             },
             inputAudioTranscription: {},
@@ -689,7 +711,7 @@ export default function GeminiLiveNextPage() {
           teardown(true)
           return
         }
-        failConnection(event.reason || `Gemini Live disconnected (code ${event.code}).`)
+        failConnection(liveSocketErrorMessage(event.code, event.reason, !setupReadyRef.current))
       }
     } catch (error) {
       if (generation !== generationRef.current) return
@@ -890,6 +912,7 @@ export default function GeminiLiveNextPage() {
     setupTimerRef.current = null
     finishTimerRef.current = null
     endingRef.current = true
+    setupReadyRef.current = false
 
     const ws = wsRef.current
     wsRef.current = null
