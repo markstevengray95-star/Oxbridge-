@@ -28,6 +28,8 @@ import { subjectInterviewPathway, subjectInterviewStarter } from "@/lib/subject-
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { mockDurations, mockInterviewFormat, mockInterviewStage, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
 import { InterviewEvidencePanel } from "@/components/interview-evidence-panel"
+import { InterviewEvidenceReview } from "@/components/interview-evidence-review"
+import { buildEvidenceLinkedFeedback, extractInsightSnapshots, type EvidenceLinkedFeedback } from "@/lib/interview-feedback-intelligence"
 import { evidenceChallengeForCourse, evidenceContext , canRevealNextEvidence, nextEvidenceStage } from "@/lib/interview-evidence-challenges"
 import {
   buildLiveResumePrompt,
@@ -223,6 +225,7 @@ export default function GeminiLiveNextPage() {
   const [cameraAnalysing, setCameraAnalysing] = useState(false)
   const [workingAnalysis, setWorkingAnalysis] = useState("")
   const [confidenceTarget, setConfidenceTarget] = useState<string | null>(null)
+  const [feedbackReport,setFeedbackReport] = useState<EvidenceLinkedFeedback | null>(null)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const cameraStreamRef = useRef<MediaStream | null>(null)
@@ -956,6 +959,8 @@ export default function GeminiLiveNextPage() {
 
       const progress = JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}") as Record<string, unknown>
       const logs = Array.isArray(progress.logs) ? progress.logs as Array<Record<string, unknown>> : []
+      const feedbackReport=buildEvidenceLinkedFeedback({sessionId:replay.id,course,source:"voice",turns:turnsRef.current.map(turn=>({role:turn.role,text:turn.text,feedback:turn.feedback})),createdAt:new Date().toISOString(),previous:extractInsightSnapshots(logs)})
+      setFeedbackReport(feedbackReport)
       const events = turnsRef.current
         .filter(turn => turn.role !== "system")
         .map(turn => {
@@ -977,6 +982,7 @@ export default function GeminiLiveNextPage() {
           date: new Date().toLocaleDateString("en-GB"),
           events,
           replayId: replay.id,
+          feedbackReport,
           mockSession,
         }, ...logs].slice(0, 50),
       }))
@@ -1037,6 +1043,7 @@ export default function GeminiLiveNextPage() {
     syncTurns([])
     setWorkingAnalysis("")
     setConfidenceTarget(null)
+    setFeedbackReport(null)
     setMockStageIndex(0)
     setMockVisited([])
     setSecondProblemSent(false)
@@ -1123,6 +1130,7 @@ export default function GeminiLiveNextPage() {
       <div className="mx-auto max-w-4xl px-4 py-12">
         <Card className="shadow-none">
           <CardHeader><CheckCircle2 className="size-8 text-emerald-600" /><CardTitle className="font-serif text-3xl">Interview saved to Reasoning Replay</CardTitle><CardDescription>Your transcript, confidence estimates, branching path, feedback and any shared working summary are ready for review.{mockDuration ? <span className="mt-2 block font-semibold text-[#147d91]">{mockCompletionReport({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:candidateTurnCount,visitedStages:mockVisited})?.status}. Actual practice: {(seconds/60).toFixed(1)} of {mockDuration} minutes; {mockVisited.length} academic stages reached.</span> : null}</CardDescription></CardHeader>
+          {feedbackReport?<InterviewEvidenceReview report={feedbackReport}/>:null}
           <CardContent className="flex flex-wrap gap-2"><Button asChild><Link href="/reasoning-replay">Open reasoning replay</Link></Button><Button variant="outline" onClick={reset}><RefreshCw />New interview</Button></CardContent>
         </Card>
       </div>
