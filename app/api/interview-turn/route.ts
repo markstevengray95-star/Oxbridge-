@@ -23,7 +23,7 @@ import {
   panelInterviewer,
 } from "@/lib/interview-depth-features"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
-import { subjectPathwayBrief, subjectInterviewPathway } from "@/lib/subject-interview-pathways"
+import { subjectPathwayBrief, subjectInterviewPathway, subjectPathwayProbes } from "@/lib/subject-interview-pathways"
 import { planAcademicFollowUp, suitableAcademicFollowUp, type AcademicFollowUpInput, type FollowUpStrategy } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { interviewQuestions } from "@/lib/oxbridge-data"
@@ -386,6 +386,7 @@ export async function POST(request: Request) {
 
   const planInput: Omit<AcademicFollowUpInput, "classification" | "issue"> = {
     course: body.course,
+    subjectProbes: subjectPathwayProbes(body.course ?? "", body.track, answer),
     openingProblem: memory.openingProblem || canonical?.prompt || body.question || "",
     currentQuestion: body.question || canonical?.prompt || "",
     candidateAnswer: answer,
