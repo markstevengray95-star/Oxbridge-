@@ -210,6 +210,8 @@ test("course pathways are integrated into formal, reasoning and live interview e
   const formal=read("app/api/interview-turn/route.ts")
   const reasoning=read("app/api/reasoning-interview-turn/route.ts")
   const live=read("lib/gemini/live-session-secure.ts")
+  const liveNext=read("app/gemini-live-next/page.tsx")
+  const liveCompatible=read("components/gemini-live-interview-experience.tsx")
   const advanced=read("components/advanced-interview-experience.tsx")
   const studio=read("components/reasoning-interview-experience-v2.tsx")
   for(const text of [formal,reasoning]){
@@ -218,6 +220,8 @@ test("course pathways are integrated into formal, reasoning and live interview e
   }
   assert.match(live,/subjectInterviewStarter/)
   assert.match(live,/subjectPathwayBrief/)
+  assert.match(liveNext,/subjectInterviewStarter/)
+  assert.match(liveCompatible,/subjectInterviewStarter/)
   assert.match(advanced,/subjectInterviewStarter/)
   assert.match(studio,/subjectInterviewStarter/)
   assert.match(advanced,/pathway.isOpenEnded/)
