@@ -197,7 +197,7 @@ export async function POST(request: Request) {
         course: clean(body.course, 120),
         track: clean(body.track, 80),
         difficulty: clean(body.difficulty, 60),
-        originalQuestion: canonical?.prompt || question,
+        originalQuestion: memory.openingProblem || canonical?.prompt || question,
         currentQuestion: question,
         candidateAnswer: answer,
         classification: local.classification,
