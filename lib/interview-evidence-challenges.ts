@@ -327,3 +327,18 @@ export function evidenceFollowUpProbes(context:EvidenceContext){
     synthesis:"Looking across all revealed information through "+focus+", what conclusion is justified, and what remains unresolved?",
   }
 }
+
+
+/** A new exhibit is allowed only after an answer since the previous reveal. */
+export function canRevealNextEvidence(currentStage:number,candidateTurns:number,lastRevealCandidateTurns:number){
+  return Number.isInteger(currentStage)&&currentStage>=-1&&currentStage<2
+    &&Number.isInteger(candidateTurns)&&candidateTurns>lastRevealCandidateTurns
+    &&Number.isInteger(lastRevealCandidateTurns)&&lastRevealCandidateTurns>=0
+}
+export function nextEvidenceStage(
+  challenge:EvidenceChallenge,currentStage:number,candidateTurns:number,lastRevealCandidateTurns:number,
+):{index:number;stage:EvidenceChallengeStage}|null{
+  if(!canRevealNextEvidence(currentStage,candidateTurns,lastRevealCandidateTurns))return null
+  const index=currentStage+1
+  return {index,stage:challenge.stages[index]}
+}
