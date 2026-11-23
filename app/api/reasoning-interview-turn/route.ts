@@ -181,6 +181,9 @@ export async function POST(request: Request) {
     issue: local.issue,
     track: body.track,
   })
+  // Periodically use the wider 22-node academic tree, so grounded adaptive
+  // prompts do not erase rich representation, quantification or transfer modes.
+  const extendedTreeTurn = local.classification === "responsive" && candidateTurnCount > 3 && candidateTurnCount % 4 === 0
   const node = selectInterviewTreeNode({
     track: body.track,
     question,
@@ -191,7 +194,7 @@ export async function POST(request: Request) {
     repairDepth: local.repairDepth,
     candidateTurnCount,
     previousNodeIds: Array.isArray(body.previousNodeIds) ? body.previousNodeIds.slice(-30) : [],
-    preferredNodeId: planned.preferredNodeId,
+    preferredNodeId: extendedTreeTurn ? undefined : planned.preferredNodeId,
     probes,
   })
   const intervention = selectInterviewerIntervention({
@@ -203,8 +206,8 @@ export async function POST(request: Request) {
     previous: Array.isArray(body.previousInterventions) ? body.previousInterventions.slice(-20) : [],
   })
 
-  const selectedNode = { ...node, prompt: planned.prompt, branchReason: planned.rationale }
-  let reply = planned.prompt
+  const selectedNode = { ...node, prompt: extendedTreeTurn ? node.prompt : planned.prompt, branchReason: extendedTreeTurn ? node.branchReason : planned.rationale }
+  let reply = selectedNode.prompt
   if (intervention.kind === "silence") reply = "Take a moment. Keep thinking aloud: what would you test or establish next before I intervene?"
   if (intervention.kind === "move-on") reply = "Give me your final synthesis of this problem: conclusion, decisive step, key assumption, strongest challenge and what you would carry into a new problem."
   let provider: "local" | "gemini" = "local"
@@ -249,7 +252,7 @@ export async function POST(request: Request) {
     ]
     reply = alternatives[memory.candidateTurns % alternatives.length]
   }
-  const updatedMemory = recordInterviewerMove(memory, reply, planned.strategy, intervention.supportLevel)
+  const updatedMemory = recordInterviewerMove(memory, reply, extendedTreeTurn ? node.id : planned.strategy, intervention.supportLevel)
 
   return NextResponse.json({
     reply,
@@ -259,8 +262,8 @@ export async function POST(request: Request) {
     directness: local.directness,
     repairDepth: local.repairDepth,
     branch: selectedNode,
-    followupStrategy: planned.strategy,
-    followupRationale: planned.rationale,
+    followupStrategy: extendedTreeTurn ? node.id : planned.strategy,
+    followupRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
     intervention,
     provider,
     branchCount: 22,
