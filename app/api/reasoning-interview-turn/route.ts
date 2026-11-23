@@ -6,6 +6,7 @@ import { selectInterviewTreeNode, type InterviewTreeNodeId } from "@/lib/intervi
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { subjectPathwayBrief, subjectInterviewPathway, subjectPathwayProbes } from "@/lib/subject-interview-pathways"
+import { mockInterviewStage, mockStageInstruction } from "@/lib/full-mock-interview"
 import { validatedEvidenceContext, evidenceFollowUpProbes, evidenceQuestionProbes, type EvidenceSelection } from "@/lib/interview-evidence-challenges"
 import { planAcademicFollowUp, suitableAcademicFollowUp } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
@@ -31,6 +32,7 @@ type RequestBody = {
   openingProblem?: string
   memory?: InterviewSessionMemory
   evidence?: EvidenceSelection
+  mock?: {minutes?:number;elapsedSeconds?:number;stageIndex?:number}
   workingEvidence?: string
 }
 
@@ -105,12 +107,14 @@ async function cloudFollowUp(key: string, input: {
   strategyRationale: string
   evidenceBrief?: string
   workingEvidence?: string
+  mockGuidance?: string
 }) {
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
   const transcript = input.recentTurns.slice(-12).map(turn => `${turn.role === "candidate" ? "Candidate" : "Interviewer"}: ${clean(turn.text, 800)}`).join("\n")
   const instruction = [
     STUDENT_AI_SAFETY_POLICY,
     subjectPathwayBrief(input.course, input.track),
+    input.mockGuidance ? input.mockGuidance : "",
     "You are conducting an academically demanding Oxford/Cambridge-style practice interview.",
     "This is practice, not an admissions prediction or official university scoring system.",
     "Stay on the SAME underlying problem unless the branch explicitly asks for transfer.",
@@ -172,6 +176,7 @@ export async function POST(request: Request) {
   const probes = Array.isArray(body.probes) && body.probes.length ? body.probes.filter(Boolean).slice(0, 14) : canonical?.probes ?? []
 
   const evidence = validatedEvidenceContext(body.course || "", body.track, body.evidence || {}, turns)
+  const mock = body.mock ? mockInterviewStage({minutes:Number(body.mock.minutes),elapsedSeconds:Math.max(0,Math.min(7200,Number(body.mock.elapsedSeconds)||0)),candidateAnswers:turns.filter(turn=>turn.role==="candidate").length,previousStageIndex:Number(body.mock.stageIndex)||0}):null
   const workingEvidence = clean(body.workingEvidence, 1400)
   const memory = advanceInterviewSession(body.memory, {
     openingProblem: clean(body.openingProblem, 800) || canonical?.prompt || question,
@@ -248,6 +253,7 @@ export async function POST(request: Request) {
         strategyRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
         evidenceBrief: evidence?.material,
         workingEvidence,
+        mockGuidance: mock ? mockStageInstruction({minutes:mock.format.minutes,elapsedSeconds:mock.elapsedSeconds,candidateAnswers:candidateTurnCount,previousStageIndex:mock.index}) : undefined,
       })
       if (cloud && suitableAcademicFollowUp(cloud, memory.recentQuestions)) {
         reply = cloud
@@ -282,6 +288,8 @@ export async function POST(request: Request) {
     intervention,
     provider,
     evidenceStage: evidence ? {id:evidence.id,stage:evidence.stage} : undefined,
+    mockStage: mock?.stage.id,
+    mockTargetMinutes: mock?.format.minutes,
     subjectPathway: subjectInterviewPathway(body.course || "", body.track).id,
     branchCount: 22,
   }, { headers: { "Cache-Control": "no-store" } })
