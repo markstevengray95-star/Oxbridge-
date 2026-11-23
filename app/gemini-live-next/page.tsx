@@ -483,7 +483,7 @@ export default function GeminiLiveNextPage() {
     }
 
     if (message.goAway) {
-      setNotice("Gemini Live is preparing to end this session. Finish the current turn or start a new interview.")
+      setNotice("Gemini Live may close this voice connection soon. Your transcript will be preserved so you can resume if needed.")
     }
 
     const content = message.serverContent
@@ -716,9 +716,9 @@ export default function GeminiLiveNextPage() {
     } catch (error) {
       if (generation !== generationRef.current) return
       teardown(false)
-      setPhase("lobby")
+      setPhase(restore ? "reconnect" : "lobby")
       setStatus("error")
-      setNotice(error instanceof Error ? error.message : "Could not start Gemini Live voice.")
+      setNotice((error instanceof Error ? error.message : "Could not start Gemini Live voice.") + (restore ? " Your previous transcript is preserved." : ""))
     }
   }
 
@@ -973,7 +973,7 @@ export default function GeminiLiveNextPage() {
               ? "Connection issue"
               : "Ready"
 
-  if (phase === "lobby" || phase === "connecting") {
+  if (phase === "lobby" || phase === "connecting" || phase === "reconnect") {
     return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]">
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6 flex items-center justify-between gap-3">
@@ -992,6 +992,8 @@ export default function GeminiLiveNextPage() {
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Interviewer style</span><NativeSelect value={personaKey} onChange={event => setPersonaKey(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Session style</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Tutor", "Realistic", "No-hint", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as GeminiVoice)}>{(Object.keys(voiceLabels) as GeminiVoice[]).map(item => <NativeSelectOption key={item} value={item}>{voiceLabels[item]}</NativeSelectOption>)}</NativeSelect></label>
+              <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Time to think</span><NativeSelect value={voicePace} onChange={event => setVoicePace(event.target.value as InterviewVoicePace)}><NativeSelectOption value="thoughtful">Thoughtful · longer pauses</NativeSelectOption><NativeSelectOption value="balanced">Natural conversation</NativeSelectOption><NativeSelectOption value="quick">Quick responses</NativeSelectOption></NativeSelect></label>
+              <button type="button" onClick={() => setAllowBargeIn(value => !value)} className="rounded-xl border bg-white p-3 text-left"><strong>{allowBargeIn ? "Interruptions allowed" : "Interruptions disabled"}</strong><p className="mt-1 text-xs text-slate-500">Let the student speak over the interviewer naturally. Headphones recommended.</p></button>
 
               <button onClick={() => setPanelMode(value => !value)} className={`sm:col-span-2 rounded-xl border p-4 text-left ${panelMode ? "border-cyan-500 bg-cyan-50" : "bg-white"}`}>
                 <div className="flex items-center gap-2"><Users className="size-4" /><strong>Two-interviewer panel</strong></div>
@@ -1001,9 +1003,11 @@ export default function GeminiLiveNextPage() {
               {interviewContext.material && <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-4"><strong>Interview context loaded: {interviewContext.title || "unseen material"}</strong><p className="mt-1 text-sm text-blue-900">The interviewer will use the material and your preparation notes.</p></div>}
               {retestFocus && <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4"><strong>Delayed oral retest due</strong><p className="mt-1 text-sm text-amber-900">The same reasoning habit will return through a fresh problem without revealing the target first.</p></div>}
               {notice && <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div>}
+              {phase === "reconnect" && <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">Your interview transcript is still here. Resuming creates a fresh secure voice connection and recaps the academic discussion; you do not need to start over.</div>}
 
               <div className="sm:col-span-2 flex flex-wrap gap-2">
-                <Button size="lg" onClick={() => void startInterview()} disabled={phase === "connecting" || configured === false}>{phase === "connecting" ? <Loader2 className="animate-spin" /> : <Mic />}{phase === "connecting" ? "Connecting…" : "Start live interview"}</Button>
+                <Button size="lg" onClick={() => void startInterview(phase === "reconnect")} disabled={phase === "connecting" || configured === false}>{phase === "connecting" ? <Loader2 className="animate-spin" /> : <Mic />}{phase === "connecting" ? "Connecting…" : phase === "reconnect" ? "Resume interview" : "Start live interview"}</Button>
+                {phase === "reconnect" && <><Button variant="outline" onClick={() => teardown(true)}>Save & finish</Button><Button variant="ghost" onClick={reset}>Start a new interview</Button></>}
                 <Button asChild variant="outline"><Link href="/pre-interview-material">Prepare unseen material first</Link></Button>
               </div>
             </CardContent>
