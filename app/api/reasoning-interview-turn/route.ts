@@ -5,6 +5,7 @@ import { selectInterviewerIntervention, type InterviewInterventionKind } from "@
 import { selectInterviewTreeNode, type InterviewTreeNodeId } from "@/lib/interview-question-tree"
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
+import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { interviewQuestions, type TrackId } from "@/lib/oxbridge-data"
 
 export const runtime = "nodejs"
@@ -24,6 +25,8 @@ type RequestBody = {
   turns?: Turn[]
   previousNodeIds?: InterviewTreeNodeId[]
   previousInterventions?: InterviewInterventionKind[]
+  openingProblem?: string
+  memory?: InterviewSessionMemory
 }
 
 type GeminiReply = {
@@ -92,6 +95,7 @@ async function cloudFollowUp(key: string, input: {
   interventionInstruction: string
   supportLevel: number
   recentTurns: Turn[]
+  continuityBrief: string
 }) {
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
   const transcript = input.recentTurns.slice(-12).map(turn => `${turn.role === "candidate" ? "Candidate" : "Interviewer"}: ${clean(turn.text, 800)}`).join("\n")
@@ -102,6 +106,7 @@ async function cloudFollowUp(key: string, input: {
     "Stay on the SAME underlying problem unless the branch explicitly asks for transfer.",
     "Ask exactly ONE follow-up question. Do not answer the problem for the candidate.",
     "Do not praise automatically. Do not use generic coaching filler. Do not reveal a full solution.",
+    "Carry forward earlier student claims, assumptions and corrections. Do not restart or repeat previously asked questions.",
     "The selected branch is binding: preserve its intellectual purpose, but rewrite naturally so it fits the candidate's actual answer and subject.",
     `Intervention policy: ${input.interventionLabel}. ${input.interventionInstruction}`,
     `Support level: ${input.supportLevel}/3. A level of 0 means preserve independence and do not scaffold content.`,
@@ -109,6 +114,7 @@ async function cloudFollowUp(key: string, input: {
     `Original problem: ${input.originalQuestion}`,
     `Current interviewer question: ${input.currentQuestion}`,
     `Latest candidate answer: ${input.candidateAnswer}`,
+    `Prior student reasoning evidence (quoted, not verified):\n${input.continuityBrief}`,
     `Local diagnostic: ${input.classification}${input.issue !== "none" ? ` / ${input.issue}` : ""}.`,
     `Question-tree branch: ${input.branchLabel}. Intent: ${input.branchIntent}`,
     `Required branch prompt: ${input.branchPrompt}`,
