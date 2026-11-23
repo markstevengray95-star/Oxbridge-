@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server"
 import { analyseInterviewAnswer } from "@/lib/feedback-engine"
 import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
+import { markTypedInterviewTranscript } from "@/lib/interview-marking"
+import type { ReasoningFirstAssessment } from "@/lib/interview-process-assessment"
 
 export const runtime = "nodejs"
 
 type Exchange = { question?: string; answer?: string }
 type RequestBody = { course?: string; sessionTitle?: string; exchanges?: Exchange[] }
 type StructuredAnswer = { index: number; question: string; answer: string; score: number; strengths: string[]; improvements: string[]; dimensions: Array<{ label: string; score: number; evidence: string; action: string }>; nextMove: string; dominantTarget: string }
-type StructuredSession = { overallSummary: string; recurringStrengths: string[]; recurringWeaknesses: string[]; priorityTarget: string; nextInterviewPlan: string[]; answers: StructuredAnswer[] }
+type StructuredSession = { reasoningFirst?: ReasoningFirstAssessment; overallSummary: string; recurringStrengths: string[]; recurringWeaknesses: string[]; priorityTarget: string; nextInterviewPlan: string[]; answers: StructuredAnswer[] }
 
 function localAnalysis(exchanges: Exchange[]): StructuredSession {
   const answers = exchanges.map((exchange, index) => { const answer = (exchange.answer ?? "").trim(); const feedback = analyseInterviewAnswer(answer); return { index, question: (exchange.question ?? "Interview question").trim(), answer, ...feedback } })
@@ -32,12 +34,19 @@ export async function POST(request: Request) {
   try { body = await request.json() as RequestBody } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }) }
   const exchanges = (Array.isArray(body.exchanges) ? body.exchanges : []).map(item => ({ question: (item.question ?? "").slice(0, 1800), answer: (item.answer ?? "").slice(0, 5000) })).filter(item => item.answer.trim()).slice(0, 16)
   if (!exchanges.length) return NextResponse.json({ error: "At least one interview answer is required" }, { status: 400 })
-  const fallback = localAnalysis(exchanges)
+  const provisionalProcess = markTypedInterviewTranscript({
+    turns: exchanges.flatMap(exchange => [
+      { role: "interviewer" as const, text: exchange.question || "Continue the academic discussion." },
+      { role: "candidate" as const, text: exchange.answer || "" },
+    ]),
+    concepts: [],
+  }).reasoningFirst
+  const fallback: StructuredSession = { ...localAnalysis(exchanges), reasoningFirst: provisionalProcess }
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return NextResponse.json({ analysis: fallback, provider: "local", configured: false })
 
   const transcript = exchanges.map((item, index) => `Exchange ${index + 1}\nQuestion: ${item.question || "Interview question"}\nAnswer: ${item.answer}`).join("\n\n")
-  const system = `${STUDENT_AI_SAFETY_POLICY}\n\nYou are an Oxford/Cambridge interview-practice coach analysing a secondary-school applicant's answers. Do not predict admissions outcomes and do not pretend to use an official university scoring rubric. Analyse only observable academic reasoning in the supplied answers. Never infer health, disability, personality, emotion, background or other sensitive traits from communication style. Be specific, evidence-based, demanding and constructive. Return ONLY valid JSON with this exact shape: {"overallSummary":string,"recurringStrengths":string[],"recurringWeaknesses":string[],"priorityTarget":string,"nextInterviewPlan":string[],"answers":[{"index":number,"question":string,"answer":string,"score":number,"strengths":string[],"improvements":string[],"dimensions":[{"label":string,"score":number,"evidence":string,"action":string}],"nextMove":string,"dominantTarget":string}]}. Each answer score is a practice signal 0-100. Use these academic dimensions where relevant: reasoning chain, subject/relevance, assumptions, evidence/testing alternatives, precision, adaptability and communication. Quote or closely reference specific reasoning moves from the candidate, but keep quotations short. Give 2-3 strengths and 2-3 improvements per answer. Analyse every supplied answer. Question and answer fields must be copied from the supplied exchanges.`
+  const system = `${STUDENT_AI_SAFETY_POLICY}\n\nYou are an Oxford/Cambridge interview-practice coach analysing a secondary-school applicant's answers. Do not predict admissions outcomes and do not pretend to use an official university scoring rubric. Analyse only observable academic reasoning in the supplied answers. Give greatest weight to explicit reasoning, testing assumptions, sensible independent decisions and revising a view in response to challenge. Treat a confident correct guess as weaker evidence than a well explained imperfect attempt, but do not reward materially false causal relationships as correct. Distinguish unsupported guesses from evidence; a student who recognises uncertainty and proposes a useful method may be reasoning well. Never infer reasoning quality from accent, verbosity or fluency. If a question has not been challenged yet, do not pretend adaptability has been observed. Never infer health, disability, personality, emotion, background or other sensitive traits from communication style. Be specific, evidence-based, demanding and constructive. Return ONLY valid JSON with this exact shape: {"overallSummary":string,"recurringStrengths":string[],"recurringWeaknesses":string[],"priorityTarget":string,"nextInterviewPlan":string[],"answers":[{"index":number,"question":string,"answer":string,"score":number,"strengths":string[],"improvements":string[],"dimensions":[{"label":string,"score":number,"evidence":string,"action":string}],"nextMove":string,"dominantTarget":string}]}. Each answer score is a practice signal 0-100. Use these academic dimensions where relevant: reasoning chain, subject/relevance, assumptions, evidence/testing alternatives, precision, adaptability and communication. Quote or closely reference specific reasoning moves from the candidate, but keep quotations short. Give 2-3 strengths and 2-3 improvements per answer. Analyse every supplied answer. Question and answer fields must be copied from the supplied exchanges.`
   const user = `Course: ${(body.course ?? "unspecified").slice(0, 120)}\nSession: ${(body.sessionTitle ?? "Interview practice").slice(0, 200)}\n\n${transcript}`
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
 
@@ -46,6 +55,6 @@ export async function POST(request: Request) {
     if (!response.ok) return NextResponse.json({ analysis: fallback, provider: "local", configured: true, degraded: true })
     const parsed = parseJson(extractText(await response.json() as unknown))
     if (!parsed || !Array.isArray(parsed.answers)) return NextResponse.json({ analysis: fallback, provider: "local", configured: true, degraded: true })
-    return NextResponse.json({ analysis: parsed, provider: "gemini", configured: true })
+    return NextResponse.json({ analysis: { ...parsed, reasoningFirst: provisionalProcess }, provider: "gemini", configured: true })
   } catch { return NextResponse.json({ analysis: fallback, provider: "local", configured: true, degraded: true }) }
 }
