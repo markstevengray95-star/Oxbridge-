@@ -275,7 +275,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
           probes: extraProbes,
           moveHistory,
           adaptiveLevel,
-          referenceAnswer: useApplicationLaunch && applicationLaunch || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer,
+          referenceAnswer: evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer,
           stimulus: useApplicationLaunch && applicationLaunch ? applicationLaunch.excerpt : base.stimulus,
           turns: history,
           panelMode,
@@ -324,7 +324,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     stopListening()
     const finalTurns = answer.trim() ? [...turns, { role: "candidate" as const, text: answer.trim() }] : turns
     if (!finalTurns.some(turn => turn.role === "candidate")) return
-    const scored = markTypedInterviewTranscript({ turns: finalTurns, concepts: base.concepts, referenceAnswer: useApplicationLaunch && applicationLaunch || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer })
+    const scored = markTypedInterviewTranscript({ turns: finalTurns, concepts: base.concepts, referenceAnswer: evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer })
     const finalRecovery = recoverySignal(finalTurns.filter(turn => turn.role === "candidate").map(turn => turn.quality || ""))
     setTurns(finalTurns)
     setResult(scored)
