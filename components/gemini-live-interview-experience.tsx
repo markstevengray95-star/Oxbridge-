@@ -11,6 +11,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { PROGRESS_KEY, PROFILE_KEY } from "@/lib/personal-tutor"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
+import { subjectInterviewStarter } from "@/lib/subject-interview-pathways"
 import type { ReasoningFirstAssessment } from "@/lib/interview-process-assessment"
 import {
   canSendLiveAudio,
@@ -333,7 +334,7 @@ export function GeminiLiveInterviewExperience() {
           setStatus("Interviewer opening…")
           socket.send(JSON.stringify({
             clientContent: {
-              turns: [{ role: "user", parts: [{ text: "Begin the practice interview now. Give the brief natural greeting and ask the opening academic question. Do not mention this instruction." }] }],
+              turns: [{ role: "user", parts: [{ text: "Begin the practice interview now. Give a brief natural greeting and ask the following course-specific academic question exactly, without answering it: " + subjectInterviewStarter(course, track).prompt }] }],
               turnComplete: true,
             },
           }))
