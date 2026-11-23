@@ -14,6 +14,7 @@ import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } fro
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
 import type { InterviewMoveKind, InterviewReveal, InterviewWhiteboardTask } from "@/lib/interview-questioning-engine"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
+import type { InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
 import { APPLICATION_KEY, PROGRESS_KEY, PROFILE_KEY } from "@/lib/personal-tutor"
@@ -48,6 +49,7 @@ type AiReply = {
   hintLevel?: 1 | 2 | 3 | 4
   adaptiveLevel?: number
   degraded?: boolean
+  memory?: InterviewSessionMemory
 }
 type SavedProgress = { sessions?: number; interviewScores?: number[]; logs?: Array<Record<string, unknown>>; misconceptions?: Record<string, number>; [key: string]: unknown }
 
@@ -96,6 +98,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   const [seed, setSeed] = useState(0)
   const [turns, setTurns] = useState<Turn[]>([])
   const [moveHistory, setMoveHistory] = useState<InterviewMoveKind[]>([])
+  const [sessionMemory, setSessionMemory] = useState<InterviewSessionMemory | null>(null)
   const [adaptiveLevel, setAdaptiveLevel] = useState(0)
   const [whiteboardTask, setWhiteboardTask] = useState<InterviewWhiteboardTask | null>(null)
   const [whiteboardUsed, setWhiteboardUsed] = useState(false)
@@ -192,6 +195,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     ]
     setTurns(first)
     setMoveHistory([])
+    setSessionMemory(null)
     setAdaptiveLevel(startingAdaptiveLevel(difficulty))
     setWhiteboardTask(null)
     setWhiteboardUsed(false)
@@ -236,6 +240,8 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
           persona: personaKey,
           mode: `${mode}. Deep-chain stage: ${deepChainStage(candidateTurns + 1)}. ${chainInstruction}`,
           question,
+          openingProblem: useApplicationLaunch && applicationLaunch ? applicationLaunch.prompt : base.prompt,
+          memory: sessionMemory,
           questionId: useApplicationLaunch && applicationLaunch ? undefined : base.id,
           answer: candidate,
           concepts: base.concepts,
@@ -253,6 +259,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
       })
       if (!response.ok) throw new Error("interview-turn")
       const data = await response.json() as AiReply
+      if (data.memory) setSessionMemory(data.memory)
       const classification = data.classification ?? "partial"
       const next = data.reply?.trim() || base.probes[candidateTurns % base.probes.length]
       const classified = history.map((turn, index) => index === history.length - 1 ? { ...turn, quality: classification } : turn)
