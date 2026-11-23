@@ -84,6 +84,9 @@ jobs:
       - name: Tutor evidence-confidence behaviour checks
         run: node tests/tutor-evidence-quality.mjs
 
+      - name: Phase one interviewer memory and continuity checks
+        run: npm run test:interview-memory
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 
