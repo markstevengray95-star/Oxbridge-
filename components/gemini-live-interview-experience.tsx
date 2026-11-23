@@ -12,6 +12,16 @@ import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } fro
 import { PROGRESS_KEY, PROFILE_KEY } from "@/lib/personal-tutor"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { ReasoningFirstAssessment } from "@/lib/interview-process-assessment"
+import {
+  canSendLiveAudio,
+  detectVoiceBargeIn,
+  liveAudioRms,
+  liveSocketErrorMessage,
+  liveSpeechDetection,
+  mergeLiveTranscription,
+  newVoiceBargeInState,
+  type InterviewVoicePace,
+} from "@/lib/gemini/live-conversation-control"
 
 type LivePhase = "lobby" | "connecting" | "live" | "review"
 type TranscriptTurn = { role: "candidate" | "interviewer"; text: string }
@@ -21,7 +31,7 @@ type Feedback = { reasoningFirst?: ReasoningFirstAssessment; overallSummary?: st
 type ServerMessage = {
   setupComplete?: Record<string, unknown>
   serverContent?: {
-    modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> }
+    modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string }; text?: string }> }
     inputTranscription?: { text?: string }
     outputTranscription?: { text?: string }
     turnComplete?: boolean
@@ -35,14 +45,6 @@ const VOICES = ["Gacrux", "Sulafat", "Sadaltager", "Kore"] as const
 
 function formatTime(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
-}
-
-function appendChunk(current: string, chunk: string) {
-  const clean = chunk.replace(/\s+/g, " ").trim()
-  if (!clean) return current
-  if (!current) return clean
-  if (current.endsWith(clean)) return current
-  return `${current} ${clean}`.replace(/\s+/g, " ").trim()
 }
 
 function floatToPcm16Base64(input: Float32Array, inputRate: number) {
@@ -89,6 +91,7 @@ export function GeminiLiveInterviewExperience() {
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [panel, setPanel] = useState(true)
   const [voice, setVoice] = useState<(typeof VOICES)[number]>("Gacrux")
+  const [voicePace, setVoicePace] = useState<InterviewVoicePace>("thoughtful")
   const [status, setStatus] = useState("Ready")
   const [notice, setNotice] = useState("")
   const [seconds, setSeconds] = useState(0)
@@ -114,6 +117,10 @@ export function GeminiLiveInterviewExperience() {
   const intentionalCloseRef = useRef(false)
   const mutedRef = useRef(false)
   const startedAtRef = useRef<number | null>(null)
+  const speechStateRef = useRef(newVoiceBargeInState())
+  const locallyInterruptedRef = useRef(false)
+  const playbackEpochRef = useRef(0)
+  const streamingBacklogWarnedRef = useRef(false)
 
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const personaName = useMemo(() => interviewerPersonas[persona]?.label || persona, [persona])
@@ -141,6 +148,8 @@ export function GeminiLiveInterviewExperience() {
   }
 
   function stopPlayback() {
+    playbackEpochRef.current += 1
+    speechStateRef.current = newVoiceBargeInState()
     for (const source of playbackSourcesRef.current) {
       try { source.stop() } catch {}
     }
@@ -149,15 +158,18 @@ export function GeminiLiveInterviewExperience() {
   }
 
   async function playAudio(base64: string, mimeType?: string) {
-    if (!base64) return
+    if (!base64 || locallyInterruptedRef.current) return
+    const epoch = playbackEpochRef.current
     if (!playbackContextRef.current) playbackContextRef.current = new AudioContext()
     const context = playbackContextRef.current
     if (context.state === "suspended") await context.resume().catch(() => undefined)
+    if (epoch !== playbackEpochRef.current || locallyInterruptedRef.current) return
     const samples = decodePcm16(base64)
     if (!samples.length) return
     const rate = extractRate(mimeType)
     const buffer = context.createBuffer(1, samples.length, rate)
     buffer.copyToChannel(samples, 0)
+    if (epoch !== playbackEpochRef.current || locallyInterruptedRef.current) return
     const source = context.createBufferSource()
     source.buffer = buffer
     source.connect(context.destination)
