@@ -10,6 +10,7 @@ import type { EvidenceLinkedFeedback, InsightEvidence } from "@/lib/interview-fe
 function evidenceItem(item: InsightEvidence) {
   return <div key={item.kind+":"+item.turnIndex} className="rounded-xl border border-[#dbe5e7] bg-white p-3">
     <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{item.kind==="revision"?"Explicit revision":item.kind==="recovery"?"Possible recovery":item.kind==="strength"?"Observed strength":"Area to check"}</strong><Badge variant="outline">Transcript turn {item.turnIndex+1}</Badge></div>
+    {item.question ? <p className="mt-2 text-xs leading-5 text-slate-600"><strong>Interviewer question:</strong> {item.question}</p> : null}
     <p className="mt-2 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm leading-6">“{item.quote}”</p>
     <p className="mt-2 text-xs leading-5 text-slate-600">{item.observation}</p>
     <p className="mt-1 text-[11px] text-slate-500">{item.certainty==="classified"?"Based on software answer classification":"Directly observable in the written transcript"}</p>
