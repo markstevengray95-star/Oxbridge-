@@ -11,7 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { InterviewWhiteboard } from "@/components/interview-whiteboard"
 import { InterviewEvidencePanel } from "@/components/interview-evidence-panel"
-import { evidenceChallengeForCourse } from "@/lib/interview-evidence-challenges"
+import { evidenceChallengeForCourse , canRevealNextEvidence, nextEvidenceStage } from "@/lib/interview-evidence-challenges"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
 import type { InterviewMoveKind, InterviewReveal, InterviewWhiteboardTask } from "@/lib/interview-questioning-engine"
@@ -223,9 +223,11 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   }
 
   function revealEvidence() {
-    if (!evidenceChallenge || thinking || candidateTurns <= evidenceLastAnswerCount || evidenceStage >= 2) return
-    const next = evidenceStage + 1
-    const stage = evidenceChallenge.stages[next]
+    if (!evidenceChallenge || thinking || !canRevealNextEvidence(evidenceStage,candidateTurns,evidenceLastAnswerCount)) return
+    const nextState=nextEvidenceStage(evidenceChallenge,evidenceStage,candidateTurns,evidenceLastAnswerCount)
+    if(!nextState)return
+    const next=nextState.index
+    const stage=nextState.stage
     setEvidenceStage(next)
     setEvidenceLastAnswerCount(candidateTurns)
     setTurns(current => [...current, {role:"interviewer",speaker:"Interviewer",text:stage.question}])
@@ -438,7 +440,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]"><div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><Button variant="ghost" onClick={reset}><ArrowLeft />Exit interview</Button><div className="flex items-center gap-2"><Badge variant="outline"><Clock3 className="mr-1 size-3.5" />{formatTime(seconds)}</Badge><Badge className="bg-[#102a43] text-white">{course}</Badge><Badge variant="outline">{deepChainStage(candidateTurns)}</Badge></div></div>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]"><Card className="min-h-[680px] border-[#dbe5e7]"><CardHeader><CardTitle className="font-serif text-2xl">Academic interview</CardTitle><CardDescription>Stay with the problem. Think aloud, revise when needed, and use the interviewer’s challenge as new information rather than as a verdict.</CardDescription><Progress value={sessionProgress} className="mt-2" /></CardHeader><CardContent className="space-y-4">
-      {evidenceChallenge ? <InterviewEvidencePanel challenge={evidenceChallenge} stageIndex={evidenceStage} canReveal={candidateTurns>evidenceLastAnswerCount} onReveal={revealEvidence} disabled={thinking} /> : null}
+      {evidenceChallenge ? <InterviewEvidencePanel challenge={evidenceChallenge} stageIndex={evidenceStage} canReveal={canRevealNextEvidence(evidenceStage,candidateTurns,evidenceLastAnswerCount)} onReveal={revealEvidence} disabled={thinking} /> : null}
       {base?.stimulus && !(applicationLaunch && useApplicationLaunch) ? <div className="rounded-2xl border border-[#cfe1e4] bg-[#edf7f8] p-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Stimulus</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{base.stimulus}</p></div> : null}
       <div className="max-h-[430px] space-y-3 overflow-y-auto rounded-2xl bg-[#f8fafb] p-4">{turns.map((turn, index) => { const styles = turn.reveal ? revealClasses(turn.reveal.kind) : null; return <div key={`${turn.role}-${index}`} className={`rounded-2xl p-4 ${turn.role === "candidate" ? "ml-auto max-w-[92%] bg-[#102a43] text-white" : "bg-white shadow-sm"}`}><div className="flex items-center justify-between gap-2"><p className={`text-[11px] font-bold uppercase tracking-wider ${turn.role === "candidate" ? "text-[#8dd7de]" : "text-[#147d91]"}`}>{turn.role === "candidate" ? "You" : turn.speaker || "Interviewer"}</p>{turn.role === "candidate" && turn.quality ? <span className="text-[10px] font-semibold text-white/65">{qualityLabel(turn.quality)}</span> : null}</div>{turn.reveal && styles ? <div className={`mt-2 rounded-xl border p-3 ${styles.box}`}><p className={`text-[10px] font-bold uppercase tracking-[.14em] ${styles.label}`}>{turn.reveal.title}</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-800">{turn.reveal.content}</p></div> : null}<p className="mt-2 whitespace-pre-wrap text-sm leading-6">{turn.text}</p></div>})}{thinking ? <div className="flex items-center gap-2 rounded-xl bg-white p-3 text-sm text-slate-500"><Loader2 className="size-4 animate-spin" />The panel is deciding how to develop the same line of reasoning…</div> : null}</div>
       {notice ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div> : null}
