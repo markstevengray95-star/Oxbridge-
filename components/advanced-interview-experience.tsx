@@ -328,7 +328,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
         setMockStageIndex(stageTransition.index)
         setMockVisited(previous => [...new Set([...previous,stageTransition.stage.id])])
       }
-      if (switchProblem) {setSessionMemory(null);setMoveHistory([]);setWhiteboardTask(null)}
+      if (switchProblem) {setSessionMemory(null);setMoveHistory([]);setWhiteboardTask(null);setEvidenceStage(-1);setEvidenceLastAnswerCount(0)}
       const classified = history.map((turn, index) => index === history.length - 1 ? { ...turn, quality: classification } : turn)
       const interviewerTurn: Turn = {
         role: "interviewer",
@@ -349,7 +349,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     } catch {
       const next = switchProblem ? "We will now consider a different problem. " + secondaryProblem.prompt : chainInstruction + " " + (activeProblem.probes[candidateTurns % activeProblem.probes.length] ?? "Which assumption in that answer is doing the most work?")
       if (stageTransition && stageTransition.index !== mockStageIndex) {setMockStageIndex(stageTransition.index);setMockVisited(previous => [...new Set([...previous,stageTransition.stage.id])])}
-      if (switchProblem) {setSessionMemory(null);setMoveHistory([])}
+      if (switchProblem) {setSessionMemory(null);setMoveHistory([]);setEvidenceStage(-1);setEvidenceLastAnswerCount(0)}
       setTurns([...history, { role: "interviewer", speaker: panelMode ? panel.label : "Interviewer", text: next }])
       setQuestion(next)
       setNotice("The interview service could not be reached, so the same problem continued with the built-in deep-chain interviewer.")
