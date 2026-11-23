@@ -448,7 +448,7 @@ export default function GeminiLiveNextPage() {
       ? " Start with the unseen or supercurricular material supplied in your system instructions."
       : ""
     const prompt = resumeRef.current
-      ? buildLiveResumePrompt(course, turnsRef.current)
+      ? buildLiveResumePrompt(course, turnsRef.current) + (evidenceChallenge && evidenceStage>=0 ? "\n\nCurrent interactive evidence already shown to the student:\n" + (evidenceContext({challengeId:evidenceChallenge.id,stage:evidenceStage})?.material || "") : "")
       : interviewContext.material
         ? `Begin the formal ${course} practice interview now.${materialHint} Ask one challenging but accessible question grounded in the supplied material.`
         : `Begin the formal ${course} practice interview now. Give a brief natural greeting, then ask this opening academic problem without answering it: ${subjectInterviewStarter(course, track).prompt}`
