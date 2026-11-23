@@ -5,6 +5,7 @@
 import type { InterviewAnswerClassification, InterviewAnswerIssue } from "@/lib/interview-answer-quality"
 import type { InterviewTreeNodeId } from "@/lib/interview-question-tree"
 import type { InterviewMoveKind } from "@/lib/interview-questioning-engine"
+import { subjectPathwayProbe } from "@/lib/subject-interview-pathways"
 
 export type FollowUpStrategy = "clarify" | "justify" | "verify" | "revision" | "assumption" | "prediction" | "alternative" | "stress-test" | "transfer" | "synthesis"
 export type AcademicFollowUpPlan = {
@@ -17,6 +18,7 @@ export type AcademicFollowUpPlan = {
   needsSupport: boolean
 }
 export type AcademicFollowUpInput = {
+  course?: string
   openingProblem: string
   currentQuestion: string
   candidateAnswer: string
@@ -134,14 +136,23 @@ export function planAcademicFollowUp(input: AcademicFollowUpInput): AcademicFoll
     else if (!used.includes("stress-test")) strategy = "stress-test"
     else if (!used.includes("transfer")) strategy = "transfer"
   }
-  let prompt = question(strategy, anchor, input.track, turn)
+  let prompt = input.course?.trim()
+    ? subjectPathwayProbe({ course: input.course, track: input.track, strategy, claim: answer })
+    : question(strategy, anchor, input.track, turn)
   const recent = (input.recentQuestions ?? []).filter(Boolean)
   if (recent.some(earlier => similar(prompt, earlier))) {
-    const alternatives = [
-      "Which observation would most challenge " + anchor + ", and why?",
-      "What would happen if the main condition supporting " + anchor + " changed?",
-      "Which other method could test " + anchor + " independently?",
-    ]
+    const alternatives = input.course?.trim()
+      ? (["verify", "assumption", "alternative", "stress-test"] as const).map(next => subjectPathwayProbe({
+          course: input.course || "",
+          track: input.track,
+          strategy: next,
+          claim: answer,
+        }))
+      : [
+          "Which observation would most challenge " + anchor + ", and why?",
+          "What would happen if the main condition supporting " + anchor + " changed?",
+          "Which other method could test " + anchor + " independently?",
+        ]
     prompt = alternatives.find(candidate => !recent.some(earlier => similar(candidate, earlier))) ?? alternatives[turn % alternatives.length]
   }
   return {
