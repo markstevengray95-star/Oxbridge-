@@ -244,14 +244,91 @@ const geography: EvidenceChallenge={
   ],
 }
 
-const scenarios: EvidenceChallenge[]=[physical,medicine,law,history,maths,economics,biology,computing,literature,chemistry,engineering,geography]
+
+const psychology: EvidenceChallenge={
+  id:"phase6-psychology-memory",pathwayId:"psychology",title:"Sleep and memory: a causal claim",
+  introduction:"Fictional psychology study results. Discuss operational definitions, confounders, participant welfare and research design.",
+  stages:[
+    {label:"Survey association",change:"Initial observational results",
+      question:"Does the association establish that extra sleep improves memory, and how could you operationalise the two variables?",
+      material:{kind:"graph",title:"Hours of sleep and mean recall",xLabel:"Reported sleep (hours)",yLabel:"Words recalled (out of 20)",x:[5,6,7,8,9],series:[{label:"Mean recall",values:[9,11,13,15,16]}],note:"Invented survey averages; age, stress and study time are uncontrolled."}},
+    {label:"Confounder",change:"Study-time differences become visible",
+      question:"Students sleeping longer also spent longer revising. What does that change about your inference and proposed study design?",
+      material:{kind:"table",title:"Reported daily revision",headers:["Sleep group","Revision (minutes/day)"],rows:[["5–6 hours","20"],["7–8 hours","45"],["9 hours","55"]],note:"Fictional estimates; self-report is not independently verified."}},
+    {label:"Intervention evidence",change:"A small controlled study is introduced",
+      question:"A short intervention shows similar recall in both groups. What claims remain reasonable, and what safeguards should a larger study include?",
+      material:{kind:"table",title:"Controlled pilot: mean recall",headers:["Group","Before","After"],rows:[["Sleep extension","13.0","13.4"],["Usual routine","13.0","13.3"]],note:"Fictional small pilot; variability, dropouts and power are not reported. Do not encourage harmful sleep restriction."}},
+  ],
+}
+const ppe: EvidenceChallenge={
+  id:"phase6-ppe-policy",pathwayId:"ppe",title:"A welfare policy meets an ethical objection",
+  introduction:"Fictional public-policy case linking philosophy, politics and economics; there is no uniquely accepted ethical answer.",
+  stages:[
+    {label:"Policy options",change:"An economic projection is shared",
+      question:"Which political, economic and moral assumptions would you challenge before choosing between these two policies?",
+      material:{kind:"table",title:"Illustrative one-year outcomes",headers:["Option","Total estimated gain","Households losing"],rows:[["A — universal rebate","£2 million","0"],["B — targeted restructuring","£5 million","2,000"]],note:"Aggregate gains are modeled, distribution and uncertainty are not yet explained."}},
+    {label:"Distributional change",change:"The distribution of losses is revealed",
+      question:"The households losing under B have low incomes. Would that alter your decision, and which principle would justify the change?",
+      material:{kind:"excerpt",title:"New evidence from a fictional analyst",text:"Nearly all losses under option B would be borne by households in the lowest income quintile; gains would mostly benefit higher-income households.",note:"This is an invented scenario; no actual UK policy is described."}},
+    {label:"Counterfactual",change:"A feasible compensation option is introduced",
+      question:"Suppose compensation reduces B's net gain to £3 million but removes most direct losses. How would you assess the new trade-off and remaining political objections?",
+      material:{kind:"table",title:"Revised estimated outcomes",headers:["Option","Net gain","Households still losing"],rows:[["A","£2 million","0"],["B with compensation","£3 million","150"]],note:"Estimates are fictional and depend on behavioural responses and implementation."}},
+  ],
+}
+const philosophy: EvidenceChallenge={
+  id:"phase6-philosophy-promise",pathwayId:"philosophy",title:"When should a promise bind?",
+  introduction:"An original philosophical thought experiment, where reasoning and a revised principle matter more than a predetermined answer.",
+  stages:[
+    {label:"First argument",change:"A proposed ethical principle",
+      question:"Does this argument justify its conclusion, or does it simply assume what it is trying to establish?",
+      material:{kind:"excerpt",title:"An invented argument",text:"Every promise ought to be kept. I promised to return a book tomorrow. Therefore I ought to return it tomorrow.",note:"Consider the status of the universal premise, not merely whether the deduction is valid."}},
+    {label:"Counterexample",change:"A conflicting duty is revealed",
+      question:"The owner now asks for the book to be returned to a dangerous location. Which premise or exception should be reconsidered?",
+      material:{kind:"excerpt",title:"A harder case",text:"The owner wants the promised book delivered to a location where the person returning it would face serious and avoidable danger.",note:"There is no stipulated correct moral theory."}},
+    {label:"Reverse test",change:"The owner also depends on the book",
+      question:"If the owner needs the book to complete urgent work, which version of your principle handles both their interests and the new risk?",
+      material:{kind:"excerpt",title:"A second duty",text:"Without access to the book, the owner will lose a significant opportunity. A safe alternative delivery might be possible, but its cost is uncertain.",note:"Examine whether your proposed rule survives changed costs and reasonable alternatives."}},
+  ],
+}
+const languages: EvidenceChallenge={
+  id:"phase6-languages-register",pathwayId:"languages",title:"A translation changes its audience",
+  introduction:"A fictional mini-language is used for translation and pragmatic reasoning; these forms are invented, not claimed to belong to a real language.",
+  stages:[
+    {label:"Unseen dialogue",change:"A register contrast is given",
+      question:"How would you preserve the difference between the formal and informal pronouns when translating into English?",
+      material:{kind:"table",title:"Invented register system",headers:["Form","Meaning","Context"],rows:[["tu","you (informal)","close friend"],["va","you (formal)","unknown adult"],["ven","please come","both contexts"]],note:"This is an invented classroom language, not a real grammatical description."}},
+    {label:"Changed audience",change:"The speaker switches forms mid-conversation",
+      question:"A speaker moves from 'va' to 'tu' halfway through a conversation. What pragmatic interpretations are possible beyond a grammatical error?",
+      material:{kind:"excerpt",title:"Invented conversation",text:"Speaker A: va ven. Later, after sharing a personal story: tu ven.",note:"Interpret relationships, tone and audience before selecting English phrasing."}},
+    {label:"Genre transfer",change:"The dialogue appears in a legal record",
+      question:"If the dialogue must be translated for an official transcript, should the lost register distinction be explained in a note or embedded in the translation?",
+      material:{kind:"excerpt",title:"Translation brief",text:"Prepare an accurate English transcript that could be checked against the fictional original. Do not add invented facts about the speakers.",note:"Consider transparency, precision and readability rather than pretending a single translation always wins."}},
+  ],
+}
+const general: EvidenceChallenge={
+  id:"phase6-general-timetable",pathwayId:"general",title:"Did a timetable improve learning?",
+  introduction:"Fictional assessment data. Practise causal reasoning, comparisons and justified revision.",
+  stages:[
+    {label:"Initial claim",change:"Before and after results",
+      question:"These scores increased after a new timetable. What can you infer, and what would be needed to establish causation?",
+      material:{kind:"table",title:"Average mark in one school",headers:["Year","Mean score (%)"],rows:[["Before","60"],["After","68"]],note:"Invented cohort averages; assessments and cohorts may differ."}},
+    {label:"External comparison",change:"A comparison school appears",
+      question:"The comparison school's average also rose. How should that change the original school's claim?",
+      material:{kind:"table",title:"Comparison school means",headers:["School","Before (%)","After (%)"],rows:[["With new timetable","60","68"],["Without new timetable","62","69"]],note:"Schools are not confirmed to be matched; interpret differences with caution."}},
+    {label:"Assessment change",change:"The marking scheme has changed",
+      question:"Both schools used an easier test in the second year. Which comparisons would still be informative, and what does this mean for confidence in the timetable's effect?",
+      material:{kind:"excerpt",title:"Assessment note",text:"The second year's paper had fewer demanding questions, and no equating study was performed between the two test versions.",note:"Avoid treating a raw mean difference as an improvement in learning."}},
+  ],
+}
+
+const scenarios: EvidenceChallenge[]=[physical,medicine,law,history,maths,economics,biology,computing,literature,chemistry,engineering,geography,psychology,ppe,philosophy,languages,general]
 const map:Record<string,string>={
   physics:physical.id,engineering:engineering.id,chemistry:chemistry.id,
   mathematics:maths.id,computing:computing.id,
-  medicine:medicine.id,biology:biology.id,psychology:medicine.id,
-  law:law.id,economics:economics.id,ppe:economics.id,
+  medicine:medicine.id,biology:biology.id,psychology:psychology.id,
+  law:law.id,economics:economics.id,ppe:ppe.id,
   history:history.id,geography:geography.id,
-  philosophy:law.id,literature:literature.id,languages:literature.id,general:history.id,
+  philosophy:philosophy.id,literature:literature.id,languages:languages.id,general:general.id,
 }
 export function allEvidenceChallenges(){return scenarios}
 export function evidenceChallengeById(id:string){return scenarios.find(x=>x.id===id)||null}
