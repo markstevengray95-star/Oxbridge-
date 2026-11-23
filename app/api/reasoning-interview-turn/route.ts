@@ -5,6 +5,7 @@ import { selectInterviewerIntervention, type InterviewInterventionKind } from "@
 import { selectInterviewTreeNode, type InterviewTreeNodeId } from "@/lib/interview-question-tree"
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
+import { subjectPathwayBrief, subjectInterviewPathway } from "@/lib/subject-interview-pathways"
 import { planAcademicFollowUp, suitableAcademicFollowUp } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { interviewQuestions, type TrackId } from "@/lib/oxbridge-data"
@@ -104,6 +105,7 @@ async function cloudFollowUp(key: string, input: {
   const transcript = input.recentTurns.slice(-12).map(turn => `${turn.role === "candidate" ? "Candidate" : "Interviewer"}: ${clean(turn.text, 800)}`).join("\n")
   const instruction = [
     STUDENT_AI_SAFETY_POLICY,
+    subjectPathwayBrief(input.course, input.track),
     "You are conducting an academically demanding Oxford/Cambridge-style practice interview.",
     "This is practice, not an admissions prediction or official university scoring system.",
     "Stay on the SAME underlying problem unless the branch explicitly asks for transfer.",
@@ -170,6 +172,7 @@ export async function POST(request: Request) {
   const local = evaluateInterviewAnswerLocally({ question, answer, concepts, referenceAnswer, previousAnswers: historyAnswers })
   const candidateTurnCount = Math.max(1, turns.filter(turn => turn.role === "candidate").length, memory.candidateTurns)
   const planned = planAcademicFollowUp({
+    course: body.course,
     openingProblem: memory.openingProblem,
     currentQuestion: question,
     candidateAnswer: answer,
@@ -266,6 +269,7 @@ export async function POST(request: Request) {
     followupRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
     intervention,
     provider,
+    subjectPathway: subjectInterviewPathway(body.course || "", body.track).id,
     branchCount: 22,
   }, { headers: { "Cache-Control": "no-store" } })
 }
