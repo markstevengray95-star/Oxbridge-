@@ -4,7 +4,7 @@
  * historical artefacts, clinical advice or university interview questions.
  * Never send unrevealed stages or facilitator notes to a live candidate.
  */
-import { subjectInterviewPathway } from "@/lib/subject-interview-pathways"
+import { subjectInterviewPathway } from "./subject-interview-pathways.ts"
 
 export type EvidenceGraph = {
   kind: "graph"
