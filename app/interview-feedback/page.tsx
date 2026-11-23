@@ -24,7 +24,7 @@ function parseExchanges(events: string[]) {
   const exchanges: Exchange[] = []
   let currentQuestion = ""
   for (const event of events) {
-    if (event.startsWith("Interviewer: ")) currentQuestion = event.slice("Interviewer: ".length)
+    if (/^Interviewer(?: [AB])?: /i.test(event)) currentQuestion = event.replace(/^Interviewer(?: [AB])?: /i,"")
     if (event.startsWith("Candidate: ")) exchanges.push({ question: currentQuestion || "Interview question", answer: event.slice("Candidate: ".length).split(" | Feedback: ")[0] })
   }
   return exchanges.filter(item => item.answer.trim())
@@ -56,7 +56,7 @@ export default function InterviewFeedbackPage() {
   useEffect(() => {
     try {
       const progress = JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}") as { logs?: Log[] }
-      const interviews = (Array.isArray(progress.logs) ? progress.logs : []).filter(log => /interview/i.test(log.title ?? "") && Array.isArray(log.events))
+      const interviews = (Array.isArray(progress.logs) ? progress.logs : []).filter(log => /interview|gemini live/i.test(log.title ?? "") && Array.isArray(log.events))
       setLogs(interviews)
       if (interviews[0]?.id) setSelectedId(interviews[0].id)
     } catch { setLogs([]) }
