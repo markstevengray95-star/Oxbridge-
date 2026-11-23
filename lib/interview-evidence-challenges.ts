@@ -291,3 +291,31 @@ export function evidenceQuestionProbes(selection:EvidenceSelection):string[]{
     "Which assumption would need to change to explain the newly revealed condition?",
   ]
 }
+
+
+/**
+ * Server-side course validation; challenge IDs are not accepted merely because
+ * a browser sent them. Avoid allowing a different discipline's evidence to
+ * influence academic assessment.
+ */
+export function validatedEvidenceContext(course:string,track:string|undefined,selection:EvidenceSelection){
+  const expected=evidenceChallengeForCourse(course,track)
+  if(selection.challengeId!==expected.id)return null
+  return evidenceContext(selection)
+}
+
+export function evidenceFollowUpProbes(context:EvidenceContext){
+  const focus="exhibit "+(context.stage+1)+" of "+context.title
+  return {
+    clarify:"Looking only at "+focus+", what is one observation that you can state with confidence?",
+    justify:"Which exact number, comparison or quotation in "+focus+" supports your claim, and how?",
+    verify:"Which data point, alternative reading or measurement in "+focus+" would you check before accepting the claim?",
+    revision:"The new "+focus+" may alter an earlier assumption. What changed in your reasoning, and what remains uncertain?",
+    assumption:"Which assumption is needed to interpret "+focus+", and how would your conclusion change without it?",
+    prediction:"What would you predict from the pattern in "+focus+", and what result would challenge the prediction?",
+    alternative:"What other interpretation of "+focus+" is consistent with the evidence, and how could you distinguish it?",
+    "stress-test":"Which boundary case or missing control could undermine your explanation of "+focus+"?",
+    transfer:"Use the reasoning method from "+focus+" in a new but comparable situation. Which part survives?",
+    synthesis:"Across the evidence released so far in "+context.title+", what conclusion is justified, and what remains unresolved?",
+  }
+}
