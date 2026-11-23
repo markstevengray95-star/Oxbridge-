@@ -22,10 +22,11 @@ import { PROGRESS_KEY } from "@/lib/personal-tutor"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
 import type { InterviewWhiteboardTask } from "@/lib/interview-questioning-engine"
+import type { InterviewSessionMemory } from "@/lib/interview-session-memory"
 
 type Phase = "setup" | "live" | "marking" | "review"
 type Turn = InterviewMarkingTurn & { speaker?: string; issue?: string; branch?: InterviewTreeNode; intervention?: InterviewIntervention }
-type TurnResponse = { reply?: string; classification?: InterviewAnswerClassification; issue?: string; branch?: InterviewTreeNode; intervention?: InterviewIntervention; provider?: string }
+type TurnResponse = { memory?: InterviewSessionMemory; reply?: string; classification?: InterviewAnswerClassification; issue?: string; branch?: InterviewTreeNode; intervention?: InterviewIntervention; provider?: string }
 type MetaReport = ReturnType<typeof buildInterviewMetaReport>
 type ReviewResult = { baseline: InterviewMarkingResult; evidenceProfile: InterviewEvidenceProfile; adjudication: { provider?:string; markerAgreement?:number|null; confidence?:number|string; priorities?:string[]; summary?:string }; meta: MetaReport }
 
@@ -50,6 +51,7 @@ export function ReasoningInterviewExperienceV2(){
   const[currentQuestion,setCurrentQuestion]=useState("")
   const[answer,setAnswer]=useState("")
   const[nodeIds,setNodeIds]=useState<InterviewTreeNodeId[]>([])
+  const[sessionMemory,setSessionMemory]=useState<InterviewSessionMemory|null>(null)
   const[interventions,setInterventions]=useState<InterviewInterventionKind[]>([])
   const[workingNotes,setWorkingNotes]=useState("")
   const[whiteboardUsed,setWhiteboardUsed]=useState(false)
@@ -66,15 +68,15 @@ export function ReasoningInterviewExperienceV2(){
   const task=whiteboardTask(latestBranch,track)
 
   function chooseTrack(next:TrackId){setTrack(next);const first=tracks.find(item=>item.id===next)?.courses[0];if(first)setCourse(first);setSeed(0)}
-  function start(){if(!base)return;setTurns([{role:"interviewer",text:base.prompt,speaker:"Interviewer"}]);setCurrentQuestion(base.prompt);setAnswer("");setNodeIds([]);setInterventions([]);setWorkingNotes("");setWhiteboardUsed(false);setReview(null);setNotice("");setPhase("live")}
+  function start(){if(!base)return;setTurns([{role:"interviewer",text:base.prompt,speaker:"Interviewer"}]);setCurrentQuestion(base.prompt);setAnswer("");setNodeIds([]);setSessionMemory(null);setInterventions([]);setWorkingNotes("");setWhiteboardUsed(false);setReview(null);setNotice("");setPhase("live")}
 
   async function submitTurn(){
     const candidate=answer.trim();if(!candidate||!base||thinking)return
     const candidateTurn:Turn={role:"candidate",text:candidate};const history=[...turns,candidateTurn];setTurns(history);setAnswer("");setThinking(true);setNotice("")
     try{
-      const response=await fetch("/api/reasoning-interview-turn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:currentQuestion,questionId:candidateCount===0?base.id:undefined,answer:candidate,course,track,difficulty,concepts:base.concepts,referenceAnswer:candidateCount===0?base.strongAnswer:undefined,probes:base.probes,turns:history,previousNodeIds:nodeIds,previousInterventions:interventions})})
+      const response=await fetch("/api/reasoning-interview-turn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:currentQuestion,openingProblem:base.prompt,memory:sessionMemory,questionId:candidateCount===0?base.id:undefined,answer:candidate,course,track,difficulty,concepts:base.concepts,referenceAnswer:candidateCount===0?base.strongAnswer:undefined,probes:base.probes,turns:history,previousNodeIds:nodeIds,previousInterventions:interventions})})
       if(!response.ok)throw new Error("turn")
-      const data=await response.json() as TurnResponse;const classification=data.classification||"partial";const classified=history.map((turn,index)=>index===history.length-1?{...turn,quality:classification,issue:data.issue}:turn);const next=data.reply?.trim()||"Which assumption or reasoning step should we test next?";const interviewer:Turn={role:"interviewer",text:next,speaker:"Interviewer",branch:data.branch,intervention:data.intervention};setTurns([...classified,interviewer]);setCurrentQuestion(next);if(data.branch?.id)setNodeIds(current=>[...current,data.branch!.id].slice(-30));if(data.intervention?.kind)setInterventions(current=>[...current,data.intervention!.kind].slice(-30));if(data.provider==="local")setNotice("The deterministic question tree and intervention policy continued locally because cloud phrasing was unavailable.")
+      const data=await response.json() as TurnResponse;if(data.memory)setSessionMemory(data.memory);const classification=data.classification||"partial";const classified=history.map((turn,index)=>index===history.length-1?{...turn,quality:classification,issue:data.issue}:turn);const next=data.reply?.trim()||"Which assumption or reasoning step should we test next?";const interviewer:Turn={role:"interviewer",text:next,speaker:"Interviewer",branch:data.branch,intervention:data.intervention};setTurns([...classified,interviewer]);setCurrentQuestion(next);if(data.branch?.id)setNodeIds(current=>[...current,data.branch!.id].slice(-30));if(data.intervention?.kind)setInterventions(current=>[...current,data.intervention!.kind].slice(-30));if(data.provider==="local")setNotice("The deterministic question tree and intervention policy continued locally because cloud phrasing was unavailable.")
     }catch{setTurns([...history,{role:"interviewer",text:"Stay with the same problem. Which single assumption, mechanism or relationship is doing the most work, and how would you test it?",speaker:"Interviewer"}]);setCurrentQuestion("Which single assumption, mechanism or relationship is doing the most work, and how would you test it?");setNotice("The interview endpoint was unavailable, so the session continued with a local reasoning prompt.")}finally{setThinking(false)}
   }
 
