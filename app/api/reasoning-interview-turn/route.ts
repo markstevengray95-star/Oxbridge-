@@ -5,7 +5,7 @@ import { selectInterviewerIntervention, type InterviewInterventionKind } from "@
 import { selectInterviewTreeNode, type InterviewTreeNodeId } from "@/lib/interview-question-tree"
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
-import { planAcademicFollowUp, suitableAcademicFollowUp, type FollowUpStrategy } from "@/lib/interview-followup-planner"
+import { planAcademicFollowUp, suitableAcademicFollowUp } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { interviewQuestions, type TrackId } from "@/lib/oxbridge-data"
 
@@ -97,7 +97,7 @@ async function cloudFollowUp(key: string, input: {
   supportLevel: number
   recentTurns: Turn[]
   continuityBrief: string
-  strategy: FollowUpStrategy
+  strategy: string
   strategyRationale: string
 }) {
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
@@ -231,7 +231,7 @@ export async function POST(request: Request) {
         supportLevel: intervention.supportLevel,
         recentTurns: turns,
         continuityBrief: interviewMemoryBrief(memory),
-        strategy: extendedTreeTurn ? node.id as FollowUpStrategy : planned.strategy,
+        strategy: extendedTreeTurn ? node.id : planned.strategy,
         strategyRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
       })
       if (cloud && suitableAcademicFollowUp(cloud, memory.recentQuestions)) {
@@ -261,7 +261,7 @@ export async function POST(request: Request) {
     issue: local.issue,
     directness: local.directness,
     repairDepth: local.repairDepth,
-    branch: selectedNode,
+    branch: { ...selectedNode, prompt: reply },
     followupStrategy: extendedTreeTurn ? node.id : planned.strategy,
     followupRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
     intervention,
