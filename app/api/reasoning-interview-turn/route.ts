@@ -171,7 +171,7 @@ export async function POST(request: Request) {
   const referenceAnswer = clean(body.referenceAnswer || canonical?.strongAnswer, 3000) || undefined
   const probes = Array.isArray(body.probes) && body.probes.length ? body.probes.filter(Boolean).slice(0, 14) : canonical?.probes ?? []
 
-  const evidence = validatedEvidenceContext(body.course || "", body.track, body.evidence || {})
+  const evidence = validatedEvidenceContext(body.course || "", body.track, body.evidence || {}, turns)
   const workingEvidence = clean(body.workingEvidence, 1400)
   const memory = advanceInterviewSession(body.memory, {
     openingProblem: clean(body.openingProblem, 800) || canonical?.prompt || question,
