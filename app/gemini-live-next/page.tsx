@@ -144,14 +144,15 @@ function parsePanelPrefix(text: string) {
 function splitFeedbackAndQuestion(text: string) {
   const panel = parsePanelPrefix(text.replace(/\s+/g, " ").trim())
   const sentence = panel.text.match(/^(.+?[.!])\s+([\s\S]+)$/)
-  if (sentence) {
+  if (sentence && /^(?:your|the) (?:reasoning|answer|argument|assumption|conclusion|method|explanation|idea)\b|^that (?:claim|assumption|step|reasoning)\b/i.test(sentence[1])) {
     return {
       feedback: sentence[1].trim(),
       followUp: sentence[2].trim(),
       interviewer: panel.interviewer,
     }
   }
-  const questionIndex = panel.text.indexOf("?")
+  // A question's conversational lead-in is not necessarily marking feedback.
+  const questionIndex = panel.text.lastIndexOf("?")
   if (questionIndex > 0) {
     return {
       feedback: "",
@@ -647,6 +648,7 @@ export default function GeminiLiveNextPage() {
           mode,
           voice,
           panel: panelMode,
+          resume: restore,
           material: interviewContext.material || "",
           preparationNotes: interviewContext.notes || "",
           focus: retestFocus,
