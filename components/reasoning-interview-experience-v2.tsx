@@ -21,7 +21,7 @@ import { markTypedInterviewTranscript, type InterviewMarkingResult, type Intervi
 import type { InterviewTreeNode, InterviewTreeNodeId } from "@/lib/interview-question-tree"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { subjectInterviewStarter, subjectInterviewPathway, subjectPathwayProbe } from "@/lib/subject-interview-pathways"
-import { mockDurations, mockInterviewStage, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
+import { mockDurations, mockInterviewFormat, mockInterviewStage, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
 import { PROGRESS_KEY } from "@/lib/personal-tutor"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import type { InterviewAnswerClassification } from "@/lib/interview-answer-quality"
@@ -57,6 +57,7 @@ export function ReasoningInterviewExperienceV2(){
   const[mockStageIndex,setMockStageIndex]=useState(0)
   const[mockVisited,setMockVisited]=useState<MockStageId[]>([])
   const mockStartRef=useRef<number|null>(null)
+  useEffect(()=>{const requested=mockInterviewFormat(Number(new URLSearchParams(window.location.search).get("mock")));if(requested)setMockDuration(requested.minutes)},[])
   const[evidenceEnabled,setEvidenceEnabled]=useState(false)
   const[evidenceStage,setEvidenceStage]=useState(-1)
   const[evidenceLastAnswerCount,setEvidenceLastAnswerCount]=useState(0)
