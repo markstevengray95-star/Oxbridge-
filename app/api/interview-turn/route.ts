@@ -23,6 +23,7 @@ import {
   panelInterviewer,
 } from "@/lib/interview-depth-features"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
+import { subjectPathwayBrief, subjectInterviewPathway } from "@/lib/subject-interview-pathways"
 import { planAcademicFollowUp, suitableAcademicFollowUp, type AcademicFollowUpInput, type FollowUpStrategy } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { interviewQuestions } from "@/lib/oxbridge-data"
@@ -369,6 +370,7 @@ export async function POST(request: Request) {
   const activeInterviewerRole = `${derivedPanel.label}: ${derivedPanel.role}`
   const otherInterviewer = derivedPanel.colleague
   const responseMetadata = {
+    subjectPathway: subjectInterviewPathway(body.course ?? "", body.track).id,
     chainStage,
     courseFamily: courseProfile.family,
     interviewerRole: body.panelMode ? activeInterviewerRole : undefined,
@@ -383,6 +385,7 @@ export async function POST(request: Request) {
   }, body.persona ?? "Socratic")
 
   const planInput: Omit<AcademicFollowUpInput, "classification" | "issue"> = {
+    course: body.course,
     openingProblem: memory.openingProblem || canonical?.prompt || body.question || "",
     currentQuestion: body.question || canonical?.prompt || "",
     candidateAnswer: answer,
@@ -405,6 +408,7 @@ export async function POST(request: Request) {
   const predictedHintLevel = hintLevelFor({ moveHistory, repairDepth: fallback.repairDepth })
   const courseInstructions = [
     `Use the ${courseProfile.family} interview engine.`,
+    subjectPathwayBrief(body.course ?? "", body.track),
     `Prioritise these academic habits: ${courseProfile.priorities.join(", ")}.`,
     `Prefer subject-authentic moves such as: ${courseProfile.preferredMoves.join(", ")}.`,
     `Deep-chain stage: ${chainStage}. ${chainInstruction}`,
@@ -477,6 +481,7 @@ export async function POST(request: Request) {
     `Questioning moves already used: ${moveHistory.length ? moveHistory.join(" → ") : "none"}.`,
     `Deep-chain stage: ${chainStage}. ${chainInstruction}`,
     `Course engine: ${courseProfile.family}. Priorities: ${courseProfile.priorities.join(", ")}.`,
+    `Course-specific academic pathway: ${subjectPathwayBrief(body.course ?? "", body.track)}`,
     `Hidden adaptive challenge state: ${adaptiveLevel}. Do not mention this number to the candidate.`,
     `If this answer is responsive, your required next move is ${responsiveTarget}.`,
     `Reasoning-led follow-up strategy: ${preliminaryPlan.strategy}. ${preliminaryPlan.rationale} Suggested grounded question: ${preliminaryPlan.prompt}`,
