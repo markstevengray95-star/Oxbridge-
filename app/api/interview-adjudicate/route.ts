@@ -227,7 +227,7 @@ export async function POST(request: Request) {
   }
 
   const turns = Array.isArray(body.turns)
-    ? body.turns.filter(turn => turn && (turn.role === "candidate" || turn.role === "interviewer") && clean(turn.text)).slice(-50).map(turn => ({ role: turn.role, text: clean(turn.text, 4000), quality: turn.quality }))
+    ? body.turns.filter(turn => turn && (turn.role === "candidate" || turn.role === "interviewer") && clean(turn.text)).slice(-50).map(turn => ({ role: turn.role, text: clean(turn.text, 4000), quality: turn.quality, supportLevel: typeof turn.supportLevel === "number" ? Math.max(0, Math.min(3, Math.floor(turn.supportLevel))) : undefined, intervention: typeof turn.intervention?.supportLevel === "number" ? { supportLevel: Math.max(0, Math.min(3, Math.floor(turn.intervention.supportLevel))) } : undefined, hintLevel: typeof turn.hintLevel === "number" ? Math.max(0, Math.min(3, Math.floor(turn.hintLevel))) : undefined }))
     : []
   if (!turns.some(turn => turn.role === "candidate")) return NextResponse.json({ error: "A candidate response is required before marking." }, { status: 400 })
 
