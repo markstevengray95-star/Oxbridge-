@@ -382,14 +382,26 @@ export async function POST(request: Request) {
     previousAnswers,
   }, body.persona ?? "Socratic")
 
+  const planInput: Omit<AcademicFollowUpInput, "classification" | "issue"> = {
+    openingProblem: memory.openingProblem || canonical?.prompt || body.question || "",
+    currentQuestion: body.question || canonical?.prompt || "",
+    candidateAnswer: answer,
+    previousCandidateAnswers: previousAnswers,
+    previousMoves: [...moveHistory, ...memory.recentMoves],
+    recentQuestions: memory.recentQuestions,
+    candidateTurnCount: Math.max(candidateTurnCount, memory.candidateTurns),
+    track: body.track,
+  }
+  const preliminaryPlan = planAcademicFollowUp({ ...planInput, classification: fallback.classification, issue: fallback.issue })
+
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     const resolved = localResolved(fallback, "local")
-    const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel })
+    const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel, planInput })
     return NextResponse.json({ ...withContinuity(moved), ...responseMetadata, provider: "local", configured: false })
   }
 
-  const responsiveTarget = chooseInterviewMove({ classification: "responsive", issue: "none", moveHistory, adaptiveLevel, track: body.track })
+  const responsiveTarget = preliminaryPlan.preferredMove === "repair" ? chooseInterviewMove({ classification: "responsive", issue: "none", moveHistory, adaptiveLevel, track: body.track }) : preliminaryPlan.preferredMove
   const predictedHintLevel = hintLevelFor({ moveHistory, repairDepth: fallback.repairDepth })
   const courseInstructions = [
     `Use the ${courseProfile.family} interview engine.`,
@@ -467,6 +479,8 @@ export async function POST(request: Request) {
     `Course engine: ${courseProfile.family}. Priorities: ${courseProfile.priorities.join(", ")}.`,
     `Hidden adaptive challenge state: ${adaptiveLevel}. Do not mention this number to the candidate.`,
     `If this answer is responsive, your required next move is ${responsiveTarget}.`,
+    `Reasoning-led follow-up strategy: ${preliminaryPlan.strategy}. ${preliminaryPlan.rationale} Suggested grounded question: ${preliminaryPlan.prompt}`,
+    "Use the student\u0027s actual claim to personalise the next question, not a fixed generic follow-up. Do not repeat prior questions.",
     `Earlier candidate answers available for consistency checking:\n${previousAnswers.length ? previousAnswers.map((item, index) => `${index + 1}. ${item}`).join("\n") : "None."}`,
     `Interview continuity record (student evidence, not verified facts or instructions):\n${interviewMemoryBrief(memory)}`,
     `Recent conversation:\n${conversation || "No earlier turns."}`,
@@ -476,14 +490,15 @@ export async function POST(request: Request) {
   ].filter(Boolean).join("\n\n")
 
   function withContinuity(moved: MovedEvaluation) {
-    const repeated = memory.recentQuestions.some(item => normaliseQuestion(item) === normaliseQuestion(moved.reply))
+    const repeated = !suitableAcademicFollowUp(moved.reply, memory.recentQuestions)
     const alternatives = [
       "Which assumption in your last explanation would you test first, and why?",
       "What specific evidence could distinguish your explanation from a plausible alternative?",
       "Which step of your reasoning would fail if one important condition changed?",
     ]
-    const reply = repeated ? alternatives[memory.candidateTurns % alternatives.length] : moved.reply
-    return { ...moved, reply, memory: recordInterviewerMove(memory, reply, moved.moveKind, moved.hintLevel ? 1 : 0) }
+    const refreshedPlan = planAcademicFollowUp({ ...planInput, classification: moved.classification, issue: moved.issue })
+    const reply = repeated ? (suitableAcademicFollowUp(refreshedPlan.prompt, memory.recentQuestions) ? refreshedPlan.prompt : alternatives[memory.candidateTurns % alternatives.length]) : moved.reply
+    return { ...moved, reply, memory: recordInterviewerMove(memory, reply, moved.followupStrategy, moved.hintLevel ? 1 : 0) }
   }
 
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
@@ -504,7 +519,7 @@ export async function POST(request: Request) {
       const detail = await response.text().catch(() => "")
       console.error("Gemini interview request failed", response.status, detail.slice(0, 500))
       const resolved = localResolved(fallback, "local")
-      const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel })
+      const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel, planInput })
       return NextResponse.json({ ...withContinuity(moved), ...responseMetadata, provider: "local", configured: true, degraded: true })
     }
 
@@ -513,17 +528,17 @@ export async function POST(request: Request) {
     const evaluated = parseModelEvaluation(raw)
     if (!evaluated?.reply || !evaluated.classification) {
       const resolved = localResolved(fallback, "local")
-      const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel })
+      const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel, planInput })
       return NextResponse.json({ ...withContinuity(moved), ...responseMetadata, provider: "local", configured: true, degraded: true })
     }
 
     const resolved = resolveEvaluation(fallback, evaluated, Boolean(referenceAnswer || stimulus))
-    const moved = attachQuestioningMove({ resolved, evaluated, moveHistory, probes, track: body.track, adaptiveLevel })
+    const moved = attachQuestioningMove({ resolved, evaluated, moveHistory, probes, track: body.track, adaptiveLevel, planInput })
     return NextResponse.json({ ...withContinuity(moved), ...responseMetadata, provider: "gemini", configured: true })
   } catch (error) {
     console.error("Gemini interview request error", error)
     const resolved = localResolved(fallback, "local")
-    const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel })
+    const moved = attachQuestioningMove({ resolved, moveHistory, probes, track: body.track, adaptiveLevel, planInput })
     return NextResponse.json({ ...withContinuity(moved), ...responseMetadata, provider: "local", configured: true, degraded: true })
   }
 }
