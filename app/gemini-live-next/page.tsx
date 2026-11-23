@@ -717,6 +717,7 @@ export default function GeminiLiveNextPage() {
       ws.onclose = event => {
         if (wsRef.current !== ws) return
         if (endingRef.current) {
+          preserveUnfinishedTranscript()
           teardown(true)
           return
         }
