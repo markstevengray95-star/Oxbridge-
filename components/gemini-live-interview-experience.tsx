@@ -370,6 +370,7 @@ export function GeminiLiveInterviewExperience() {
         }
         if (content.turnComplete) {
           commitDrafts()
+          locallyInterruptedRef.current = false
           if (!captureStartedRef.current && streamRef.current) await startAudioCapture(streamRef.current)
           else setStatus(mutedRef.current ? "Microphone muted" : "Listening · Gemini Live")
         }
