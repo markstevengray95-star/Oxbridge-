@@ -538,6 +538,7 @@ export default function GeminiLiveNextPage() {
     }
 
     if (!content.turnComplete) return
+    localInterruptionRef.current = false
 
     const finalOutput = outputTextRef.current.replace(/\s+/g, " ").trim()
     if (finalOutput) {
