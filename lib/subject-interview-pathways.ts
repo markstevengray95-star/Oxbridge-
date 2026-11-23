@@ -215,10 +215,11 @@ export function subjectInterviewPathway(course: string, track?: string): Subject
   const family = normalized(track || "")
   // Match the specific course before the broad track. PPE, medicine and
   // computer science must not silently turn into generic economics or biology.
-  if (/computer|computing/.test(name) && !/mathematics and computer science/.test(name)) return paths.computing
-  if (/mathematics and computer science/.test(name)) return paths.mathematics
+  if (/(?:mathematics|maths)\s*(?:and|&)\s*computer science/.test(name)) return paths.mathematics
+  if (/computer|computing/.test(name)) return paths.computing
   if (/math/.test(name)) return paths.mathematics
   if (/engineer/.test(name)) return paths.engineering
+  if (/biochem/.test(name)) return paths.biology
   if (/chemistr|chemical/.test(name)) return paths.chemistry
   if (/physics|astrophys/.test(name)) return paths.physics
   if (/material|earth sciences?/.test(name)) return paths.engineering
