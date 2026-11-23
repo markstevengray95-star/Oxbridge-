@@ -25,6 +25,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import { subjectInterviewPathway, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
+import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
+import { mockDurations, mockInterviewStage, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
 import { InterviewEvidencePanel } from "@/components/interview-evidence-panel"
 import { evidenceChallengeForCourse, evidenceContext , canRevealNextEvidence, nextEvidenceStage } from "@/lib/interview-evidence-challenges"
 import {
@@ -200,6 +202,10 @@ export default function GeminiLiveNextPage() {
   const [evidenceEnabled, setEvidenceEnabled] = useState(false)
   const [evidenceStage, setEvidenceStage] = useState(-1)
   const [evidenceLastAnswerCount, setEvidenceLastAnswerCount] = useState(0)
+  const [mockDuration, setMockDuration] = useState<MockDuration | null>(null)
+  const [mockStageIndex, setMockStageIndex] = useState(0)
+  const [mockVisited, setMockVisited] = useState<MockStageId[]>([])
+  const [secondProblemSent, setSecondProblemSent] = useState(false)
   const [voicePace, setVoicePace] = useState<InterviewVoicePace>("thoughtful")
   const [allowBargeIn, setAllowBargeIn] = useState(true)
   const [muted, setMuted] = useState(false)
@@ -248,6 +254,7 @@ export default function GeminiLiveNextPage() {
   const setupReadyRef = useRef(false)
   const bargeInRef = useRef(true)
   const droppedAudioWarningRef = useRef(false)
+  const lastMockAnswerCountRef = useRef(0)
 
   useEffect(() => {
     try {
@@ -289,6 +296,8 @@ export default function GeminiLiveNextPage() {
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const evidenceChallenge = evidenceEnabled ? evidenceChallengeForCourse(course, track) : null
   const candidateTurnCount = turns.filter(turn => turn.role === "candidate").length
+  const mockStatus = mockDuration ? mockInterviewStage({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:candidateTurnCount,previousStageIndex:mockStageIndex}):null
+  const secondProblem = realisticInterviewQuestions.find(item=>item.track===track && item.prompt!==subjectInterviewStarter(course,track).prompt)
   const coursePathway = subjectInterviewPathway(course, track)
 
   function syncTurns(next: Turn[]) {
@@ -629,7 +638,7 @@ export default function GeminiLiveNextPage() {
     setPhase("connecting")
     setStatus("connecting")
     setNotice("")
-    if (!restore) { syncTurns([]);setEvidenceStage(-1);setEvidenceLastAnswerCount(0) }
+    if (!restore) { syncTurns([]);setEvidenceStage(-1);setEvidenceLastAnswerCount(0);setMockStageIndex(0);setMockVisited(mockDuration?["opening"]:[]);setSecondProblemSent(false);lastMockAnswerCountRef.current=0 }
     setCandidateLive("")
     setInterviewerLive("")
     if (!restore) setSeconds(0)
@@ -678,6 +687,7 @@ export default function GeminiLiveNextPage() {
           voice,
           panel: panelMode,
           resume: restore,
+          mockMinutes: mockDuration || undefined,
           material: interviewContext.material || "",
           preparationNotes: interviewContext.notes || "",
           focus: retestFocus,
@@ -894,6 +904,7 @@ export default function GeminiLiveNextPage() {
       ? Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000))
       : seconds
     const replay = buildReasoningReplay(course, turnsRef.current, duration)
+    const mockSession = mockDuration ? mockCompletionReport({minutes:mockDuration,elapsedSeconds:duration,candidateAnswers:turnsRef.current.filter(turn=>turn.role==="candidate").length,visitedStages:mockVisited,endedBy:"student"}) : null
 
     try {
       const existingReplayValue = JSON.parse(localStorage.getItem(LIVE_REPLAY_KEY) || "[]")
@@ -935,6 +946,7 @@ export default function GeminiLiveNextPage() {
           date: new Date().toLocaleDateString("en-GB"),
           events,
           replayId: replay.id,
+          mockSession,
         }, ...logs].slice(0, 50),
       }))
 
@@ -994,6 +1006,10 @@ export default function GeminiLiveNextPage() {
     syncTurns([])
     setWorkingAnalysis("")
     setConfidenceTarget(null)
+    setMockStageIndex(0)
+    setMockVisited([])
+    setSecondProblemSent(false)
+    lastMockAnswerCountRef.current=0
     endingRef.current = false
     mutedRef.current = false
     setMuted(false)
