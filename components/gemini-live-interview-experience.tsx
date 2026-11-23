@@ -193,9 +193,30 @@ export function GeminiLiveInterviewExperience() {
     silent.connect(context.destination)
     processor.onaudioprocess = event => {
       const socket = socketRef.current
-      if (!socket || socket.readyState !== WebSocket.OPEN || mutedRef.current || !setupCompleteRef.current) return
-      const data = floatToPcm16Base64(event.inputBuffer.getChannelData(0), context.sampleRate)
-      socket.send(JSON.stringify({ realtimeInput: { audio: { data, mimeType: "audio/pcm;rate=16000" } } }))
+      if (!socket || !setupCompleteRef.current) return
+      if (!canSendLiveAudio(socket.readyState, socket.bufferedAmount, mutedRef.current)) {
+        if (socket.readyState === WebSocket.OPEN && socket.bufferedAmount >= 524288 && !streamingBacklogWarnedRef.current) {
+          streamingBacklogWarnedRef.current = true
+          setNotice("Audio delivery is delayed by the connection. Some words may not reach the interviewer.")
+        }
+        return
+      }
+      streamingBacklogWarnedRef.current = false
+      const channel = event.inputBuffer.getChannelData(0)
+      const activity = detectVoiceBargeIn(speechStateRef.current, {
+        rms: liveAudioRms(channel),
+        nowMs: performance.now(),
+        modelAudible: playbackSourcesRef.current.size > 0,
+        enabled: true,
+      })
+      speechStateRef.current = activity.state
+      if (activity.interrupt) {
+        locallyInterruptedRef.current = true
+        stopPlayback()
+        setStatus("Listening to your interruption…")
+      }
+      const data = floatToPcm16Base64(channel, context.sampleRate)
+      try { socket.send(JSON.stringify({ realtimeInput: { audio: { data, mimeType: "audio/pcm;rate=16000" } } })) } catch {}
     }
     captureContextRef.current = context
     captureProcessorRef.current = processor
@@ -239,6 +260,7 @@ export function GeminiLiveInterviewExperience() {
 
   function switchToFallback(reason: string) {
     intentionalCloseRef.current = true
+    commitDrafts()
     cleanupLiveSession()
     setFallbackReason(reason)
     setFallback(true)
@@ -256,6 +278,9 @@ export function GeminiLiveInterviewExperience() {
     candidateDraftRef.current = ""
     interviewerDraftRef.current = ""
     intentionalCloseRef.current = false
+    locallyInterruptedRef.current = false
+    speechStateRef.current = newVoiceBargeInState()
+    streamingBacklogWarnedRef.current = false
     mutedRef.current = false
     setMuted(false)
 
@@ -266,6 +291,7 @@ export function GeminiLiveInterviewExperience() {
 
       const response = await fetch("/api/realtime-session", {
         method: "POST",
+        signal: AbortSignal.timeout(30000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ course, track, persona: personaName, mode, voice, panel }),
       })
@@ -286,6 +312,10 @@ export function GeminiLiveInterviewExperience() {
             },
             inputAudioTranscription: {},
             outputAudioTranscription: {},
+            realtimeInputConfig: {
+              automaticActivityDetection: liveSpeechDetection(voicePace),
+              activityHandling: "START_OF_ACTIVITY_INTERRUPTS",
+            },
             systemInstruction: { parts: [{ text: session.instructions }] },
           },
         }))
@@ -311,16 +341,26 @@ export function GeminiLiveInterviewExperience() {
 
         const content = message.serverContent
         if (!content) return
-        if (content.interrupted) stopPlayback()
+        if (content.interrupted) {
+          if (interviewerDraftRef.current.trim()) {
+            turnsRef.current = [...turnsRef.current, { role: "interviewer", text: interviewerDraftRef.current.trim() }]
+            setTurns(turnsRef.current)
+            interviewerDraftRef.current = ""
+            setInterviewerDraft("")
+          }
+          locallyInterruptedRef.current = true
+          stopPlayback()
+        }
 
         const inputText = content.inputTranscription?.text || ""
         if (inputText) {
-          candidateDraftRef.current = appendChunk(candidateDraftRef.current, inputText)
+          candidateDraftRef.current = mergeLiveTranscription(candidateDraftRef.current, inputText)
+          locallyInterruptedRef.current = false
           setCandidateDraft(candidateDraftRef.current)
         }
-        const outputText = content.outputTranscription?.text || ""
+        const outputText = content.outputTranscription?.text || (content.modelTurn?.parts || []).map(part => part.text || "").join(" ")
         if (outputText) {
-          interviewerDraftRef.current = appendChunk(interviewerDraftRef.current, outputText)
+          interviewerDraftRef.current = mergeLiveTranscription(interviewerDraftRef.current, outputText)
           setInterviewerDraft(interviewerDraftRef.current)
           setStatus("Interviewer speaking…")
         }
@@ -337,8 +377,8 @@ export function GeminiLiveInterviewExperience() {
       socket.onerror = () => {
         if (!intentionalCloseRef.current) switchToFallback("Gemini Live could not maintain a voice connection, so Fellow switched to the compatible interview mode automatically.")
       }
-      socket.onclose = () => {
-        if (!intentionalCloseRef.current) switchToFallback("The Gemini Live connection ended unexpectedly, so Fellow switched to the compatible interview mode automatically.")
+      socket.onclose = event => {
+        if (!intentionalCloseRef.current) switchToFallback(liveSocketErrorMessage(event.code, event.reason, !setupCompleteRef.current) + " Fellow switched to compatible practice.")
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gemini Live could not start."
