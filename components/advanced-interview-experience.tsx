@@ -348,6 +348,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     setPhase("lobby")
     setTurns([])
     setMoveHistory([])
+    setSessionMemory(null)
     setAdaptiveLevel(startingAdaptiveLevel(difficulty))
     setWhiteboardTask(null)
     setWhiteboardUsed(false)
