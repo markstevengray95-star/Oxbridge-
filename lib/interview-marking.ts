@@ -1,9 +1,13 @@
 import { evaluateInterviewAnswerLocally, type InterviewAnswerClassification } from "@/lib/interview-answer-quality"
+import { assessReasoningFirst, type ReasoningFirstAssessment } from "@/lib/interview-process-assessment"
 
 export type InterviewMarkingTurn = {
   role: "interviewer" | "candidate"
   text: string
   quality?: InterviewAnswerClassification
+  supportLevel?: number
+  hintLevel?: number
+  intervention?: { supportLevel?: number }
 }
 
 export type TypedTurnAssessment = {
@@ -17,6 +21,7 @@ export type TypedTurnAssessment = {
   responsiveness: number
   evidence: number
   communication: number
+  supportLevel: number
   notes: string[]
 }
 
@@ -34,6 +39,7 @@ export type InterviewMarkingResult = {
   next: string[]
   typedAnswers: number
   rubricVersion: "2026.3"
+  reasoningFirst: ReasoningFirstAssessment
   turnAssessments: TypedTurnAssessment[]
 }
 
@@ -166,10 +172,13 @@ function buildAssessments(turns: InterviewMarkingTurn[], concepts: string[], ref
   const previousAnswers: string[] = []
   let currentQuestion = ""
   let candidateIndex = 0
+  let latestSupportLevel = 0
 
   for (const turn of turns) {
     if (turn.role === "interviewer") {
       currentQuestion = turn.text.trim()
+      const providedSupport = turn.intervention?.supportLevel ?? turn.supportLevel ?? turn.hintLevel ?? 0
+      latestSupportLevel = clamp(providedSupport, 0, 3)
       continue
     }
 
@@ -211,6 +220,7 @@ function buildAssessments(turns: InterviewMarkingTurn[], concepts: string[], ref
       responsiveness: responsivenessScore(classification, local.directness, answer),
       evidence: evidenceScore(answer, classification),
       communication: communicationScore(answer, classification, local.directness),
+      supportLevel: latestSupportLevel,
       notes,
     })
     previousAnswers.push(answer)
@@ -266,7 +276,8 @@ export function markTypedInterviewTranscript(input: {
   const adaptability = adaptabilityScore(assessments)
   const evidence = clamp(average(assessments.map(item => item.evidence)), 0, 15)
   const communication = clamp(average(assessments.map(item => item.communication)), 0, 5)
-  const total = reasoning + accuracy + responsiveness + adaptability + evidence + communication
+  const reasoningFirst = assessReasoningFirst(assessments)
+  const total = reasoningFirst.total
 
   const issueCounts = new Map<string, number>()
   for (const assessment of assessments) {
@@ -320,6 +331,7 @@ export function markTypedInterviewTranscript(input: {
     next: [...new Set(next)].slice(0, 5),
     typedAnswers: assessments.length,
     rubricVersion: "2026.3",
+    reasoningFirst,
     turnAssessments: assessments,
   }
 }
