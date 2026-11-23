@@ -300,6 +300,35 @@ export default function GeminiLiveNextPage() {
   const secondProblem = realisticInterviewQuestions.find(item=>item.track===track && item.prompt!==subjectInterviewStarter(course,track).prompt)
   const coursePathway = subjectInterviewPathway(course, track)
 
+  useEffect(() => {
+    if (phase !== "live" || !mockDuration || candidateTurnCount <= lastMockAnswerCountRef.current) return
+    lastMockAnswerCountRef.current = candidateTurnCount
+    const stage = mockInterviewStage({ minutes:mockDuration, elapsedSeconds:seconds, candidateAnswers:candidateTurnCount, previousStageIndex:mockStageIndex })
+    if (stage && stage.index !== mockStageIndex) {
+      setMockStageIndex(stage.index)
+      setMockVisited(previous => [...new Set([...previous, stage.stage.id])])
+    }
+  }, [phase, mockDuration, candidateTurnCount, seconds, mockStageIndex])
+
+  function startSecondProblem() {
+    const ws = wsRef.current
+    if (!mockStatus || mockStatus.stage.id !== "second-problem" || secondProblemSent || !ws || ws.readyState !== WebSocket.OPEN) return
+    const question = secondProblem?.prompt || subjectInterviewStarter(course, track, "Challenge").prompt
+    ws.send(JSON.stringify({ clientContent: { turns: [{ role: "user", parts: [{ text:
+      "The interview has moved to the second academic problem. This is a facilitator instruction, not the candidate answer. Ask this new course-relevant problem, without supplying the solution: " + question
+    }] }], turnComplete: true } }))
+    setSecondProblemSent(true)
+    addTurn("system", "Second academic problem introduced: " + question)
+  }
+
+  function plannedVoiceReconnect() {
+    if (phase !== "live" || !mockDuration || mockDuration < 40) return
+    preserveUnfinishedTranscript()
+    teardown(false)
+    setPhase("reconnect")
+    setNotice("Timed mock paused for a secure voice reconnection. Resume to continue with your transcript and elapsed time.")
+  }
+
   function syncTurns(next: Turn[]) {
     turnsRef.current = next
     setTurns(next)
