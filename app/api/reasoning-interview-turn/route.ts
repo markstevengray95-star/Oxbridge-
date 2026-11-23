@@ -158,8 +158,13 @@ export async function POST(request: Request) {
   const referenceAnswer = clean(body.referenceAnswer || canonical?.strongAnswer, 3000) || undefined
   const probes = Array.isArray(body.probes) && body.probes.length ? body.probes.filter(Boolean).slice(0, 14) : canonical?.probes ?? []
 
+  const memory = advanceInterviewSession(body.memory, {
+    openingProblem: clean(body.openingProblem, 800) || canonical?.prompt || question,
+    question,
+    answer,
+  })
   const local = evaluateInterviewAnswerLocally({ question, answer, concepts, referenceAnswer, previousAnswers: historyAnswers })
-  const candidateTurnCount = Math.max(1, turns.filter(turn => turn.role === "candidate").length)
+  const candidateTurnCount = Math.max(1, turns.filter(turn => turn.role === "candidate").length, memory.candidateTurns)
   const node = selectInterviewTreeNode({
     track: body.track,
     question,
@@ -204,6 +209,7 @@ export async function POST(request: Request) {
         interventionInstruction: intervention.instruction,
         supportLevel: intervention.supportLevel,
         recentTurns: turns,
+        continuityBrief: interviewMemoryBrief(memory),
       })
       if (cloud) {
         reply = cloud
@@ -215,8 +221,19 @@ export async function POST(request: Request) {
     }
   }
 
+  if (memory.recentQuestions.some(previous => previous.toLowerCase() === reply.toLowerCase())) {
+    const alternatives = [
+      "Which assumption in your explanation could you test first, and how?",
+      "What observation would make you reconsider the explanation you just gave?",
+      "Which step of your argument is least secure, and how could you strengthen it?",
+    ]
+    reply = alternatives[memory.candidateTurns % alternatives.length]
+  }
+  const updatedMemory = recordInterviewerMove(memory, reply, node.id, intervention.supportLevel)
+
   return NextResponse.json({
     reply,
+    memory: updatedMemory,
     classification: local.classification,
     issue: local.issue,
     directness: local.directness,
