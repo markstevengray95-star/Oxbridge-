@@ -12,7 +12,8 @@
     "start": "next start",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "test:interview-memory": "node --experimental-strip-types --test tests/interview-session-memory.test.mjs",
-    "test:interview-process": "node --experimental-strip-types --test tests/interview-process-assessment.test.mjs"
+    "test:interview-process": "node --experimental-strip-types --test tests/interview-process-assessment.test.mjs",
+    "test:interview-followups": "node --experimental-strip-types --test tests/interview-followup-planner.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
