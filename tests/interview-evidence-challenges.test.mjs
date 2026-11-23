@@ -20,7 +20,7 @@ const read = name => fs.readFileSync(path.join(root, name), "utf8")
 const list = allEvidenceChallenges()
 
 test("every original scenario contains exactly three nonempty progressive exhibits",()=>{
-  assert.equal(list.length,12)
+  assert.equal(list.length,17)
   assert.equal(new Set(list.map(x=>x.id)).size,12)
   for(const item of list){
     assert.match(item.id,/^phase6-/)
@@ -190,4 +190,19 @@ test("a candidate must answer before each exhibit and cannot skip stages",()=>{
   assert.equal(nextEvidenceStage(challenge,2,4,3),null)
   assert.equal(nextEvidenceStage(challenge,-2,100,0),null)
   assert.equal(nextEvidenceStage(challenge,0,2,3),null)
+})
+
+
+test("all 17 Phase 5 subject pathways have their own evidence challenges",()=>{
+ const cases=[
+  ["Mathematics","maths"],["Computer Science","maths"],
+  ["Physics","physical"],["Engineering","physical"],["Chemistry","physical"],
+  ["Medicine","life"],["Biology","life"],["Psychology","life"],
+  ["Law","law"],["Economics","economics"],["PPE","economics"],
+  ["History","humanities"],["English Literature","humanities"],["Philosophy","humanities"],
+  ["Geography","humanities"],["French","languages"],["Unknown course",""],
+ ]
+ const ids=cases.map(([course,track])=>evidenceChallengeForCourse(course,track).id)
+ assert.equal(ids.length,17)
+ assert.equal(new Set(ids).size,17)
 })
