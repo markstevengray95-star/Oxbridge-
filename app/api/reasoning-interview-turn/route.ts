@@ -5,7 +5,7 @@ import { selectInterviewerIntervention, type InterviewInterventionKind } from "@
 import { selectInterviewTreeNode, type InterviewTreeNodeId } from "@/lib/interview-question-tree"
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
-import { subjectPathwayBrief, subjectInterviewPathway } from "@/lib/subject-interview-pathways"
+import { subjectPathwayBrief, subjectInterviewPathway, subjectPathwayProbes } from "@/lib/subject-interview-pathways"
 import { planAcademicFollowUp, suitableAcademicFollowUp } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { interviewQuestions, type TrackId } from "@/lib/oxbridge-data"
@@ -173,6 +173,7 @@ export async function POST(request: Request) {
   const candidateTurnCount = Math.max(1, turns.filter(turn => turn.role === "candidate").length, memory.candidateTurns)
   const planned = planAcademicFollowUp({
     course: body.course,
+    subjectProbes: subjectPathwayProbes(body.course ?? "", body.track, answer),
     openingProblem: memory.openingProblem,
     currentQuestion: question,
     candidateAnswer: answer,
