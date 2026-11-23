@@ -12,6 +12,7 @@ import {
   evidenceQuestionProbes,
   evidenceFollowUpProbes,
   validatedEvidenceContext,
+  canRevealNextEvidence, nextEvidenceStage,
 } from "../lib/interview-evidence-challenges.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -171,4 +172,22 @@ test("live reconnect includes only already-revealed exhibit context",()=>{
   assert.match(live,/evidenceContext\(\{challengeId:evidenceChallenge.id,stage:evidenceStage\}\)/)
   assert.match(live,/Current interactive evidence already shown to the student/)
   assert.match(live,/clientContent/)
+})
+
+
+test("a candidate must answer before each exhibit and cannot skip stages",()=>{
+  const challenge=evidenceChallengeForCourse("Physics","physical")
+  assert.equal(canRevealNextEvidence(-1,0,0),false)
+  assert.equal(canRevealNextEvidence(-1,1,0),true)
+  const first=nextEvidenceStage(challenge,-1,1,0)
+  assert.equal(first.index,0)
+  assert.equal(first.stage.question,challenge.stages[0].question)
+  assert.equal(nextEvidenceStage(challenge,0,1,1),null)
+  const second=nextEvidenceStage(challenge,0,2,1)
+  assert.equal(second.index,1)
+  assert.equal(nextEvidenceStage(challenge,1,2,2),null)
+  assert.equal(nextEvidenceStage(challenge,1,3,2).index,2)
+  assert.equal(nextEvidenceStage(challenge,2,4,3),null)
+  assert.equal(nextEvidenceStage(challenge,-2,100,0),null)
+  assert.equal(nextEvidenceStage(challenge,0,2,3),null)
 })
