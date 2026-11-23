@@ -11,6 +11,8 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { InterviewWhiteboard } from "@/components/interview-whiteboard"
 import { InterviewEvidencePanel } from "@/components/interview-evidence-panel"
+import { InterviewEvidenceReview } from "@/components/interview-evidence-review"
+import { buildEvidenceLinkedFeedback, extractInsightSnapshots, type EvidenceLinkedFeedback } from "@/lib/interview-feedback-intelligence"
 import { evidenceChallengeForCourse , canRevealNextEvidence, nextEvidenceStage } from "@/lib/interview-evidence-challenges"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
@@ -124,6 +126,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   const [listening, setListening] = useState(false)
   const [notice, setNotice] = useState("")
   const [result, setResult] = useState<InterviewMarkingResult | null>(null)
+  const [feedbackReport, setFeedbackReport] = useState<EvidenceLinkedFeedback | null>(null)
   const recognitionRef = useRef<{ stop: () => void } | null>(null)
 
   useEffect(() => {
@@ -242,6 +245,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     setAnswer("")
     setScratch("")
     setResult(null)
+    setFeedbackReport(null)
     setNotice(applicationLaunch && useApplicationLaunch ? `Started from your saved ${applicationLaunch.source}; the interviewer will move beyond rehearsed material after the opening answer.` : "")
     setSeconds(mockDuration ? mockDuration*60 : mode === "Stress" ? 12 * 60 : 18 * 60)
     setRunning(true)
@@ -372,9 +376,13 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     setRunning(false)
     setPhase("review")
 
+    const reportId = `${variant}-advanced-${Date.now()}`
+    const reportTurns = finalTurns.map(turn=>({role:turn.role,text:turn.text,quality:turn.quality}))
     try {
       const saved = JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}") as SavedProgress
       const logs = Array.isArray(saved.logs) ? saved.logs : []
+      const feedbackReport = buildEvidenceLinkedFeedback({sessionId:reportId,course,source:"formal",turns:reportTurns,createdAt:new Date().toISOString(),previous:extractInsightSnapshots(logs)})
+      setFeedbackReport(feedbackReport)
       const scores = Array.isArray(saved.interviewScores) ? saved.interviewScores : []
       const misconceptions = saved.misconceptions && typeof saved.misconceptions === "object" ? saved.misconceptions : {}
       const events = [
@@ -396,7 +404,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
         interviewScores: [...scores, scored.total],
         misconceptions: scored.error === "No dominant issue" ? misconceptions : { ...misconceptions, [scored.error]: Number(misconceptions[scored.error] ?? 0) + 1 },
         logs: [{
-          id: `${variant}-advanced-${Date.now()}`,
+          id: reportId,
           title: `${variant === "formal" ? "Interview Room" : "AI Interview"} · ${course}`,
           score: scored.total,
           date: new Date().toISOString(),
@@ -410,10 +418,11 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
           adaptiveDifficultyFinal: adaptiveLevel,
           dimensions: { reasoning: scored.reasoning, accuracy: scored.accuracy, responsiveness: scored.responsiveness, adaptability: scored.adaptability, evidence: scored.evidence, communication: scored.communication },
           reasoningFirst: scored.reasoningFirst,
+          feedbackReport,
           mockSession: completedMock,
         }, ...logs].slice(0, 50),
       }))
-    } catch {}
+    } catch {setFeedbackReport(buildEvidenceLinkedFeedback({sessionId:reportId,course,source:"formal",turns:reportTurns,createdAt:new Date().toISOString()}))}
   }
 
   function reset() {
@@ -481,6 +490,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
       <Card className="border-[#cfe1e4]"><CardHeader><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Practice interview review</p><CardTitle className="font-serif text-3xl">{result.total}/100 · {result.band}</CardTitle><CardDescription>Reasoning-first practice diagnostic · {result.reasoningFirst.confidence} confidence · not an Oxford or Cambridge admissions score.</CardDescription></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase text-slate-500">Reasoning</p><p className="mt-1 text-3xl font-bold text-[#147d91]">{result.reasoning}/25</p></div><div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase text-slate-500">Adaptability</p><p className="mt-1 text-3xl font-bold text-[#147d91]">{result.adaptability}/20</p></div><div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase text-slate-500">Recovery</p><p className="mt-1 text-3xl font-bold text-[#147d91]">{finalRecovery.score}/20</p><p className="mt-1 text-xs text-slate-500">{finalRecovery.label}</p></div><div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase text-slate-500">Chain depth</p><p className="mt-1 text-lg font-bold text-[#147d91]">{deepChainStage(turns.filter(turn => turn.role === "candidate").length)}</p></div></CardContent></Card>
       <Card><CardHeader><CardTitle>How your thinking was assessed</CardTitle><CardDescription>Reasoning and adaptation outweigh final-answer accuracy. Supported work is recognised without being mistaken for independent reasoning.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{result.reasoningFirst.dimensions.map(item=><div key={item.key} className="rounded-xl border p-3"><p className="text-sm font-semibold">{item.label}</p><p className="mt-1 text-xl font-bold">{item.observed?`${item.score}/${item.max}`:"Not assessed"}</p></div>)}</div><p className="text-sm text-slate-600">No recorded help: {result.reasoningFirst.independentTurns} turn(s). After support: {result.reasoningFirst.supportedTurns}. Adaptation opportunities: {result.reasoningFirst.challengeOpportunities}.</p>{result.reasoningFirst.observations.slice(-3).map(item=><div key={`${item.turn}-${item.kind}`} className="rounded-xl bg-slate-50 p-3 text-sm"><p className="font-semibold">Turn {item.turn} · {item.kind}</p><p className="mt-1">“{item.quote}”</p></div>)}{result.reasoningFirst.missingEvidence.map(item=><p key={item} className="text-sm text-amber-800">{item}</p>)}</CardContent></Card>
       <div className="grid gap-5 lg:grid-cols-2"><Card><CardHeader><CheckCircle2 className="size-5 text-emerald-700" /><CardTitle>What worked</CardTitle></CardHeader><CardContent className="space-y-3">{result.strengths.map(item => <p key={item} className="rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-950">{item}</p>)}{finalRecovery.recoveries ? <p className="rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-950">You improved after challenge {finalRecovery.recoveries} time{finalRecovery.recoveries === 1 ? "" : "s"}; recovery is treated as positive evidence rather than simply preserving the earlier mistake.</p> : null}</CardContent></Card><Card><CardHeader><Target className="size-5 text-amber-700" /><CardTitle>What to work on next</CardTitle></CardHeader><CardContent className="space-y-3">{result.next.map(item => <p key={item} className="rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-950">{item}</p>)}</CardContent></Card></div>
+      {feedbackReport ? <InterviewEvidenceReview report={feedbackReport}/> : null}
       {mockDuration ? <Card><CardHeader><CardTitle>Full mock status</CardTitle><CardDescription>{mockCompletionReport({minutes:mockDuration,elapsedSeconds:mockElapsed,candidateAnswers:turns.filter(t=>t.role==="candidate").length,visitedStages:mockVisited})?.status}. Actual duration: {(mockElapsed/60).toFixed(1)} minutes; target: {mockDuration} minutes. An early stop is recorded as a partial mock.</CardDescription></CardHeader></Card> : null}
       <Card><CardHeader><CardTitle className="font-serif text-2xl">Conversation trajectory</CardTitle><CardDescription>The review keeps the full sequence so you can see how the argument developed, was challenged and recovered.</CardDescription></CardHeader><CardContent className="space-y-3">{turns.map((turn, index) => <div key={`${turn.role}-${index}`} className="rounded-xl border bg-white p-4"><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{turn.role === "candidate" ? "You" : turn.speaker || "Interviewer"}</Badge>{turn.quality ? <Badge className={qualityClass(turn.quality)}>{qualityLabel(turn.quality)}</Badge> : null}</div><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{turn.text}</p></div>)}</CardContent></Card>
     </div></main>
