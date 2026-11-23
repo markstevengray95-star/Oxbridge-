@@ -102,6 +102,9 @@ jobs:
       - name: Phase six interactive academic evidence checks
         run: npm run test:interview-evidence
 
+      - name: Phase seven full-length mock interview checks
+        run: npm run test:full-mock-interviews
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 
