@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     ]),
     concepts: [],
   }).reasoningFirst
-  const fallback: StructuredSession = { ...localAnalysis(exchanges), reasoningFirst: provisionalProcess }
+  const fallback: StructuredSession = { ...localAnalysis(exchanges), reasoningFirst: provisionalProcess, overallSummary: `This ${exchanges.length}-response interview has a provisional reasoning-first practice score of ${provisionalProcess.total}/100 (${provisionalProcess.confidence} evidence confidence). It prioritises visible thinking and responding to challenges; the assessment is not an admissions prediction or verified subject marking.` }
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return NextResponse.json({ analysis: fallback, provider: "local", configured: false })
 
