@@ -283,6 +283,17 @@ export function subjectPathwayProbe(input: {
   return pathway.probes[input.strategy].replaceAll("{{claim}}", '"' + anchor + '"')
 }
 
+export function subjectPathwayProbes(course: string, track: string | undefined, claim: string): Record<SubjectProbeStrategy, string> {
+  const strategies: SubjectProbeStrategy[] = [
+    "clarify", "justify", "verify", "revision", "assumption",
+    "prediction", "alternative", "stress-test", "transfer", "synthesis",
+  ]
+  return Object.fromEntries(strategies.map(strategy => [
+    strategy,
+    subjectPathwayProbe({ course, track, strategy, claim }),
+  ])) as Record<SubjectProbeStrategy, string>
+}
+
 export function subjectPathwayBrief(course: string, track?: string) {
   const pathway = subjectInterviewPathway(course, track)
   return [
