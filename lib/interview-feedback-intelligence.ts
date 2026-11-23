@@ -69,7 +69,7 @@ export type EvidenceLinkedFeedback = {
 }
 
 const EXPLICIT_REASON = /\b(?:because|therefore|since|hence|which means|so that|as a result|i conclude|it follows|the reason is|this implies)\b/i
-const TEST_OR_EVIDENCE = /\b(?:test|check|measure|compare|controlled?|observation|counterexample|limiting case|experiment|evidence|data|calculate|calculation|source|quotation|would predict|falsif|validate)\b/i
+const TEST_OR_EVIDENCE = /\b(?:test(?:ing)?|check(?:ing)?|measur(?:e|ing)|compar(?:e|ing)|control(?:led)? (?:for|variable)|counterexample|limiting case|calculat(?:e|ing|ion)|would predict|falsif(?:y|iable)|validat(?:e|ion)|(?:data|evidence|source|quotation) (?:show(?:s|ed)?|suggest(?:s|ed)?|indicat(?:es|ed)?|support(?:s|ed)?|contradict(?:s|ed)?|impli(?:es|ed)?))\b/i
 const EXPLICIT_REVISION = /\b(?:i (?:was wrong|would revise|would change|now think)|on reflection|let me correct|i initially thought|i previously assumed|i take that back|my earlier (?:answer|claim)|with (?:this|the) new (?:evidence|information)|actually[, :] (?:i|the|that|we))\b/i
 const CONSTRAINT = /\b(?:assuming|provided that|if|unless|holding .* constant|subject to|only when|under the condition|depends on|for this case)\b/i
 const QUALITY_VALUES = new Set<InsightQuality>(["responsive","partial","vague","irrelevant","incorrect"])
