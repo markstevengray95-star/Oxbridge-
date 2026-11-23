@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
+import { subjectInterviewPathway, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
 import {
   buildLiveResumePrompt,
   canSendLiveAudio,
@@ -281,6 +282,7 @@ export default function GeminiLiveNextPage() {
   useEffect(() => () => teardown(false), [])
 
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
+  const coursePathway = subjectInterviewPathway(course, track)
 
   function syncTurns(next: Turn[]) {
     turnsRef.current = next
@@ -424,7 +426,9 @@ export default function GeminiLiveNextPage() {
       : ""
     const prompt = resumeRef.current
       ? buildLiveResumePrompt(course, turnsRef.current)
-      : `Begin the formal ${course} practice interview now.${materialHint} Give a brief natural greeting and ask exactly one challenging but accessible opening question.`
+      : interviewContext.material
+        ? `Begin the formal ${course} practice interview now.${materialHint} Ask one challenging but accessible question grounded in the supplied material.`
+        : `Begin the formal ${course} practice interview now. Give a brief natural greeting, then ask this opening academic problem without answering it: ${subjectInterviewStarter(course, track).prompt}`
     ws.send(JSON.stringify({
       clientContent: {
         turns: [{
@@ -1025,9 +1029,10 @@ export default function GeminiLiveNextPage() {
           </Card>
 
           <Card className="border-0 bg-[#102a43] text-white shadow-none">
-            <CardHeader><Brain className="size-5 text-[#8dd7de]" /><CardTitle className="font-serif text-2xl">What this mode learns</CardTitle></CardHeader>
+            <CardHeader><Brain className="size-5 text-[#8dd7de]" /><CardTitle className="font-serif text-2xl">{coursePathway.label} interview pathway</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm leading-6 text-white/80">
-              <p>• Whether you deepen, repair or revise reasoning after challenge.</p>
+              {coursePathway.reasoningFocus.map(item => <p key={item}>• {item}</p>)}
+              <p className="pt-2 text-white/60">Your interviewer also examines how you deepen, repair or revise reasoning after a challenge.</p>
               <p>• Whether your confidence matches the quality of your argument.</p>
               <p>• How you respond to unfamiliar material and changed conditions.</p>
               <p>• Whether written calculations and diagrams support what you say.</p>
