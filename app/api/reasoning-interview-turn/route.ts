@@ -5,7 +5,7 @@ import { selectInterviewerIntervention, type InterviewInterventionKind } from "@
 import { selectInterviewTreeNode, type InterviewTreeNodeId } from "@/lib/interview-question-tree"
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
-import { planAcademicFollowUp, type FollowUpStrategy } from "@/lib/interview-followup-planner"
+import { planAcademicFollowUp, suitableAcademicFollowUp, type FollowUpStrategy } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { interviewQuestions, type TrackId } from "@/lib/oxbridge-data"
 
@@ -231,7 +231,7 @@ export async function POST(request: Request) {
         strategy: planned.strategy,
         strategyRationale: planned.rationale,
       })
-      if (cloud) {
+      if (cloud && suitableAcademicFollowUp(cloud, memory.recentQuestions)) {
         reply = cloud
         provider = "gemini"
         break
