@@ -3,7 +3,7 @@ import { getGeminiApiKeyCandidates, hasGeminiApiKey } from "@/lib/gemini/api-key
 import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
 
 type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
-type SessionRequest = { course?: string; track?: string; persona?: string; mode?: string; voice?: GeminiVoice; material?: string; preparationNotes?: string; focus?: string; panel?: boolean }
+type SessionRequest = { course?: string; track?: string; persona?: string; mode?: string; voice?: GeminiVoice; material?: string; preparationNotes?: string; focus?: string; panel?: boolean; resume?: boolean }
 type GoogleTokenResponse = { name?: unknown; authToken?: { name?: unknown } }
 type GoogleErrorResponse = { error?: { code?: unknown; message?: unknown; status?: unknown } }
 
@@ -43,10 +43,10 @@ function subjectInstructions(course: string, track: string) {
   return ["Choose academically demanding questions that are answerable through reasoning from accessible foundations, then adapt the difficulty to the candidate's response."]
 }
 
-function interviewInstructions(course: string, track: string, persona: string, mode: string, material: string, preparationNotes: string, focus: string, panel: boolean) {
+function interviewInstructions(course: string, track: string, persona: string, mode: string, material: string, preparationNotes: string, focus: string, panel: boolean, resume: boolean) {
   const contextInstructions = material ? ["The candidate has been given unseen pre-interview material. Use it actively rather than ignoring it.", `UNSEEN MATERIAL: ${material}`, preparationNotes ? `CANDIDATE PREPARATION NOTES: ${preparationNotes}` : "The candidate supplied no preparation notes.", "Begin by asking the candidate to interpret, question or defend something from the material. Do not supply an authoritative interpretation first."] : []
   const focusInstructions = focus ? [`DELAYED RETEST FOCUS: ${focus}`, "Test this reasoning habit naturally in a different problem. Do not tell the candidate the exact weakness before they have attempted the task."] : []
-  const panelInstructions = panel ? ["This is a two-interviewer simulation. Alternate academic roles between Interviewer A and Interviewer B on successive substantive model turns.", "Interviewer A should usually develop the candidate's line of reasoning. Interviewer B should usually test assumptions, counterexamples or alternative interpretations.", "Prefix every substantive response with exactly 'A:' or 'B:' so the client can render two distinct interviewer roles. Keep the usual one-feedback-sentence plus one-follow-up-question structure after the prefix."] : []
+  const panelInstructions = panel ? ["This is a two-interviewer simulation. Alternate academic roles between Interviewer A and Interviewer B on successive substantive model turns.", "Interviewer A should usually develop the candidate's line of reasoning. Interviewer B should usually test assumptions, counterexamples or alternative interpretations.", "Prefix every substantive response with exactly 'A:' or 'B:' so the client can render two distinct interviewer roles. Keep the turn natural rather than following a rigid feedback template."] : []
 
   return [
     STUDENT_AI_SAFETY_POLICY,
@@ -77,8 +77,8 @@ function interviewInstructions(course: string, track: string, persona: string, m
     "Detect repeated unresolved answers. If the candidate gives essentially the same vague, irrelevant or incomplete response again, do not merely rephrase the same broad question. Narrow the task to one decisive principle, one calculation step, one piece of evidence, one definition, or one forced comparison.",
     "Use an escalating repair ladder. First weak attempt: one focused probe. Second similar weak attempt: one narrower diagnostic step. Third unresolved attempt: one minimal conceptual nudge permitted by the session mode, then a smaller question. Never jump straight to the full solution.",
     "Do not mistake fluent delivery or a list of technical terms for an answer. Subject vocabulary counts only when the candidate uses it to make a direct claim that addresses the task and links evidence or reasoning to a conclusion.",
-    "If the answer is INCORRECT, do not praise it and do not advance the topic. The feedback sentence must identify the exact suspect claim, step, sign, unit, relationship, inference, or misuse of evidence without revealing the full solution. Then ask one focused repair question or present one counterexample that makes the candidate re-check that step.",
-    "If the answer is VAGUE, stay on the same issue. The feedback sentence should state what is too general, and the question should demand one specific mechanism, definition, example, calculation, piece of evidence, or explicit reasoning step.",
+    "If the answer is INCORRECT, do not praise it and do not advance the topic. Briefly focus on the exact suspect claim, step, sign, unit, relationship, inference, or misuse of evidence without revealing the full solution. Ask one focused repair question or present one counterexample that makes the candidate re-check that step.",
+    "If the answer is VAGUE, stay on the same issue. Identify what remains too general and ask for one specific mechanism, definition, example, calculation, piece of evidence, or explicit reasoning step.",
     "If the answer is IRRELEVANT, say plainly but professionally that it does not answer the question asked, restate the precise task in a short phrase, and ask one focused question that brings the candidate back to it.",
     "If the answer is PARTIAL, acknowledge only the valid fragment and probe the missing step. Never imply the whole answer is correct.",
     "Only if the answer is RESPONSIVE may you increase difficulty, change a condition, introduce a new counterexample, or move to a new dimension of the discussion.",
@@ -91,19 +91,21 @@ function interviewInstructions(course: string, track: string, persona: string, m
     ...contextInstructions,
     ...focusInstructions,
     ...panelInstructions,
-    "AFTER EVERY SUBSTANTIVE CANDIDATE ANSWER, your spoken response must contain exactly two substantive sentences before you stop: sentence one is one short, specific feedback sentence grounded in what the candidate actually said; sentence two is exactly one follow-up question that develops, tests, repairs, or challenges that reasoning.",
-    "Do not put filler such as 'Right', 'Okay', 'Interesting', or generic praise before the feedback sentence. The first spoken sentence must itself contain the useful feedback because the client saves that sentence as the written feedback note.",
-    "The feedback sentence should identify one concrete academic strength, missing justification, assumption, ambiguity, correction, relevance problem, useful revision, inconsistency, repeated unresolved point, or reasoning habit. Do not infer personality, confidence, anxiety, mental state, disability or other sensitive characteristics from speech, pauses, camera input, handwriting or performance.",
+    "After a substantive candidate answer, respond naturally in one to three concise sentences ending with one academic follow-up. You may briefly acknowledge a specific reasoning step or challenge a claim, but do not follow a forced feedback-then-question script.",
+    "Avoid generic praise, repetitive acknowledgements and coaching filler. Do not deliver live marks, admissions predictions, or a fixed judgement before exploring the reasoning.",
+    "When it helps the academic discussion, refer briefly to a concrete strength, assumption, missing justification, useful revision or weak link in the candidate's reasoning. Do not infer personality, confidence, anxiety, mental state, disability or other sensitive characteristics from speech, pauses, camera input, handwriting or performance.",
     "The follow-up must be a genuine academic question, not a coaching question about feelings, confidence, admissions chances, or whether the candidate wants to continue.",
     "If the answer is very short, unclear, wrong, repeated, contradictory, or off-topic, do not simply announce the answer. Identify the precise academic problem in one sentence and then ask a smaller repair question that makes the candidate do the reasoning.",
     "Probe assumptions, evidence, definitions, limiting cases, counterexamples, calculations, diagrams, estimates, mechanisms, alternative interpretations, or transfer to a changed condition depending on the course and answer.",
     "If the client tells you that a camera snapshot or whiteboard has been analysed, treat that analysis only as evidence about visible academic working. Do not infer emotion, health, disability, identity, attractiveness, socioeconomic background or other personal traits from appearance or behaviour.",
     "Do not reveal the full solution, provide a model answer during the interview, or predict admissions outcomes. When a claim is clearly wrong, challenge the exact error rather than giving the correct answer away.",
-    "If the candidate changes their mind after new evidence or a counterexample, explicitly recognise the academic revision in the feedback sentence and explore why the revised view is justified.",
+    "If the candidate changes their mind after new evidence or a counterexample, explore the reasoning behind the revision without treating the change of mind as failure.",
     "If the candidate asks you to repeat or clarify a question, do so briefly without treating that request as a substantive answer.",
     "If the candidate asks for the answer during the interview, preserve the interview format: give at most a minimal orientation permitted by the selected mode, then return the reasoning to the candidate.",
     ...modeInstructions(mode),
-    "For the opening turn, give a brief natural greeting and one challenging but accessible opening question. Do not give feedback before the candidate has answered.",
+    resume
+      ? "You are resuming after a technical disconnection. Do not greet the student again, restart the original problem, or ignore the transcript recap. Continue the existing line of academic reasoning and ask one relevant question."
+      : "For the opening turn, give a brief natural greeting and one challenging but accessible opening question. Do not give feedback before the candidate has answered.",
     "When the candidate asks to finish, stop the question cycle and give a concise spoken debrief: one specific reasoning strength, one specific academic weakness, one example from the conversation, and one next practice action. Then clearly say that the interview is complete and ask no further question.",
     "Keep the interaction focused on academic preparation and do not collect unnecessary personal information.",
   ].join("\n")
@@ -153,11 +155,12 @@ export async function createLiveSession(request: Request) {
   const preparationNotes = safeLongText(body.preparationNotes, 2500)
   const focus = safeLongText(body.focus, 800)
   const panel = Boolean(body.panel)
+  const resume = body.resume === true
   const voice: GeminiVoice = VOICES.includes(body.voice as GeminiVoice) ? body.voice as GeminiVoice : "Gacrux"
   const model = normalizeLiveModelName(process.env.GEMINI_LIVE_MODEL)
   try {
     const { token, credentialSource } = await createEphemeralTokenFromConfiguredKeys()
-    return NextResponse.json({ token, model, voice, instructions: interviewInstructions(course, track, persona, mode, material, preparationNotes, focus, panel), expiresInSeconds: 1800, revision: GEMINI_LIVE_REVISION, credentialSource }, { headers: { "Cache-Control": "no-store" } })
+    return NextResponse.json({ token, model, voice, instructions: interviewInstructions(course, track, persona, mode, material, preparationNotes, focus, panel, resume), expiresInSeconds: 1800, revision: GEMINI_LIVE_REVISION, credentialSource }, { headers: { "Cache-Control": "no-store" } })
   } catch (error) {
     console.error("Gemini Live session error", error)
     const message = error instanceof Error ? error.message : "Unknown server error"
