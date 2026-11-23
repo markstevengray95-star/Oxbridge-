@@ -70,7 +70,7 @@ type GeminiMessage = {
   error?: { message?: string }
   setupComplete?: Record<string, never>
   serverContent?: {
-    modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> }
+    modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string }; text?: string }> }
     interimInputTranscription?: { text?: string }
     inputTranscription?: { text?: string }
     outputTranscription?: { text?: string }
@@ -375,14 +375,40 @@ export default function GeminiLiveNextPage() {
     silentGainRef.current = silent
 
     processor.onaudioprocess = event => {
-      if (ws.readyState !== WebSocket.OPEN || mutedRef.current || endingRef.current) return
-      const pcm = resample16k(event.inputBuffer.getChannelData(0), context!.sampleRate)
+      if (wsRef.current !== ws || endingRef.current) return
+      if (!canSendLiveAudio(ws.readyState, ws.bufferedAmount, mutedRef.current)) {
+        if (ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 524288 && !droppedAudioWarningRef.current) {
+          droppedAudioWarningRef.current = true
+          setNotice("Your connection is struggling to send audio. Please check your connection; the interviewer may miss part of your response.")
+        }
+        return
+      }
+      droppedAudioWarningRef.current = false
+      const channel = event.inputBuffer.getChannelData(0)
+      const audible = outputSourcesRef.current.size > 0 || (panelMode && Boolean(window.speechSynthesis?.speaking))
+      const activity = detectVoiceBargeIn(speechStateRef.current, {
+        rms: liveAudioRms(channel),
+        nowMs: performance.now(),
+        modelAudible: audible,
+        enabled: bargeInRef.current && !openingRef.current,
+      })
+      speechStateRef.current = activity.state
+      if (activity.interrupt) {
+        localInterruptionRef.current = true
+        stopOutput()
+        setStatus("speaking")
+      }
+      const pcm = resample16k(channel, context!.sampleRate)
       if (!pcm.length) return
-      ws.send(JSON.stringify({
-        realtimeInput: {
-          audio: { data: pcmToBase64(pcm), mimeType: "audio/pcm;rate=16000" },
-        },
-      }))
+      try {
+        ws.send(JSON.stringify({
+          realtimeInput: {
+            audio: { data: pcmToBase64(pcm), mimeType: "audio/pcm;rate=16000" },
+          },
+        }))
+      } catch {
+        // The socket closing is handled by the connection lifecycle.
+      }
     }
 
     source.connect(processor)
@@ -445,7 +471,10 @@ export default function GeminiLiveNextPage() {
     if (!content) return
 
     if (content.interrupted) {
+      // Keep the words actually spoken before the candidate interrupted.
+      if (outputTextRef.current.trim()) addTurn("interviewer", outputTextRef.current.trim())
       stopOutput()
+      localInterruptionRef.current = true
       outputTextRef.current = ""
       setInterviewerLive("")
     }
@@ -458,7 +487,7 @@ export default function GeminiLiveNextPage() {
 
     const input = content.inputTranscription?.text
     if (input) {
-      inputTextRef.current += input
+      inputTextRef.current = mergeLiveTranscription(inputTextRef.current, input)
       setCandidateLive(inputTextRef.current)
       setStatus("speaking")
     }
@@ -468,13 +497,15 @@ export default function GeminiLiveNextPage() {
       lastCandidateIdRef.current = candidateId
       setConfidenceTarget(candidateId)
       inputTextRef.current = ""
+      localInterruptionRef.current = false
+      speechStateRef.current = newVoiceBargeInState()
       setCandidateLive("")
     }
 
     const output = content.outputTranscription?.text
+      || (content.modelTurn?.parts ?? []).map(part => part.text || "").join(" ")
     if (output) {
-      const previous = outputTextRef.current
-      outputTextRef.current = output.startsWith(previous) ? output : `${previous}${output}`
+      outputTextRef.current = mergeLiveTranscription(outputTextRef.current, output)
       setInterviewerLive(outputTextRef.current)
       setStatus("interviewer")
     }
