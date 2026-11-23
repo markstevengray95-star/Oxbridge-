@@ -5,6 +5,7 @@ import { selectInterviewerIntervention, type InterviewInterventionKind } from "@
 import { selectInterviewTreeNode, type InterviewTreeNodeId } from "@/lib/interview-question-tree"
 import { getGeminiApiKeyCandidates } from "@/lib/gemini/api-key"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
+import { planAcademicFollowUp, suitableAcademicFollowUp } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
 import { interviewQuestions, type TrackId } from "@/lib/oxbridge-data"
 
@@ -96,6 +97,8 @@ async function cloudFollowUp(key: string, input: {
   supportLevel: number
   recentTurns: Turn[]
   continuityBrief: string
+  strategy: string
+  strategyRationale: string
 }) {
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"
   const transcript = input.recentTurns.slice(-12).map(turn => `${turn.role === "candidate" ? "Candidate" : "Interviewer"}: ${clean(turn.text, 800)}`).join("\n")
@@ -117,6 +120,7 @@ async function cloudFollowUp(key: string, input: {
     `Prior student reasoning evidence (quoted, not verified):\n${input.continuityBrief}`,
     `Local diagnostic: ${input.classification}${input.issue !== "none" ? ` / ${input.issue}` : ""}.`,
     `Question-tree branch: ${input.branchLabel}. Intent: ${input.branchIntent}`,
+    `Reasoning-driven next move: ${input.strategy}. Rationale: ${input.strategyRationale}`,
     `Required branch prompt: ${input.branchPrompt}`,
     transcript ? `Recent transcript:\n${transcript}` : "",
     "Return JSON only: {\"reply\":\"one concise interviewer follow-up\"}.",
@@ -165,6 +169,21 @@ export async function POST(request: Request) {
   })
   const local = evaluateInterviewAnswerLocally({ question, answer, concepts, referenceAnswer, previousAnswers: historyAnswers })
   const candidateTurnCount = Math.max(1, turns.filter(turn => turn.role === "candidate").length, memory.candidateTurns)
+  const planned = planAcademicFollowUp({
+    openingProblem: memory.openingProblem,
+    currentQuestion: question,
+    candidateAnswer: answer,
+    previousCandidateAnswers: historyAnswers,
+    previousMoves: [...(Array.isArray(body.previousNodeIds) ? body.previousNodeIds : []), ...memory.recentMoves],
+    recentQuestions: memory.recentQuestions,
+    candidateTurnCount,
+    classification: local.classification,
+    issue: local.issue,
+    track: body.track,
+  })
+  // Periodically use the wider 22-node academic tree, so grounded adaptive
+  // prompts do not erase rich representation, quantification or transfer modes.
+  const extendedTreeTurn = local.classification === "responsive" && candidateTurnCount > 3 && candidateTurnCount % 4 === 0
   const node = selectInterviewTreeNode({
     track: body.track,
     question,
@@ -175,18 +194,20 @@ export async function POST(request: Request) {
     repairDepth: local.repairDepth,
     candidateTurnCount,
     previousNodeIds: Array.isArray(body.previousNodeIds) ? body.previousNodeIds.slice(-30) : [],
+    preferredNodeId: extendedTreeTurn ? undefined : planned.preferredNodeId,
     probes,
   })
+  const selectedNode = { ...node, prompt: extendedTreeTurn ? node.prompt : planned.prompt, branchReason: extendedTreeTurn ? node.branchReason : planned.rationale }
   const intervention = selectInterviewerIntervention({
     classification: local.classification,
     issue: local.issue,
     repairDepth: local.repairDepth,
     candidateTurnCount,
-    node,
+    node: selectedNode,
     previous: Array.isArray(body.previousInterventions) ? body.previousInterventions.slice(-20) : [],
   })
 
-  let reply = node.prompt
+  let reply = selectedNode.prompt
   if (intervention.kind === "silence") reply = "Take a moment. Keep thinking aloud: what would you test or establish next before I intervene?"
   if (intervention.kind === "move-on") reply = "Give me your final synthesis of this problem: conclusion, decisive step, key assumption, strongest challenge and what you would carry into a new problem."
   let provider: "local" | "gemini" = "local"
@@ -202,16 +223,18 @@ export async function POST(request: Request) {
         candidateAnswer: answer,
         classification: local.classification,
         issue: local.issue,
-        branchLabel: node.label,
-        branchIntent: node.intent,
+        branchLabel: selectedNode.label,
+        branchIntent: selectedNode.intent,
         branchPrompt: reply,
         interventionLabel: intervention.label,
         interventionInstruction: intervention.instruction,
         supportLevel: intervention.supportLevel,
         recentTurns: turns,
         continuityBrief: interviewMemoryBrief(memory),
+        strategy: extendedTreeTurn ? node.id : planned.strategy,
+        strategyRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
       })
-      if (cloud) {
+      if (cloud && suitableAcademicFollowUp(cloud, memory.recentQuestions)) {
         reply = cloud
         provider = "gemini"
         break
@@ -229,7 +252,7 @@ export async function POST(request: Request) {
     ]
     reply = alternatives[memory.candidateTurns % alternatives.length]
   }
-  const updatedMemory = recordInterviewerMove(memory, reply, node.id, intervention.supportLevel)
+  const updatedMemory = recordInterviewerMove(memory, reply, extendedTreeTurn ? node.id : planned.strategy, intervention.supportLevel)
 
   return NextResponse.json({
     reply,
@@ -238,7 +261,9 @@ export async function POST(request: Request) {
     issue: local.issue,
     directness: local.directness,
     repairDepth: local.repairDepth,
-    branch: node,
+    branch: { ...selectedNode, prompt: reply },
+    followupStrategy: extendedTreeTurn ? node.id : planned.strategy,
+    followupRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
     intervention,
     provider,
     branchCount: 22,

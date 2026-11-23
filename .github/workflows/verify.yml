@@ -90,6 +90,9 @@ jobs:
       - name: Phase two reasoning-first assessment checks
         run: npm run test:interview-process
 
+      - name: Phase three adaptive followup checks
+        run: npm run test:interview-followups
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 

@@ -46,6 +46,7 @@ export type InterviewTreeInput = {
   repairDepth?: number
   candidateTurnCount: number
   previousNodeIds?: InterviewTreeNodeId[]
+  preferredNodeId?: InterviewTreeNodeId
   probes?: string[]
 }
 
@@ -205,7 +206,7 @@ function responsiveNode(input: InterviewTreeInput): InterviewTreeNodeId {
 
 export function selectInterviewTreeNode(input: InterviewTreeInput): InterviewTreeNode {
   const needsRepair = input.classification !== "responsive"
-  const id = needsRepair ? repairNode(input) : responsiveNode(input)
+  const id = needsRepair ? repairNode(input) : input.preferredNodeId && responsiveNodes.includes(input.preferredNodeId) ? input.preferredNodeId : responsiveNode(input)
   const phase = phaseFor(id)
   return {
     id,

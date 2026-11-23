@@ -95,7 +95,15 @@ export function advanceInterviewSession(value: unknown, input: {
   if (!answer) return previous
   const turn = Math.min(1000, previous.candidateTurns + 1)
   const kind = evidenceKind(answer)
-  const evidence = [...previous.evidence, { turn, kind, quote: text(input.answer, 240) }].slice(-12)
+  const fullEvidence = [...previous.evidence, { turn, kind, quote: text(input.answer, 240) }]
+  // Keep pivotal corrections and stated assumptions even after long interviews.
+  const retained = new Map<number, InterviewEvidence>()
+  for (const item of fullEvidence.filter(item => item.kind === "revision" || item.kind === "assumption").slice(-3)) retained.set(item.turn, item)
+  for (const item of [...fullEvidence].reverse()) {
+    if (retained.size >= 12) break
+    if (!retained.has(item.turn)) retained.set(item.turn, item)
+  }
+  const evidence = [...retained.values()].sort((a, b) => a.turn - b.turn)
   const questions = question && previous.recentQuestions.at(-1) !== question
     ? [...previous.recentQuestions, question].slice(-6)
     : previous.recentQuestions
@@ -126,7 +134,11 @@ export function recordInterviewerMove(memory: InterviewSessionMemory, question: 
 
 /** A bounded, attributable record for the interviewer's internal context only. */
 export function interviewMemoryBrief(memory: InterviewSessionMemory) {
-  const lastEvidence = memory.evidence.slice(-8).map(item => `Turn ${item.turn} [${item.kind}, student's own words]: "${item.quote}"`).join("\n")
+  const important = memory.evidence.filter(item => item.kind === "revision" || item.kind === "assumption").slice(-3)
+  const latest = memory.evidence.slice(-6)
+  const selected = new Map<number, InterviewEvidence>()
+  for (const item of [...important, ...latest]) selected.set(item.turn, item)
+  const lastEvidence = [...selected.values()].sort((a, b) => a.turn - b.turn).map(item => `Turn ${item.turn} [${item.kind}, student\'s own words]: "${item.quote}"`).join("\n")
   const lastQuestions = memory.recentQuestions.slice(-4).map((question, index) => `${index + 1}. ${question}`).join("\n")
   return [
     `Opening academic problem: ${memory.openingProblem || "not recorded"}`,
