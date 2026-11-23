@@ -298,10 +298,18 @@ export function evidenceQuestionProbes(selection:EvidenceSelection):string[]{
  * a browser sent them. Avoid allowing a different discipline's evidence to
  * influence academic assessment.
  */
-export function validatedEvidenceContext(course:string,track:string|undefined,selection:EvidenceSelection){
+export function validatedEvidenceContext(course:string,track:string|undefined,selection:EvidenceSelection,turns?:Array<{role:string;text:string}>){
   const expected=evidenceChallengeForCourse(course,track)
   if(selection.challengeId!==expected.id)return null
-  return evidenceContext(selection)
+  const context=evidenceContext(selection)
+  if(!context)return null
+  if(turns){
+    // The client must have introduced the canonical question for the disclosed
+    // exhibit, and the candidate must have answered it before feedback uses it.
+    const lastReveal=turns.findLastIndex(turn=>turn.role==="interviewer"&&turn.text.includes(context.question))
+    if(lastReveal<0||!turns.slice(lastReveal+1).some(turn=>turn.role==="candidate"&&turn.text.trim()))return null
+  }
+  return context
 }
 
 export function evidenceFollowUpProbes(context:EvidenceContext){
