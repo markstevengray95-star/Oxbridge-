@@ -361,7 +361,7 @@ export async function POST(request: Request) {
   const recentTurns = Array.isArray(body.turns) ? body.turns.slice(-20) : []
   const previousAnswers = previousCandidateAnswers(recentTurns, answer)
   const candidateTurnCount = Math.max(1, recentTurns.filter(turn => turn.role === "candidate").length)
-  const evidence = validatedEvidenceContext(body.course || "", body.track, body.evidence || {})
+  const evidence = validatedEvidenceContext(body.course || "", body.track, body.evidence || {}, recentTurns)
   const workingEvidence = typeof body.workingEvidence === "string" ? body.workingEvidence.replace(/\s+/g," ").trim().slice(0,1400) : ""
   const memory = advanceInterviewSession(body.memory, {
     openingProblem: body.openingProblem?.trim() || canonical?.prompt || body.question || "",
