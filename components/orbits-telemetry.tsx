@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { schoolSafePagePath } from "@/lib/school/student-tracking-shapes";
 
 function sessionKey() {
   const key = "orbits-telemetry-session";
@@ -37,7 +38,7 @@ export function OrbitsTelemetry() {
           action,
           app: "fellow",
           session_key: sessionKey(),
-          page_path: pathname,
+          page_path: schoolSafePagePath(pathname) ?? "/",
           device_class: deviceClass(),
         },
       }).catch(() => {});
@@ -70,7 +71,7 @@ export function OrbitsTelemetry() {
         await fetch("/api/practice/activity", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pagePath: pathname }),
+          body: JSON.stringify({ pagePath: schoolSafePagePath(pathname) ?? "/" }),
           cache: "no-store",
         });
       } catch {
@@ -89,7 +90,7 @@ export function OrbitsTelemetry() {
           action: "ping",
           app: "fellow",
           session_key: sessionKey(),
-          page_path: pathname,
+          page_path: schoolSafePagePath(pathname) ?? "/",
           device_class: deviceClass(),
         },
       }).catch(() => {});
