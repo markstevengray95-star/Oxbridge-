@@ -167,7 +167,8 @@ export function CloudProgressSync() {
         const course = title.includes("·") ? title.split("·").slice(1).join("·").trim() || "General" : "General"
         const mock = asRecord((log as ProgressLog & { mockSession?: unknown }).mockSession)
         const elapsed = Number(mock.elapsedSeconds)
-        const recordedDuration = Number.isFinite(elapsed)&&elapsed>0 ? Math.min(7200,Math.floor(elapsed)) : durationSeconds(events)
+        const explicitDuration = Number((log as ProgressLog & {durationSeconds?:unknown}).durationSeconds)
+        const recordedDuration = Number.isFinite(explicitDuration)&&explicitDuration>0 ? Math.min(7200,Math.floor(explicitDuration)) : Number.isFinite(elapsed)&&elapsed>0 ? Math.min(7200,Math.floor(elapsed)) : durationSeconds(events)
 
         let sessionId: string | null = null
         const { data: existing } = await supabase
