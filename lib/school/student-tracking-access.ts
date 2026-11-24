@@ -2,6 +2,7 @@ import "server-only"
 import type { createAdminClient } from "@/lib/supabase/admin"
 import type { StaffScope } from "@/lib/school/teacher-access"
 import { uuidPattern } from "@/lib/school/teacher-access"
+import { schoolStudentMayReadDetails } from "@/lib/school/student-tracking-policy"
 
 type Admin = ReturnType<typeof createAdminClient>
 export type StudentPermission = { studentId:string; organizationId:string; assignedByTeacher:boolean }
@@ -28,21 +29,30 @@ export async function authorizeSchoolStudentDetail(
       .select("id,owner_user_id,status").eq("id",scope.organizationId).maybeSingle(),
   ])
   if(membership.error||seat.error||staff.error||organization.error)throw Error("Could not verify school memberships")
-  if(!organization.data||organization.data.status!=="active" ||
-    organization.data.owner_user_id===studentId ||
-    !membership.data||membership.data.role==="owner" ||
-    !seat.data?.active||staff.data?.active) return null
-
-  if(scope.isOwner || scope.role==="school_admin")
-    return {studentId,organizationId:scope.organizationId,assignedByTeacher:false}
-
-  const linked = await admin.from("school_teacher_student_links")
-    .select("student_user_id")
-    .eq("organization_id",scope.organizationId)
-    .eq("teacher_user_id",scope.userId)
-    .eq("student_user_id",studentId).maybeSingle()
-  if(linked.error)throw Error("Could not verify teacher assignment")
-  return linked.data ? {studentId,organizationId:scope.organizationId,assignedByTeacher:true} : null
+  const link = scope.isOwner || scope.role==="school_admin"
+    ? {data:null,error:null}
+    : await admin.from("school_teacher_student_links")
+        .select("student_user_id")
+        .eq("organization_id",scope.organizationId)
+        .eq("teacher_user_id",scope.userId)
+        .eq("student_user_id",studentId).maybeSingle()
+  if(link.error)throw Error("Could not verify teacher assignment")
+  const permitted=schoolStudentMayReadDetails({
+    viewerId:scope.userId,studentId,scopeOrganizationId:scope.organizationId,
+    scopeRole:scope.role,activeOrganizationId:organization.data?.id??null,
+    organizationActive:organization.data?.status==="active",
+    organizationOwnerId:organization.data?.owner_user_id??null,
+    studentMemberUserId:membership.data?.user_id??null,
+    studentMemberRole:membership.data?.role??null,
+    studentSeatUserId:seat.data?.user_id??null,
+    studentSeatActive:Boolean(seat.data?.active),
+    studentStaffActive:Boolean(staff.data?.active),
+    linkedStudentId:link.data?.student_user_id??null,
+  })
+  return permitted ? {
+    studentId,organizationId:scope.organizationId,
+    assignedByTeacher:scope.role==="teacher",
+  } : null
 }
 
 /** Selection for a staff roster must use the same access policy as detail. */
