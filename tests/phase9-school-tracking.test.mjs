@@ -192,3 +192,17 @@ test("teacher dashboard and privacy export are connected to new tracking",()=>{
  assert.match(read("app/privacy/page.tsx"),/visible-tab time estimates/)
  assert.match(read("app/layout.tsx"),/LearningActivityTracker/)
 })
+
+
+test("standard voice and typed interviews persist duration instead of reporting zero",()=>{
+ const voice=read("app/gemini-live-next/page.tsx")
+ const formal=read("components/advanced-interview-experience.tsx")
+ const reasoning=read("components/reasoning-interview-experience-v2.tsx")
+ const mirror=read("components/history-cloud-mirror.tsx")
+ const sync=read("components/cloud-progress-sync.tsx")
+ assert.match(voice,/durationSeconds: duration/)
+ assert.match(formal,/durationSeconds: Math\.max/)
+ assert.match(reasoning,/durationSeconds:mockStartRef/)
+ assert.match(mirror,/optionalInteger\(log\.durationSeconds\)/)
+ assert.match(sync,/explicitDuration/)
+})
