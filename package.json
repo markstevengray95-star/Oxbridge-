@@ -19,7 +19,9 @@
     "test:interview-evidence": "node --experimental-strip-types --test tests/interview-evidence-challenges.test.mjs",
     "test:full-mock-interviews": "node --experimental-strip-types --test tests/full-mock-interviews.test.mjs",
     "test:interview-feedback-intelligence": "node --experimental-strip-types --test tests/interview-feedback-intelligence.test.mjs",
-    "test:school-tracking": "node --experimental-strip-types --test tests/phase9-school-tracking.test.mjs"
+    "test:school-tracking": "node --experimental-strip-types --test tests/phase9-school-tracking.test.mjs",
+    "test:launch-readiness": "node --experimental-strip-types --test tests/phase10-launch-readiness.test.mjs",
+    "release:check": "node scripts/phase10-release-gate.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
