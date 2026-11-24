@@ -33,7 +33,7 @@ type Detail={
   school:{name:string;role:string;assignedByTeacher:boolean}
   summary:{lastSignInAt:string|null;lastActiveAt:string|null;testsCompleted:number;averageAccuracy:number|null;interviewCount:number;transcriptTurns:number;candidateResponses:number;interviewSeconds:number;estimatedActiveSeconds:number;activitySessions:number;savedPracticeAttempts:number;lastCloudSyncAt:string|null}
   tests:Test[];interviews:Interview[];usage:UsageEntry[];activity:ActivityEntry[]
-  dataStatus:{liveTrackingAvailable:boolean;legacyUsageAvailable:boolean;savedPracticeAvailable:boolean;incompleteHistory:boolean}
+  dataStatus:{liveTrackingAvailable:boolean;legacyUsageAvailable:boolean;savedPracticeAvailable:boolean;incompleteHistory:boolean;recentSamplesOnly:boolean}
   notice:string
 }
 function date(value:string|null|undefined){
@@ -89,13 +89,14 @@ export default function TeacherStudentProgressPage(){
             ["Last sign-in",date(d.summary.lastSignInAt)],
             ["Last recorded activity",date(d.summary.lastActiveAt)],
             ["Tests completed",String(d.summary.testsCompleted)],
-            ["Average test accuracy",d.summary.averageAccuracy===null?"Not recorded":d.summary.averageAccuracy+"%"],
+            ["Recent saved test accuracy",d.summary.averageAccuracy===null?"Not recorded":d.summary.averageAccuracy+"%"],
             ["Interview sessions",String(d.summary.interviewCount)],
-            ["Transcript answers",String(d.summary.candidateResponses)],
+            ["Loaded candidate answers",String(d.summary.candidateResponses)],
             ["Saved interview duration",elapsed(d.summary.interviewSeconds)],
-            ["Estimated in-app activity",elapsed(d.summary.estimatedActiveSeconds)],
+            ["Recent sampled in-app time",elapsed(d.summary.estimatedActiveSeconds)],
           ].map(([label,value])=><Card key={label} className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold text-slate-500">{label}</p><p className="mt-2 text-lg font-bold text-[#102a43]">{value}</p></CardContent></Card>)}
         </section>
+        {d.dataStatus.recentSamplesOnly?<p className="rounded-xl border border-[#cfe1e4] bg-white p-3 text-sm text-slate-700">Showing the latest {d.tests.length} of {d.summary.testsCompleted} saved test records and {d.interviews.length} of {d.summary.interviewCount} interview records. Older work may exist beyond these lists.</p>:null}
         {d.dataStatus.incompleteHistory?<Card className="border-amber-200 bg-amber-50 shadow-none"><CardContent className="flex gap-3 p-4 text-sm text-amber-950"><Activity className="mt-1 size-5 shrink-0"/>Some telemetry or saved-progress sources could not be read. Counts and activity time may be incomplete. A blank activity record does not establish that this student has never used the app.</CardContent></Card>:null}
         <p className="rounded-xl border bg-white p-4 text-xs leading-6 text-slate-600">{d.notice} Last cloud state sync: {date(d.summary.lastCloudSyncAt)}. Practice attempts in saved progress: {d.summary.savedPracticeAttempts}.</p>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Student tracking sections">
