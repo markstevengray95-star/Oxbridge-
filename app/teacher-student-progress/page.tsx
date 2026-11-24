@@ -92,7 +92,7 @@ export default function TeacherStudentProgressPage(){
             ["Recent saved test accuracy",d.summary.averageAccuracy===null?"Not recorded":d.summary.averageAccuracy+"%"],
             ["Interview sessions",String(d.summary.interviewCount)],
             ["Loaded candidate answers",String(d.summary.candidateResponses)],
-            ["Saved interview duration",elapsed(d.summary.interviewSeconds)],
+            ["Recent saved interview duration",elapsed(d.summary.interviewSeconds)],
             ["Recent sampled in-app time",elapsed(d.summary.estimatedActiveSeconds)],
           ].map(([label,value])=><Card key={label} className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold text-slate-500">{label}</p><p className="mt-2 text-lg font-bold text-[#102a43]">{value}</p></CardContent></Card>)}
         </section>
