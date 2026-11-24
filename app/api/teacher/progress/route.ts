@@ -100,7 +100,7 @@ export async function GET() {
     const averageTestAccuracy = completedTests.length ? Math.round(completedTests.reduce((sum,t)=>sum+Math.max(0,Math.min(100,number(t.accuracy))),0)/completedTests.length) : null
     const recentProgress = (progressResult.data ?? []).filter(p => p.user_id === id).map(p => p.updated_at)
     const studentUsage = usage.filter(x=>x.user_id===id)
-    const lastActiveAt = latestIso([intelligence?.updated_at,profile?.updated_at,interviewEvents[0]?.created_at,completedTests[0]?.completed_at,...recentProgress,...studentUsage.map(x=>x.last_seen_at||x.started_at)])
+    const lastActiveAt = latestIso([interviewEvents[0]?.created_at,completedTests[0]?.completed_at,...recentProgress,...studentUsage.map(x=>x.last_seen_at||x.started_at)])
     const activeThisWeek = Boolean(lastActiveAt && Date.parse(lastActiveAt)>=weekAgo)
     const score = number(snapshot.preparationScore)
     return {
@@ -133,7 +133,7 @@ export async function GET() {
       assigned:students.length,
       activeThisWeek:students.filter(s => s.activeThisWeek).length,
       averagePreparation:scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : null,
-      needsFollowUp:students.filter(s => s.lastActiveAt && !s.activeThisWeek).length,
+      needsFollowUp:students.filter(s => !s.activeThisWeek).length,
       testsCompleted:students.reduce((sum,s)=>sum+s.testsCompleted,0),
     },
     students,
