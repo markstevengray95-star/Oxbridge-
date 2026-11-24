@@ -56,8 +56,9 @@ export async function POST(request:Request){
   const body=supplied&&typeof supplied==="object"&&!Array.isArray(supplied)?supplied as Record<string,unknown>:{}
   const page=learningSectionPath(body.pagePath)
   if(!page)return new NextResponse(null,{status:204,headers})
-  const kind:LearningEventKind=body.eventKind==="heartbeat"?"heartbeat":body.eventKind==="visit"?"visit":null as never
-  if(!kind)return reply("Invalid activity event type.",400)
+  const rawKind=body.eventKind
+  if(rawKind!=="heartbeat"&&rawKind!=="visit")return reply("Invalid activity event type.",400)
+  const kind:LearningEventKind=rawKind
   const seconds=safeLearningSeconds(kind,body.activeSeconds)
 
   const admin=createAdminClient()
