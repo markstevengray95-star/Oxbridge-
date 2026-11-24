@@ -207,3 +207,11 @@ test("standard voice and typed interviews persist duration instead of reporting 
  assert.match(mirror,/optionalInteger\(log\.durationSeconds\)/)
  assert.match(sync,/explicitDuration/)
 })
+
+
+test("cloud importers preserve multiple paragraphs in interview transcripts",()=>{
+ const mirror=read("components/history-cloud-mirror.tsx")
+ const cloud=read("components/cloud-progress-sync.tsx")
+ assert.ok(mirror.includes("([\\s\\S]+)"))
+ assert.ok(cloud.includes("([\\s\\S]+)"))
+})
