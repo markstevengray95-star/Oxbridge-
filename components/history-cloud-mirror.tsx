@@ -36,7 +36,7 @@ function dateValue(value: unknown) {
 }
 
 function parseTurn(event: string): Turn | null {
-  const candidate = event.match(/^Candidate:\s*(.+)$/i)
+  const candidate = event.match(/^Candidate:\s*([\s\S]+)$/i)
   if (candidate) {
     const marker = " | Feedback: "
     const at = candidate[1].indexOf(marker)
@@ -44,7 +44,7 @@ function parseTurn(event: string): Turn | null {
     const feedback = at >= 0 ? candidate[1].slice(at + marker.length).replace(/\s+\|\s+Confidence:\s*\d+%?\s*$/i, "").trim() : ""
     return content ? { role: "candidate", content, feedback: feedback || null } : null
   }
-  const interviewer = event.match(/^Interviewer(?:\s+[A-Za-z0-9/ -]+)?:\s*(.+)$/i)
+  const interviewer = event.match(/^Interviewer(?:\s+[A-Za-z0-9/ -]+)?:\s*([\s\S]+)$/i)
   return interviewer?.[1]?.trim() ? { role: "interviewer", content: interviewer[1].trim(), feedback: null } : null
 }
 
