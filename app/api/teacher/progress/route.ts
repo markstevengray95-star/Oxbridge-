@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
 import { currentSchoolUserId, loadStaffScope } from "@/lib/school/teacher-access"
+import { schoolStaffCanSeeWholeRoster } from "@/lib/school/student-tracking-access"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -29,14 +30,14 @@ export async function GET() {
   const [{data:memberRows,error:memberError}, {data:staffRows,error:staffError}, {data:links,error:linkError}] = await Promise.all([
     admin.from("school_organization_members").select("user_id,role").eq("organization_id",scope.organizationId),
     admin.from("school_staff_roles").select("user_id").eq("organization_id",scope.organizationId).eq("active",true),
-    scope.isOwner ? Promise.resolve({data:[],error:null}) : admin.from("school_teacher_student_links")
+    schoolStaffCanSeeWholeRoster(scope) ? Promise.resolve({data:[],error:null}) : admin.from("school_teacher_student_links")
       .select("student_user_id").eq("organization_id",scope.organizationId).eq("teacher_user_id",userId),
   ])
   if (memberError || staffError || linkError) return NextResponse.json({error:"Could not verify student links"},{status:500,headers})
 
   const members = (memberRows ?? []).map(x => x.user_id)
   const staffIds = new Set((staffRows ?? []).map(x => x.user_id))
-  const connected = new Set(scope.isOwner ? members : (links ?? []).map(x => x.student_user_id))
+  const connected = new Set(schoolStaffCanSeeWholeRoster(scope) ? members : (links ?? []).map(x => x.student_user_id))
   const ownerIds = new Set((memberRows ?? []).filter(m => m.role === "owner").map(m => m.user_id))
   const candidateIds = members.filter(id => connected.has(id) && !staffIds.has(id) && !ownerIds.has(id) && id !== scope.userId)
   if (!candidateIds.length) {
@@ -47,7 +48,7 @@ export async function GET() {
     },{headers})
   }
 
-  const [seatsResult, profilesResult, intelResult, interviewsResult, testsResult, progressResult, membershipResult] = await Promise.all([
+  const [seatsResult, profilesResult, intelResult, interviewsResult, testsResult, progressResult, membershipResult, usageResult] = await Promise.all([
     admin.from("school_seat_entitlements").select("user_id").eq("organization_id",scope.organizationId).eq("active",true).in("user_id",candidateIds),
     admin.from("profiles").select("id,display_name,target_course,target_university,application_year,updated_at").in("id",candidateIds),
     admin.from("student_intelligence").select("user_id,snapshot,updated_at").in("user_id",candidateIds),
@@ -55,6 +56,7 @@ export async function GET() {
     admin.from("test_results").select("user_id,accuracy,completed_at").in("user_id",candidateIds).order("completed_at",{ascending:false}).limit(5000),
     admin.from("school_assignment_progress").select("user_id,assignment_id,status,updated_at").in("user_id",candidateIds),
     admin.from("school_memberships").select("user_id,cohort_id").in("user_id",candidateIds),
+    admin.from("orbits_usage_sessions").select("user_id,active_seconds,last_seen_at,started_at").in("user_id",candidateIds).eq("app","fellow").order("last_seen_at",{ascending:false}).limit(5000),
   ])
   const failed = [seatsResult,profilesResult,intelResult,interviewsResult,testsResult,progressResult,membershipResult].some(x => x.error)
   if (failed) return NextResponse.json({error:"Could not load student progress"},{status:500,headers})
@@ -79,6 +81,7 @@ export async function GET() {
 
   const profiles = new Map((profilesResult.data ?? []).map(x => [x.id,x]))
   const intel = new Map((intelResult.data ?? []).map(x => [x.user_id,x]))
+  const usage = usageResult.error ? [] : usageResult.data ?? []
   const assignments = assignmentsResult.data ?? []
   const now = Date.now()
   const weekAgo = now-7*24*60*60*1000
@@ -96,7 +99,8 @@ export async function GET() {
     const completedTests = (testsResult.data ?? []).filter(t => t.user_id === id)
     const averageTestAccuracy = completedTests.length ? Math.round(completedTests.reduce((sum,t)=>sum+Math.max(0,Math.min(100,number(t.accuracy))),0)/completedTests.length) : null
     const recentProgress = (progressResult.data ?? []).filter(p => p.user_id === id).map(p => p.updated_at)
-    const lastActiveAt = latestIso([intelligence?.updated_at,profile?.updated_at,interviewEvents[0]?.created_at,completedTests[0]?.completed_at,...recentProgress])
+    const studentUsage = usage.filter(x=>x.user_id===id)
+    const lastActiveAt = latestIso([intelligence?.updated_at,profile?.updated_at,interviewEvents[0]?.created_at,completedTests[0]?.completed_at,...recentProgress,...studentUsage.map(x=>x.last_seen_at||x.started_at)])
     const activeThisWeek = Boolean(lastActiveAt && Date.parse(lastActiveAt)>=weekAgo)
     const score = number(snapshot.preparationScore)
     return {
@@ -117,6 +121,8 @@ export async function GET() {
       currentPriority:(snapshot.priority ?? null) as Skill | null,
       strongestArea:(snapshot.strongest ?? null) as Skill | null,
       lastActiveAt,activeThisWeek,
+      recordedActiveSeconds: studentUsage.reduce((sum,item)=>sum+Math.max(0,Math.min(86400,number(item.active_seconds))),0),
+      usageSessions: studentUsage.length,
     }
   }).sort((a,b) => a.displayName.localeCompare(b.displayName))
 
@@ -131,5 +137,6 @@ export async function GET() {
       testsCompleted:students.reduce((sum,s)=>sum+s.testsCompleted,0),
     },
     students,
+    telemetryStatus:usageResult.error?"Usage telemetry could not be retrieved; activity and time may be incomplete.":"Usage is limited to saved in-app sessions and may be incomplete.",
   },{headers})
 }
