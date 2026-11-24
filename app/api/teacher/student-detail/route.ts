@@ -42,9 +42,9 @@ export async function GET(request:Request){
       admin.from("profiles").select("id,display_name,target_course,target_university,application_year").eq("id",target).maybeSingle(),
       admin.from("practice_access_accounts").select("username,display_name,active,expires_at,account_type").eq("user_id",target).maybeSingle(),
       admin.auth.admin.getUserById(target),
-      admin.from("test_results").select("id,source_ref,test,title,completed_at,raw_score,max_raw_marks,total_questions,accuracy,duration_seconds,payload")
+      admin.from("test_results").select("id,source_ref,test,title,completed_at,raw_score,max_raw_marks,total_questions,accuracy,duration_seconds,payload",{count:"exact"})
         .eq("user_id",target).order("completed_at",{ascending:false}).limit(60),
-      admin.from("interview_sessions").select("id,course,duration_seconds,summary,overall_feedback,created_at,updated_at")
+      admin.from("interview_sessions").select("id,course,duration_seconds,summary,overall_feedback,created_at,updated_at",{count:"exact"})
         .eq("user_id",target).order("created_at",{ascending:false}).limit(40),
       admin.from("orbits_usage_sessions").select("page_path,active_seconds,started_at,last_seen_at,device_class")
         .eq("user_id",target).eq("app","fellow").order("last_seen_at",{ascending:false}).limit(250),
@@ -60,13 +60,16 @@ export async function GET(request:Request){
     if(!profile.data)return error("This school student has no accessible learner profile.",404)
 
     const interviewIds=(sessions.data??[]).map(row=>row.id)
-    const turns=interviewIds.length
-      ? await admin.from("interview_turns")
+    const [turns,turnCount]=await Promise.all([
+      interviewIds.length
+      ? admin.from("interview_turns")
         .select("id,session_id,turn_index,role,content,feedback,created_at")
         .eq("user_id",target).in("session_id",interviewIds)
         .order("created_at",{ascending:false}).limit(1000)
-      : {data:[],error:null}
-    if(turns.error)return error("Could not load authorized interview transcripts.",503)
+      : Promise.resolve({data:[],error:null}),
+      admin.from("interview_turns").select("id",{count:"exact",head:true}).eq("user_id",target),
+    ])
+    if(turns.error||turnCount.error)return error("Could not load authorized interview transcripts.",503)
 
     const rows=turns.data??[]
     const bySession=new Map<string,typeof rows>()
@@ -134,9 +137,9 @@ export async function GET(request:Request){
       },
       school:{name:scope.organizationName,role:scope.role,assignedByTeacher:authorized.assignedByTeacher},
       summary:{
-        lastSignInAt,lastActiveAt,testsCompleted:savedTests.length,
-        averageAccuracy:accuracy,interviewCount:savedInterviews.length,
-        transcriptTurns:rows.filter(row=>row.role!=="system").length,
+        lastSignInAt,lastActiveAt,testsCompleted:tests.count??savedTests.length,
+        averageAccuracy:accuracy,interviewCount:sessions.count??savedInterviews.length,
+        transcriptTurns:turnCount.count??rows.length,
         candidateResponses:rows.filter(row=>row.role==="candidate").length,
         interviewSeconds:savedInterviews.reduce((sum,item)=>sum+item.durationSeconds,0),
         estimatedActiveSeconds,activitySessions:usageSessions.length,
@@ -151,8 +154,9 @@ export async function GET(request:Request){
         legacyUsageAvailable:!usage.error,
         savedPracticeAvailable:!state.error,
         incompleteHistory:Boolean(learning.error||usage.error||state.error||navigation.error),
+        recentSamplesOnly:Boolean((tests.count??0)>savedTests.length||(sessions.count??0)>savedInterviews.length||(turnCount.count??0)>rows.length),
       },
-      notice:"Only account-linked work saved inside FELLOW is shown. Activity time is an estimate based on visible-tab heartbeats or usage sessions; inactive tabs, failed syncing and historic work may be absent. No external browsing, device location or private messages are monitored.",
+      notice:"Only account-linked work saved inside FELLOW is shown. Test and interview lists show the latest records, while total counts are database-derived. Recent activity time is an estimate from bounded visible-tab or usage-session samples; it is not a lifetime total or proof of focused study. No external browsing, device location or private messages are monitored.",
     },{headers})
   }catch{
     return error("School tracking could not verify the requested account or load its records.",503)
