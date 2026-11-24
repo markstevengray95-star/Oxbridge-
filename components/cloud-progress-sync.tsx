@@ -105,7 +105,7 @@ function turnFromEvent(event: string) {
       feedback: markerIndex >= 0 ? raw.slice(markerIndex + marker.length) : null,
     }
   }
-  const interviewer = event.match(/^Interviewer(?:\s+[A-Za-z0-9/ -]+)?:\s*(.+)$/i)
+  const interviewer = event.match(/^Interviewer(?:\s+[A-Za-z0-9/ -]+)?:\s*([\s\S]+)$/i)
   if (interviewer) {
     return { role: "interviewer", content: interviewer[1], feedback: null }
   }
