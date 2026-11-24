@@ -162,7 +162,8 @@ test("client records learning time only when tab is visible, excluding query str
  assert.match(tracker,/heartbeat/)
  assert.match(tracker,/activeSeconds/)
  const older=read("components/orbits-telemetry.tsx")
- assert.match(older,/page_path: pathname/)
+ assert.match(older,/schoolSafePagePath\(pathname\)/)
+ assert.doesNotMatch(older,/page_path: pathname/)
  assert.doesNotMatch(older,/pathname \+ location.search/)
 })
 test("Gemini Live Next, panel transcripts and duration are imported to user-owned cloud tables",()=>{
