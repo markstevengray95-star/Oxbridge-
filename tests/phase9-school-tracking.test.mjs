@@ -173,7 +173,7 @@ test("Gemini Live Next, panel transcripts and duration are imported to user-owne
  assert.match(sync,/Interviewer\(\?:/)
  assert.match(mirror,/savedDuration/)
  assert.match(mirror,/mockSession: mock/)
- assert.match(mirror,/\.eq\("user_id",userId\)/)
+ assert.match(mirror,/\.eq\("user_id",\s*userId\)/)
  assert.match(sync,/\.eq\("user_id", userId\)/)
 })
 test("school access and learner activity tables are RLS-protected and service-only",()=>{
