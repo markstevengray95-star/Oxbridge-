@@ -32,6 +32,11 @@ export async function GET(request:Request){
     if(!scope)return error("Active school staff access required.",403)
     const authorized=await authorizeSchoolStudentDetail(admin,scope,target)
     if(!authorized)return error("This student is not assigned to your authorized school view.",403)
+    const audit=await admin.from("fellow_school_student_access_audit").insert({
+      organization_id:authorized.organizationId,viewer_user_id:actorId,
+      student_user_id:target,resource:"student_detail",
+    })
+    if(audit.error)return error("School access audit is not configured; detailed records are unavailable.",503)
 
     const [profile,managed,auth,tests,sessions,usage,navigation,learning,state] = await Promise.all([
       admin.from("profiles").select("id,display_name,target_course,target_university,application_year").eq("id",target).maybeSingle(),
