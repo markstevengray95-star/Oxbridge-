@@ -37,7 +37,7 @@ The updated student data export includes these two new record types. The privacy
 
 ## Verification performed
 
-- Phase 9 independent policy and data minimisation tests: **22 passing** before the final multiline importer guard; that guard is now added to the CI suite.
+- Phase 9 independent policy, data minimisation and transcript-import tests: **23/23 passing** in the final isolated run, including multiline interviews.
 - **19 updated TS/TSX application files** passed independent TypeScript parsing/transpilation checks.
 - **Three pure policy/data modules** passed strict independent `tsc --noEmit`.
 - CI now runs `npm run test:school-tracking`.
