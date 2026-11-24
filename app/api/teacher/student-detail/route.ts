@@ -131,7 +131,7 @@ export async function GET(request:Request){
         userId:target,displayName:profile.data.display_name||managed.data?.display_name||"Student",
         username:managed.data?.account_type==="student"?managed.data.username:null,
         managedPractice:managed.data?.account_type==="student",
-        accessActive:managed.data?.account_type==="student"?Boolean(managed.data.active):null,
+        accessActive:managed.data?.account_type==="student"?Boolean(managed.data.active)&&(!managed.data.expires_at||Date.parse(managed.data.expires_at)>Date.now()):null,
         targetCourse:profile.data.target_course,targetUniversity:profile.data.target_university,
         applicationYear:profile.data.application_year,
       },
