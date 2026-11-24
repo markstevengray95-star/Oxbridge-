@@ -16,12 +16,13 @@ type Student = {
   testsCompleted:number;averageTestAccuracy:number|null
   assignmentCompleted:number;assignmentTotal:number;assignmentPercent:number|null
   currentPriority:Skill|null;strongestArea:Skill|null
-  lastActiveAt:string|null;activeThisWeek:boolean
+  lastActiveAt:string|null;activeThisWeek:boolean;recordedActiveSeconds:number;usageSessions:number
 }
 type Data = {
   organization:{name:string;role:"owner"|"school_admin"|"teacher"}
   summary:{assigned:number;activeThisWeek:number;averagePreparation:number|null;needsFollowUp:number;testsCompleted:number}
   students:Student[]
+  telemetryStatus?:string
 }
 function lastActive(value:string|null) {
   if(!value)return "No activity recorded"
@@ -29,6 +30,7 @@ function lastActive(value:string|null) {
   if(Number.isNaN(date.getTime()))return "No activity recorded"
   return date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})
 }
+function activeDuration(value:number){const minutes=Math.floor(Math.max(0,value)/60);return minutes>=60?Math.floor(minutes/60)+"h "+minutes%60+"m":minutes+"m"}
 function csvCell(value:unknown) {return '"'+String(value??"").replaceAll('"','""')+'"'}
 
 export default function TeacherDashboardPage() {
@@ -60,8 +62,8 @@ export default function TeacherDashboardPage() {
   function exportCsv(){
     if(!data)return
     const rows=[
-      ["Student","University","Course","Application year","Preparation score","Interviews","Completed tests","Average test accuracy","Full papers","Essays","Assignments completed","Assignments total","Last active","Priority","Strength"],
-      ...students.map(s=>[s.displayName,s.targetUniversity,s.targetCourse,s.applicationYear,s.preparationScore,s.interviewCount,s.testsCompleted,s.averageTestAccuracy,s.fullPaperCount,s.essayCount,s.assignmentCompleted,s.assignmentTotal,s.lastActiveAt,s.currentPriority?.label,s.strongestArea?.label]),
+      ["Student","University","Course","Application year","Preparation score","Interviews","Completed tests","Average test accuracy","Full papers","Essays","Assignments completed","Assignments total","Last active","Recorded in-app minutes","Usage sessions","Priority","Strength"],
+      ...students.map(s=>[s.displayName,s.targetUniversity,s.targetCourse,s.applicationYear,s.preparationScore,s.interviewCount,s.testsCompleted,s.averageTestAccuracy,s.fullPaperCount,s.essayCount,s.assignmentCompleted,s.assignmentTotal,s.lastActiveAt,Math.round((s.recordedActiveSeconds||0)/60),s.usageSessions||0,s.currentPriority?.label,s.strongestArea?.label]),
     ]
     const blob=new Blob([rows.map(row=>row.map(csvCell).join(",")).join("\n")],{type:"text/csv;charset=utf-8"})
     const url=URL.createObjectURL(blob),a=document.createElement("a")
@@ -77,10 +79,11 @@ export default function TeacherDashboardPage() {
 
       <section><Badge variant="outline"><GraduationCap className="size-3.5"/>Teacher dashboard</Badge>
         <h1 className="mt-3 font-serif text-4xl font-bold">Your students' preparation progress</h1>
-        <p className="mt-3 max-w-3xl text-slate-600">See the students assigned to your teacher account, their preparation scores, interview and exam practice, current priorities and assignment completion. Private tutor messages and interview transcripts are not shared here.</p>
+        <p className="mt-3 max-w-3xl text-slate-600">See students you are authorized to monitor, including saved practice, completed tests and session activity. Open a student record to review their synced interview transcripts and individual assessment answers. All detailed access is audited.</p>
         {data&&<p className="mt-2 text-sm font-semibold text-[#147d91]">{data.organization.name} · {data.organization.role.replace("_"," ")}</p>}
       </section>
 
+      {data?.telemetryStatus&&<p className="rounded-xl border bg-white p-3 text-xs text-slate-600">{data.telemetryStatus}</p>}
       {error&&<Card><CardHeader><CardTitle>Teacher access is not yet available</CardTitle><CardDescription>{error}</CardDescription></CardHeader><CardContent><p className="mb-3 text-sm text-slate-600">Ask the school administrator to issue you a teacher login or to add your existing account to the school and assign students.</p><Button asChild variant="outline"><Link href="/school-seats">Join a school workspace</Link></Button></CardContent></Card>}
       {loading&&!data?<Card><CardContent className="flex items-center gap-2 p-6"><Loader2 className="animate-spin"/>Loading linked student progress…</CardContent></Card>:data?<>
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -92,7 +95,7 @@ export default function TeacherDashboardPage() {
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.45fr_.9fr]">
-          <Card><CardHeader><div className="flex flex-wrap justify-between gap-3"><div><CardTitle className="font-serif text-2xl">Assigned students</CardTitle><CardDescription>Only accounts linked to you by your school admin.</CardDescription></div><Button variant="outline" disabled={!students.length} onClick={exportCsv}>Export summary CSV</Button></div></CardHeader>
+          <Card><CardHeader><div className="flex flex-wrap justify-between gap-3"><div><CardTitle className="font-serif text-2xl">School learner accounts</CardTitle><CardDescription>{data.organization.role==="teacher"?"Only students explicitly linked to this teacher account.":"School owner and administrator: students with active school seats."}</CardDescription></div><Button variant="outline" disabled={!students.length} onClick={exportCsv}>Export summary CSV</Button></div></CardHeader>
             <CardContent className="space-y-3">
               <label className="relative block"><Search className="absolute left-3 top-3 size-4 text-slate-400"/><input className="h-10 w-full rounded-lg border bg-white pl-9 pr-3 text-sm" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by student, course or university" /></label>
               <div className="overflow-x-auto"><table className="w-full min-w-[670px] text-left text-sm">
@@ -112,8 +115,8 @@ export default function TeacherDashboardPage() {
           <Card><CardHeader><CardTitle className="font-serif text-2xl">Student progress detail</CardTitle><CardDescription>Choose a student from the list.</CardDescription></CardHeader><CardContent>{selected?<div className="space-y-5">
             <div><h2 className="text-xl font-bold">{selected.displayName}</h2><p className="text-sm text-slate-500">{selected.targetUniversity||"University not selected"} · {selected.targetCourse||"Course not set"} {selected.applicationYear?(`· ${selected.applicationYear}`):""}</p></div>
             <div className="rounded-2xl bg-[#edf7f8] p-4"><p className="text-xs font-bold uppercase tracking-wide text-[#234754]">Preparation score</p><p className="mt-2 font-serif text-3xl font-bold">{selected.preparationScore===null?"No baseline yet":selected.preparationScore+"%"}</p>{selected.preparationScore!==null&&<Progress className="mt-3" value={selected.preparationScore}/>}</div>
-            <div className="space-y-2 text-sm"><p><strong>Current priority:</strong> {selected.currentPriority?.label||"Building a baseline"}</p><p><strong>Strongest area:</strong> {selected.strongestArea?.label||"Not enough evidence yet"}</p><p><strong>Interviews:</strong> {selected.interviewCount}</p><p><strong>Practice tests completed:</strong> {selected.testsCompleted}</p><p><strong>Average test accuracy:</strong> {selected.averageTestAccuracy===null?"No recorded tests":selected.averageTestAccuracy+"%"}</p><p><strong>Full papers:</strong> {selected.fullPaperCount}</p><p><strong>Essays:</strong> {selected.essayCount}</p><p><strong>School assignments:</strong> {selected.assignmentCompleted} of {selected.assignmentTotal} complete</p><p><strong>Last recorded activity:</strong> {lastActive(selected.lastActiveAt)}</p></div>
-            <p className="text-xs leading-5 text-slate-500">Scores are practice indicators, not university admissions predictions. Activity depends on saved account evidence.</p>
+            <div className="space-y-2 text-sm"><p><strong>Current priority:</strong> {selected.currentPriority?.label||"Building a baseline"}</p><p><strong>Strongest area:</strong> {selected.strongestArea?.label||"Not enough evidence yet"}</p><p><strong>Interviews:</strong> {selected.interviewCount}</p><p><strong>Practice tests completed:</strong> {selected.testsCompleted}</p><p><strong>Average test accuracy:</strong> {selected.averageTestAccuracy===null?"No recorded tests":selected.averageTestAccuracy+"%"}</p><p><strong>Full papers:</strong> {selected.fullPaperCount}</p><p><strong>Essays:</strong> {selected.essayCount}</p><p><strong>School assignments:</strong> {selected.assignmentCompleted} of {selected.assignmentTotal} complete</p><p><strong>Last recorded activity:</strong> {lastActive(selected.lastActiveAt)}</p><p><strong>Instrumented activity:</strong> {activeDuration(selected.recordedActiveSeconds||0)} across {selected.usageSessions||0} sessions</p></div><Button asChild className="w-full"><Link href={"/teacher-student-progress?studentId="+encodeURIComponent(selected.userId)}><BookOpenCheck/>View saved tests, transcripts & activity</Link></Button>
+            <p className="text-xs leading-5 text-slate-500">Scores are practice indicators, not university admissions predictions. Activity depends on account-linked saved records. Time estimates cannot verify focused study.</p>
           </div>:<p className="text-sm text-slate-500">Assign students to begin tracking.</p>}</CardContent></Card>
         </section>
       </>:null}
