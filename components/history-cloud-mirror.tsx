@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { PROGRESS_KEY } from "@/lib/personal-tutor"
 
-type Log = { id?: unknown; title?: unknown; date?: unknown; events?: unknown; score?: unknown; dimensions?: unknown; feedbackReport?: unknown; mockSession?: unknown }
+type Log = { id?: unknown; title?: unknown; date?: unknown; events?: unknown; score?: unknown; dimensions?: unknown; feedbackReport?: unknown; mockSession?: unknown; durationSeconds?: unknown }
 type TestResult = { id?: unknown; test?: unknown; form?: unknown; title?: unknown; date?: unknown; rawScore?: unknown; maxRawMarks?: unknown; totalQuestions?: unknown; accuracy?: unknown; durationSeconds?: unknown; [key: string]: unknown }
 
 type Turn = { role: "candidate" | "interviewer"; content: string; feedback: string | null }
@@ -83,7 +83,7 @@ export function HistoryCloudMirror() {
           const course = title.includes("·") ? title.split("·").slice(1).join("·").trim() || "General" : "General"
           const mock = record(log.mockSession)
           const feedback = { source: "history_cloud_mirror", title, score: typeof log.score === "number" ? log.score : null, dimensions: record(log.dimensions), feedbackReport: record(log.feedbackReport), mockSession: mock }
-          const savedDuration = Math.max(0, Math.min(7200, integer(mock.elapsedSeconds, duration(events))))
+          const savedDuration = Math.max(0, Math.min(7200, optionalInteger(log.durationSeconds) ?? optionalInteger(mock.elapsedSeconds) ?? duration(events)))
           const existing = await supabase.from("interview_sessions").select("id").eq("user_id", userId).eq("source_ref", sourceRef).maybeSingle()
           if (existing.error) throw existing.error
           let sessionId = existing.data?.id as string | undefined
