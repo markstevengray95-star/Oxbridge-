@@ -37,7 +37,7 @@ export function OrbitsTelemetry() {
           action,
           app: "fellow",
           session_key: sessionKey(),
-          page_path: location.pathname + location.search,
+          page_path: pathname,
           device_class: deviceClass(),
         },
       }).catch(() => {});
