@@ -3,7 +3,7 @@ import { OrbitsTelemetry } from "@/components/orbits-telemetry";
 import { LearningActivityTracker } from "@/components/learning-activity-tracker";
 import Link from "next/link";
 import { GlobalFocusNav } from "@/components/global-focus-nav";
-import { CommandPalette } from "@/components/command-palette";
+import { NavigationAccessProvider } from "@/components/navigation-access-provider";
 import { CloudProgressSync } from "@/components/cloud-progress-sync";
 import { AccountDataMirror } from "@/components/account-data-mirror";
 import { HistoryCloudMirror } from "@/components/history-cloud-mirror";
@@ -62,9 +62,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <CloudProgressSync />
         <AccountDataMirror />
         <HistoryCloudMirror />
-        <GlobalFocusNav />
-        {children}
-        <CommandPalette />
+        <NavigationAccessProvider>
+          <GlobalFocusNav />
+          {children}
+        </NavigationAccessProvider>
         <PrivacyConsentBanner />
         <footer className="border-t bg-white px-4 py-6 text-sm text-slate-600">
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left">
