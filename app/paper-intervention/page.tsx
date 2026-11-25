@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Target, TrendingUp, X }
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { phase12QuestionBank } from "@/lib/phase12-authored-bank"
 import { reliableFullPaperQuestionBank } from "@/lib/full-paper-reliable-bank"
 import { chooseFreshRetest, type SeenQuestion } from "@/lib/exam-session-quality"
 import { prepareQuestionSet } from "@/lib/question-quality"
@@ -49,7 +50,7 @@ export default function PaperInterventionPage() {
   const retest = useMemo(() => {
     if (!latest) return []
     const seen = [...(progress.fullPaperResults ?? []).filter(p => p.test === latest.test).flatMap(p => p.questionReview ?? []), ...(progress.interventionResults ?? []).filter(p => p.test === latest.test).flatMap(p => p.questionReview ?? [])]
-    return prepareQuestionSet(chooseFreshRetest(reliableFullPaperQuestionBank, latest.test, targets.map(t=>t.section), seen, 12), 104729 + retakeVersion)
+    return prepareQuestionSet(chooseFreshRetest([...phase12QuestionBank, ...reliableFullPaperQuestionBank], latest.test, targets.map(t=>t.section), seen, 12), 104729 + retakeVersion)
   }, [latest, progress, targets, retakeVersion])
   const retestOrdered = activeRetest ?? retest
   const correct = checked ? retestOrdered.filter(question => answers[question.id] === question.answer).length : 0
