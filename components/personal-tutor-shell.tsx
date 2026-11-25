@@ -36,6 +36,7 @@ export function PersonalTutorShell() {
         </div>
       </nav>
 
+      <section className="mx-auto max-w-7xl px-4 pt-5 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4"><div><p className="font-semibold text-[#102a43]">Academic assessment report</p><p className="mt-1 text-sm text-slate-600">Compare saved reasoning evidence, recurring missed items and delayed coaching checks.</p></div><Link href="/assessment-report" className="rounded-xl bg-[#102a43] px-4 py-2 text-sm font-semibold text-white">View private report</Link></div></section>
       <AcademicCoach />
       <TutorEvidenceQuality />
       <div id="tutor-insight" className="scroll-mt-28"><TutorDeepInsightLoader /></div>
