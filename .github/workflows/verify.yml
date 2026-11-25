@@ -144,6 +144,9 @@ jobs:
       - name: Essay AI availability regression checks
         run: node tests/essay-ai-availability.cjs
 
+      - name: Phase 12 exam session and reserve checks
+        run: npm run test:exam-session-quality
+
       - name: Full paper uniqueness checks
         run: node tests/full-paper-uniqueness.mjs
 
