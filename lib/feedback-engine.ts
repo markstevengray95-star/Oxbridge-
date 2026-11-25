@@ -56,8 +56,11 @@ export type PaperSectionResult = {
   id: string
   title: string
   kind: "mcq" | "essay"
-  correct: number
-  total: number
+  correct?: number
+  total?: number
+  rawMark?: number
+  maxMarks?: number
+  questionCount?: number
   answered: number
   accuracy: number
   words?: number
@@ -83,7 +86,7 @@ const sectionStrategies: Array<[RegExp, string[], string[]]> = [
 
 export function buildInterventionTargets(sections: PaperSectionResult[]): InterventionTarget[] {
   return sections
-    .filter(section => section.kind === "mcq" && section.total > 0)
+    .filter(section => section.kind === "mcq" && (section.maxMarks ?? section.questionCount ?? section.total ?? 0) > 0 && Number.isFinite(section.accuracy))
     .sort((a, b) => a.accuracy - b.accuracy)
     .slice(0, 3)
     .map(section => {
@@ -95,7 +98,7 @@ export function buildInterventionTargets(sections: PaperSectionResult[]): Interv
         section: section.title,
         accuracy: section.accuracy,
         priority,
-        diagnosis: section.accuracy < 55 ? "This section is currently limiting the overall paper most strongly." : section.accuracy < 75 ? "This section is developing but is not yet consistently secure under full-paper conditions." : "This is comparatively secure; use the retest to confirm it remains stable.",
+        diagnosis: section.accuracy < 55 ? "This section is currently limiting the overall paper most strongly." : section.accuracy < 75 ? "This section is developing but is not yet consistently secure under full-paper conditions." : "This section has higher raw practice accuracy; use fresh questions to check retention.",
         teach,
         drill,
         successCriterion: priority === "high" ? "Reach at least 70% on the fresh retest." : "Reach at least 80% on the fresh retest.",
