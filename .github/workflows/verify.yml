@@ -99,6 +99,9 @@ jobs:
       - name: Phase five subject-specific interview checks
         run: npm run test:interview-subjects
 
+      - name: Phase six interactive academic evidence checks
+        run: npm run test:interview-evidence
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 

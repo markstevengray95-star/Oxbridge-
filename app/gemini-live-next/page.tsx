@@ -25,6 +25,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import { subjectInterviewPathway, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
+import { InterviewEvidencePanel } from "@/components/interview-evidence-panel"
+import { evidenceChallengeForCourse, evidenceContext , canRevealNextEvidence, nextEvidenceStage } from "@/lib/interview-evidence-challenges"
 import {
   buildLiveResumePrompt,
   canSendLiveAudio,
@@ -195,6 +197,9 @@ export default function GeminiLiveNextPage() {
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [voice, setVoice] = useState<GeminiVoice>("Gacrux")
   const [panelMode, setPanelMode] = useState(false)
+  const [evidenceEnabled, setEvidenceEnabled] = useState(false)
+  const [evidenceStage, setEvidenceStage] = useState(-1)
+  const [evidenceLastAnswerCount, setEvidenceLastAnswerCount] = useState(0)
   const [voicePace, setVoicePace] = useState<InterviewVoicePace>("thoughtful")
   const [allowBargeIn, setAllowBargeIn] = useState(true)
   const [muted, setMuted] = useState(false)
@@ -282,6 +287,8 @@ export default function GeminiLiveNextPage() {
   useEffect(() => () => teardown(false), [])
 
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
+  const evidenceChallenge = evidenceEnabled ? evidenceChallengeForCourse(course, track) : null
+  const candidateTurnCount = turns.filter(turn => turn.role === "candidate").length
   const coursePathway = subjectInterviewPathway(course, track)
 
   function syncTurns(next: Turn[]) {
@@ -419,13 +426,31 @@ export default function GeminiLiveNextPage() {
     silent.connect(context.destination)
   }
 
+  function revealEvidence() {
+    const ws=wsRef.current
+    const candidateCount=turnsRef.current.filter(turn=>turn.role==="candidate").length
+    if(!evidenceChallenge||!ws||ws.readyState!==WebSocket.OPEN||endingRef.current||!canRevealNextEvidence(evidenceStage,candidateCount,evidenceLastAnswerCount))return
+    const nextState=nextEvidenceStage(evidenceChallenge,evidenceStage,candidateCount,evidenceLastAnswerCount)
+    if(!nextState)return
+    const next=nextState.index
+    const exhibit=nextState.stage
+    const current=evidenceContext({challengeId:evidenceChallenge.id,stage:next})
+    if(!current)return
+    setEvidenceStage(next)
+    setEvidenceLastAnswerCount(candidateCount)
+    stopOutput()
+    addTurn("system",`New evidence released: ${exhibit.change}. ${exhibit.material.title}`)
+    setNotice("New evidence shown. The interviewer will now ask how it changes your reasoning.")
+    ws.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:"The student has chosen to view a new academic exhibit in the interview. This is original fictional practice evidence, not their spoken answer. Only these exhibits have been shown:\n"+current.material+"\nAsk this next academic question verbatim, without revealing the answer: "+exhibit.question}]}],turnComplete:true}}))
+  }
+
   function sendOpening(ws: WebSocket) {
     openingRef.current = true
     const materialHint = interviewContext.material
       ? " Start with the unseen or supercurricular material supplied in your system instructions."
       : ""
     const prompt = resumeRef.current
-      ? buildLiveResumePrompt(course, turnsRef.current)
+      ? buildLiveResumePrompt(course, turnsRef.current) + (evidenceChallenge && evidenceStage>=0 ? "\n\nCurrent interactive evidence already shown to the student:\n" + (evidenceContext({challengeId:evidenceChallenge.id,stage:evidenceStage})?.material || "") : "")
       : interviewContext.material
         ? `Begin the formal ${course} practice interview now.${materialHint} Ask one challenging but accessible question grounded in the supplied material.`
         : `Begin the formal ${course} practice interview now. Give a brief natural greeting, then ask this opening academic problem without answering it: ${subjectInterviewStarter(course, track).prompt}`
@@ -604,7 +629,7 @@ export default function GeminiLiveNextPage() {
     setPhase("connecting")
     setStatus("connecting")
     setNotice("")
-    if (!restore) syncTurns([])
+    if (!restore) { syncTurns([]);setEvidenceStage(-1);setEvidenceLastAnswerCount(0) }
     setCandidateLive("")
     setInterviewerLive("")
     if (!restore) setSeconds(0)
@@ -1016,6 +1041,7 @@ export default function GeminiLiveNextPage() {
               </button>
 
               {interviewContext.material && <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-4"><strong>Interview context loaded: {interviewContext.title || "unseen material"}</strong><p className="mt-1 text-sm text-blue-900">The interviewer will use the material and your preparation notes.</p></div>}
+              <button type="button" onClick={() => setEvidenceEnabled(value => !value)} className="sm:col-span-2 rounded-xl border bg-white p-3 text-left text-sm"><strong>{evidenceEnabled ? "Interactive evidence on" : "Add interactive unseen evidence"}</strong><p className="mt-1 text-xs text-slate-500">Reveal charts, data and changed conditions between spoken answers.</p></button>
               {retestFocus && <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4"><strong>Delayed oral retest due</strong><p className="mt-1 text-sm text-amber-900">The same reasoning habit will return through a fresh problem without revealing the target first.</p></div>}
               {notice && <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div>}
               {phase === "reconnect" && <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">Your interview transcript is still here. Resuming creates a fresh secure voice connection and recaps the academic discussion; you do not need to start over.</div>}
@@ -1085,6 +1111,7 @@ export default function GeminiLiveNextPage() {
       </section>
 
       <aside className="space-y-4">
+        {evidenceChallenge ? <InterviewEvidencePanel challenge={evidenceChallenge} stageIndex={evidenceStage} canReveal={canRevealNextEvidence(evidenceStage,candidateTurnCount,evidenceLastAnswerCount)} onReveal={revealEvidence} disabled={phase!=="live"}/> : null}
         <Card className="shadow-none">
           <CardHeader><div className="flex items-center justify-between gap-3"><div><Camera className="size-5 text-[#147d91]" /><CardTitle className="mt-2 font-serif text-xl">Show your working</CardTitle></div><Button size="sm" variant="outline" onClick={() => void toggleCamera()}>{cameraOn ? <CameraOff /> : <Camera />}{cameraOn ? "Stop" : "Camera"}</Button></div><CardDescription>No continuous video is uploaded. A still image is captured only when you press Analyse working.</CardDescription></CardHeader>
           <CardContent className="space-y-3"><div className="aspect-video overflow-hidden rounded-xl border bg-slate-950"><video ref={videoRef} className="h-full w-full object-cover" muted playsInline /></div><Button className="w-full" onClick={() => void analyseCameraWorking()} disabled={!cameraOn || cameraAnalysing}>{cameraAnalysing ? <Loader2 className="animate-spin" /> : <ScanSearch />}{cameraAnalysing ? "Analysing…" : "Analyse working"}</Button>{workingAnalysis && <details className="rounded-xl bg-slate-50 p-3" open><summary className="cursor-pointer text-sm font-semibold">Latest working analysis</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">{workingAnalysis}</p></details>}</CardContent>

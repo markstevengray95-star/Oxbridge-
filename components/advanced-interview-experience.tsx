@@ -10,6 +10,8 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { InterviewWhiteboard } from "@/components/interview-whiteboard"
+import { InterviewEvidencePanel } from "@/components/interview-evidence-panel"
+import { evidenceChallengeForCourse , canRevealNextEvidence, nextEvidenceStage } from "@/lib/interview-evidence-challenges"
 import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
 import { markTypedInterviewTranscript, type InterviewMarkingResult } from "@/lib/interview-marking"
 import type { InterviewMoveKind, InterviewReveal, InterviewWhiteboardTask } from "@/lib/interview-questioning-engine"
@@ -97,6 +99,9 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   const [useApplicationLaunch, setUseApplicationLaunch] = useState(true)
   const [applicationContext, setApplicationContext] = useState<ApplicationInterviewContext | null>(null)
   const [seed, setSeed] = useState(0)
+  const [evidenceEnabled, setEvidenceEnabled] = useState(false)
+  const [evidenceStage, setEvidenceStage] = useState(-1)
+  const [evidenceLastAnswerCount, setEvidenceLastAnswerCount] = useState(0)
   const [subjectFocused, setSubjectFocused] = useState(true)
   const [turns, setTurns] = useState<Turn[]>([])
   const [moveHistory, setMoveHistory] = useState<InterviewMoveKind[]>([])
@@ -145,6 +150,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const courseProfile = useMemo(() => courseInterviewProfile(course, track), [course, track])
   const applicationLaunch = useMemo(() => applicationLaunchQuestion(applicationContext ?? undefined, course), [applicationContext, course])
+  const evidenceChallenge = evidenceEnabled ? evidenceChallengeForCourse(course, track) : null
   const candidateTurns = turns.filter(turn => turn.role === "candidate").length
   const recovery = recoverySignal(turns.filter(turn => turn.role === "candidate").map(turn => turn.quality || ""))
   const sessionProgress = Math.min(100, candidateTurns * 11)
@@ -191,6 +197,8 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
 
   function startInterview() {
     if (!base) return
+    setEvidenceStage(-1)
+    setEvidenceLastAnswerCount(0)
     const initial = useApplicationLaunch && applicationLaunch ? applicationLaunch.prompt : base.prompt
     const opener = panelMode ? `${persona.opening} You will meet two academics who will approach the same problem differently.` : persona.opening
     const first: Turn[] = [
@@ -212,6 +220,21 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     setRunning(true)
     setPhase("live")
     speak(`${opener} ${initial}`)
+  }
+
+  function revealEvidence() {
+    if (!evidenceChallenge || thinking || !canRevealNextEvidence(evidenceStage,candidateTurns,evidenceLastAnswerCount)) return
+    const nextState=nextEvidenceStage(evidenceChallenge,evidenceStage,candidateTurns,evidenceLastAnswerCount)
+    if(!nextState)return
+    const next=nextState.index
+    const stage=nextState.stage
+    setEvidenceStage(next)
+    setEvidenceLastAnswerCount(candidateTurns)
+    setTurns(current => [...current, {role:"interviewer",speaker:"Interviewer",text:stage.question}])
+    setQuestion(stage.question)
+    setAnswer("")
+    setNotice("New evidence: " + stage.change + ". Reconsider your earlier explanation before responding.")
+    speak(stage.question)
   }
 
   async function submitTurn() {
@@ -246,19 +269,21 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
           question,
           openingProblem: useApplicationLaunch && applicationLaunch ? applicationLaunch.prompt : base.prompt,
           memory: sessionMemory,
-          questionId: useApplicationLaunch && applicationLaunch ? undefined : base.id,
+          questionId: evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) ? undefined : base.id,
           answer: candidate,
-          concepts: base.concepts,
+          concepts: evidenceStage>=0 ? [] : base.concepts,
           probes: extraProbes,
           moveHistory,
           adaptiveLevel,
-          referenceAnswer: useApplicationLaunch && applicationLaunch || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer,
+          referenceAnswer: evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer,
           stimulus: useApplicationLaunch && applicationLaunch ? applicationLaunch.excerpt : base.stimulus,
           turns: history,
           panelMode,
           interviewerRole: `${panel.label}: ${panel.role}`,
           otherInterviewer: panel.colleague,
           delivery: "natural",
+          evidence: evidenceChallenge && evidenceStage>=0 ? {challengeId:evidenceChallenge.id,stage:evidenceStage} : undefined,
+          workingEvidence: scratch.trim().slice(0,1400),
         }),
       })
       if (!response.ok) throw new Error("interview-turn")
@@ -299,7 +324,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
     stopListening()
     const finalTurns = answer.trim() ? [...turns, { role: "candidate" as const, text: answer.trim() }] : turns
     if (!finalTurns.some(turn => turn.role === "candidate")) return
-    const scored = markTypedInterviewTranscript({ turns: finalTurns, concepts: base.concepts, referenceAnswer: useApplicationLaunch && applicationLaunch || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer })
+    const scored = markTypedInterviewTranscript({ turns: finalTurns, concepts: base.concepts, referenceAnswer: evidenceStage>=0 || (useApplicationLaunch && applicationLaunch) || (subjectFocused && seed % 2 === 0 && pathway.isOpenEnded) ? undefined : base.strongAnswer })
     const finalRecovery = recoverySignal(finalTurns.filter(turn => turn.role === "candidate").map(turn => turn.quality || ""))
     setTurns(finalTurns)
     setResult(scored)
@@ -387,6 +412,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
               <label className="space-y-1.5 sm:col-span-2"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interviewer style</span><NativeSelect value={personaKey} onChange={event => setPersonaKey(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
             </div>
             <p className="mt-4 rounded-xl bg-[#edf7f8] p-3 text-sm text-[#102a43]"><strong>{pathway.label} pathway.</strong> Focus: {pathway.reasoningFocus.join(", ")}. {subjectFocused ? "The opening alternates between a course-specific scenario and wider subject challenges." : "Using the wider question bank."}</p>
+            <button type="button" className="mt-4 rounded-xl border bg-white px-4 py-3 text-sm" onClick={() => setEvidenceEnabled(current => !current)}>{evidenceEnabled ? "Interactive evidence enabled · click to disable" : "Add interactive graphs, unseen sources and changed scenarios"}</button>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={() => { setSubjectFocused(value => !value); setSeed(0) }} className={`rounded-2xl border p-4 text-left ${subjectFocused ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><div className="font-semibold">Course-specific pathway</div><p className="mt-1 text-xs leading-5 text-slate-500">{subjectFocused ? "On · starts with your course and uses specialised academic probes" : "Off · wider subject question bank"}</p></button>
               <button type="button" onClick={() => setPanelMode(value => !value)} className={`rounded-2xl border p-4 text-left ${panelMode ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><div className="flex items-center gap-2 font-semibold"><Users className="size-4" />Two-interviewer panel</div><p className="mt-1 text-xs leading-5 text-slate-500">{courseProfile.interviewerA} + {courseProfile.interviewerB}</p></button>
@@ -414,11 +440,12 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]"><div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><Button variant="ghost" onClick={reset}><ArrowLeft />Exit interview</Button><div className="flex items-center gap-2"><Badge variant="outline"><Clock3 className="mr-1 size-3.5" />{formatTime(seconds)}</Badge><Badge className="bg-[#102a43] text-white">{course}</Badge><Badge variant="outline">{deepChainStage(candidateTurns)}</Badge></div></div>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]"><Card className="min-h-[680px] border-[#dbe5e7]"><CardHeader><CardTitle className="font-serif text-2xl">Academic interview</CardTitle><CardDescription>Stay with the problem. Think aloud, revise when needed, and use the interviewer’s challenge as new information rather than as a verdict.</CardDescription><Progress value={sessionProgress} className="mt-2" /></CardHeader><CardContent className="space-y-4">
+      {evidenceChallenge ? <InterviewEvidencePanel challenge={evidenceChallenge} stageIndex={evidenceStage} canReveal={canRevealNextEvidence(evidenceStage,candidateTurns,evidenceLastAnswerCount)} onReveal={revealEvidence} disabled={thinking} /> : null}
       {base?.stimulus && !(applicationLaunch && useApplicationLaunch) ? <div className="rounded-2xl border border-[#cfe1e4] bg-[#edf7f8] p-4"><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Stimulus</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{base.stimulus}</p></div> : null}
       <div className="max-h-[430px] space-y-3 overflow-y-auto rounded-2xl bg-[#f8fafb] p-4">{turns.map((turn, index) => { const styles = turn.reveal ? revealClasses(turn.reveal.kind) : null; return <div key={`${turn.role}-${index}`} className={`rounded-2xl p-4 ${turn.role === "candidate" ? "ml-auto max-w-[92%] bg-[#102a43] text-white" : "bg-white shadow-sm"}`}><div className="flex items-center justify-between gap-2"><p className={`text-[11px] font-bold uppercase tracking-wider ${turn.role === "candidate" ? "text-[#8dd7de]" : "text-[#147d91]"}`}>{turn.role === "candidate" ? "You" : turn.speaker || "Interviewer"}</p>{turn.role === "candidate" && turn.quality ? <span className="text-[10px] font-semibold text-white/65">{qualityLabel(turn.quality)}</span> : null}</div>{turn.reveal && styles ? <div className={`mt-2 rounded-xl border p-3 ${styles.box}`}><p className={`text-[10px] font-bold uppercase tracking-[.14em] ${styles.label}`}>{turn.reveal.title}</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-800">{turn.reveal.content}</p></div> : null}<p className="mt-2 whitespace-pre-wrap text-sm leading-6">{turn.text}</p></div>})}{thinking ? <div className="flex items-center gap-2 rounded-xl bg-white p-3 text-sm text-slate-500"><Loader2 className="size-4 animate-spin" />The panel is deciding how to develop the same line of reasoning…</div> : null}</div>
       {notice ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div> : null}
       <Textarea value={answer} onChange={event => setAnswer(event.target.value)} rows={6} placeholder="Type what you would say aloud. Concise reasoning is fine; this is not an essay." />
       <div className="flex flex-wrap items-center justify-between gap-3"><Button variant="outline" onClick={listening ? stopListening : startListening}>{listening ? <MicOff /> : <Mic />}{listening ? "Stop" : "Dictate"}</Button><div className="flex gap-2"><Button variant="outline" onClick={finishInterview} disabled={!turns.some(turn => turn.role === "candidate") && !answer.trim()}>Finish & mark</Button><Button onClick={submitTurn} disabled={!answer.trim() || thinking}>{thinking ? <Loader2 className="animate-spin" /> : <Brain />}{thinking ? "Thinking…" : "Answer"}</Button></div></div>
-    </CardContent></Card><aside className="space-y-4"><Card><CardHeader><CardTitle className="text-lg">Your working</CardTitle><CardDescription>Private scratchpad; not marked for polish.</CardDescription></CardHeader><CardContent><Textarea value={scratch} onChange={event => setScratch(event.target.value)} rows={7} placeholder="Calculations, structure, possible counterexamples…" /></CardContent></Card>{whiteboardTask ? <InterviewWhiteboard task={whiteboardTask} onUsed={() => setWhiteboardUsed(true)} /> : null}<Card className="border-[#cfe1e4] bg-[#edf7f8]"><CardHeader><Users className="size-5 text-[#147d91]" /><CardTitle className="text-lg">{panelMode ? "Two-academic panel" : "Course-specific interviewer"}</CardTitle><CardDescription>{courseProfile.family}</CardDescription></CardHeader><CardContent className="space-y-2 text-sm leading-6 text-[#526a75]"><p>• The same core problem is developed over multiple turns.</p><p>• Interviewer A: {courseProfile.interviewerA}.</p><p>• Interviewer B: {courseProfile.interviewerB}.</p><p>• Recovery after a mistake is tracked as positive evidence.</p></CardContent></Card></aside></div>
+    </CardContent></Card><aside className="space-y-4"><Card><CardHeader><CardTitle className="text-lg">Your working</CardTitle><CardDescription>Private scratchpad; not marked for polish.</CardDescription></CardHeader><CardContent><Textarea value={scratch} onChange={event => setScratch(event.target.value)} rows={7} placeholder="Calculations, structure, possible counterexamples…" /></CardContent></Card>{whiteboardTask || evidenceStage>=0 ? <InterviewWhiteboard key={evidenceStage} task={whiteboardTask??{title:"Working with revealed evidence",prompt:"Sketch a graph, diagram, source comparison or changed condition. Describe decisive working in the scratchpad so the interviewer can consider it.",mode:track==="maths"?"working":track==="physical"?"diagram":track==="economics"?"graph":"argument-map"}} onUsed={() => setWhiteboardUsed(true)} /> : null}<Card className="border-[#cfe1e4] bg-[#edf7f8]"><CardHeader><Users className="size-5 text-[#147d91]" /><CardTitle className="text-lg">{panelMode ? "Two-academic panel" : "Course-specific interviewer"}</CardTitle><CardDescription>{courseProfile.family}</CardDescription></CardHeader><CardContent className="space-y-2 text-sm leading-6 text-[#526a75]"><p>• The same core problem is developed over multiple turns.</p><p>• Interviewer A: {courseProfile.interviewerA}.</p><p>• Interviewer B: {courseProfile.interviewerB}.</p><p>• Recovery after a mistake is tracked as positive evidence.</p></CardContent></Card></aside></div>
   </div></main>
 }
