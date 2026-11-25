@@ -42,6 +42,7 @@ type Draft = {
   essayPrompts: Record<string, string>
   timeLeft: number
   deadlineMs?: number
+  questionSeconds?: Record<string, number>
   stage: "exam" | "break"
   startedAt: number
   savedAt: number
@@ -108,6 +109,7 @@ export default function FullPaperCentre() {
   const [essayPrompts, setEssayPrompts] = useState<Record<string, string>>({})
   const [timeLeft, setTimeLeft] = useState(0)
   const [deadlineMs, setDeadlineMs] = useState(0)
+  const [questionSeconds, setQuestionSeconds] = useState<Record<string, number>>({})
   const deadlineRef = useRef(0)
   const examOpenRef = useRef(false)
   function openClock(deadline: number) { deadlineRef.current = deadline; examOpenRef.current = true; setDeadlineMs(deadline); setTimeLeft(remainingExamSeconds(deadline, Date.now())) }
@@ -134,6 +136,24 @@ export default function FullPaperCentre() {
 
   useEffect(() => setSavedDraft(readDraft()), [])
 
+  // Approximate visible question dwell time, not a measure of attention or ability.
+  useEffect(() => {
+    if (stage !== "exam" || !question?.id) return
+    const id = question.id
+    let previous = Date.now()
+    let visible = document.visibilityState === "visible"
+    function sample() {
+      const now = Date.now()
+      const elapsed = visible ? Math.max(0, Math.min(2000, Math.min(now, deadlineMs) - previous)) / 1000 : 0
+      previous = now
+      visible = document.visibilityState === "visible"
+      if (elapsed > 0) setQuestionSeconds(old => ({ ...old, [id]: (old[id] ?? 0) + elapsed }))
+    }
+    const timer = window.setInterval(sample, 1000)
+    document.addEventListener("visibilitychange", sample)
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", sample) }
+  }, [stage, question?.id, deadlineMs])
+
   useEffect(() => {
     if (stage !== "exam" || !deadlineMs) return
     function tick() {
@@ -158,11 +178,11 @@ export default function FullPaperCentre() {
     if (stage !== "exam" && stage !== "break") return
     const draft: Draft = {
       test, form, esatExtras, sectionIndex, questionIndex, answers, flags,
-      essayResponses, essayPrompts, timeLeft: stage === "exam" ? remainingExamSeconds(deadlineMs, Date.now()) : timeLeft, deadlineMs, stage, startedAt, savedAt: Date.now(),
+      essayResponses, essayPrompts, questionSeconds, timeLeft: stage === "exam" ? remainingExamSeconds(deadlineMs, Date.now()) : timeLeft, deadlineMs, stage, startedAt, savedAt: Date.now(),
     }
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) } catch { /* session remains usable */ }
     setSavedDraft(draft)
-  }, [stage, test, form, esatExtras, sectionIndex, questionIndex, answers, flags, essayResponses, essayPrompts, timeLeft, deadlineMs, startedAt])
+  }, [stage, test, form, esatExtras, sectionIndex, questionIndex, answers, flags, essayResponses, essayPrompts, timeLeft, deadlineMs, startedAt, questionSeconds])
 
   const scores = useMemo<SectionScore[]>(() => paper.sections.map(item => {
     if (item.kind === "essay") {
@@ -189,7 +209,7 @@ export default function FullPaperCentre() {
 
   function startPaper() {
     const fresh = buildFullPaper(test, form, ["Mathematics 1", ...esatExtras])
-    setSectionIndex(0); setQuestionIndex(0); setAnswers({}); setFlags([])
+    setSectionIndex(0); setQuestionIndex(0); setAnswers({}); setFlags([]); setQuestionSeconds({})
     setEssayResponses({}); setEssayPrompts({}); setStartedAt(Date.now())
     openClock(Date.now() + fresh.sections[0].durationMinutes * 60_000)
     savedResultRef.current = false
@@ -204,6 +224,7 @@ export default function FullPaperCentre() {
     if (extras[1]) setEsatExtra2(extras[1])
     setSectionIndex(savedDraft.sectionIndex); setQuestionIndex(savedDraft.questionIndex)
     setAnswers(savedDraft.answers); setFlags(savedDraft.flags)
+    setQuestionSeconds(savedDraft.questionSeconds ?? {})
     setEssayResponses(savedDraft.essayResponses); setEssayPrompts(savedDraft.essayPrompts)
     setStartedAt(savedDraft.startedAt || Date.now())
     if (savedDraft.stage === "exam") openClock(resumeExamDeadline(savedDraft, Date.now()))
@@ -265,6 +286,7 @@ export default function FullPaperCentre() {
         questionId: q.id,
         section: item.title,
         difficulty: q.difficulty,
+        seconds: Number.isFinite(questionSeconds[q.id]) ? Math.round(questionSeconds[q.id]) : null,
         prompt: q.prompt,
         responseType: q.responseType ?? "single",
         answer: answerSummary(q, answers[q.id]),
@@ -289,7 +311,7 @@ export default function FullPaperCentre() {
     } catch {
       // Results remain visible in-session if persistence is unavailable.
     }
-  }, [stage, paper, answers, totalRawMark, maxRawMarks, totalQuestionCount, totalAccuracy, scores, essayPrompts, essayResponses, startedAt])
+  }, [stage, paper, answers, totalRawMark, maxRawMarks, totalQuestionCount, totalAccuracy, scores, essayPrompts, essayResponses, startedAt, questionSeconds])
 
   function resetToSetup() {
     examOpenRef.current = false
@@ -306,7 +328,7 @@ export default function FullPaperCentre() {
 
         {savedDraft && <Card className="border-blue-200 bg-blue-50 shadow-none"><CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-bold">Saved paper found</p><p className="text-sm text-slate-600">{savedDraft.test} · Form {savedDraft.form} · section {savedDraft.sectionIndex + 1}.</p></div><Button onClick={resumePaper}><Save />Resume mock</Button></CardContent></Card>}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">{paperCatalog.map(item => <button key={item.test} onClick={() => setTest(item.test)} className={`rounded-2xl border p-5 text-left transition ${test === item.test ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "bg-white hover:border-slate-400"}`}><div className="flex items-center justify-between"><strong className="text-lg">{item.test}</strong><span className="text-xs font-bold text-slate-500">{item.totalMinutes} min</span></div><p className="mt-2 font-semibold">{item.title}</p><p className="mt-2 text-xs leading-relaxed text-slate-500">{item.structure}</p></button>)}</section>
+        <div className="rounded-xl border bg-white p-4 flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">New topic challenge practice</p><p className="text-sm text-slate-600">Original questions, worked explanations and topic-level progress for all five tests.</p></div><Button asChild variant="outline"><Link href="/admissions-challenges">Open topic challenges <ArrowRight/></Link></Button></div><section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">{paperCatalog.map(item => <button key={item.test} onClick={() => setTest(item.test)} className={`rounded-2xl border p-5 text-left transition ${test === item.test ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "bg-white hover:border-slate-400"}`}><div className="flex items-center justify-between"><strong className="text-lg">{item.test}</strong><span className="text-xs font-bold text-slate-500">{item.totalMinutes} min</span></div><p className="mt-2 font-semibold">{item.title}</p><p className="mt-2 text-xs leading-relaxed text-slate-500">{item.structure}</p></button>)}</section>
 
         <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Configure your mock</CardTitle><CardDescription>{paper.note}</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Test</span><NativeSelect value={test} onChange={event => setTest(event.target.value as FullPaperTest)}>{paperCatalog.map(item => <NativeSelectOption key={item.test}>{item.test}</NativeSelectOption>)}</NativeSelect></label><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Practice form</span><NativeSelect value={String(form)} onChange={event => setForm(Number(event.target.value) as PaperForm)}><NativeSelectOption value="1">Form 1</NativeSelectOption><NativeSelectOption value="2">Form 2</NativeSelectOption></NativeSelect></label>{test === "ESAT" && <><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Second module</span><NativeSelect value={esatExtra1} onChange={event => setEsatExtra1(event.target.value as EsatModule)}>{esatOptionalModules.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label><label><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Third module</span><NativeSelect value={esatExtra2} onChange={event => setEsatExtra2(event.target.value as EsatModule)}>{esatOptionalModules.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label></>}<div className="md:col-span-2 lg:col-span-4"><div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{paper.sections.map(item => <div key={item.id} className="rounded-xl border bg-slate-50 p-4"><p className="font-semibold">{item.title}</p><p className="mt-1 text-sm text-slate-500">{item.kind === "mcq" ? `${item.questions.length} questions` : "Writing task"} · {item.durationMinutes} min</p></div>)}</div><Button size="lg" onClick={startPaper}><AlarmClock />Start {paper.title}</Button></div></CardContent></Card>
       </div>
@@ -327,9 +349,9 @@ export default function FullPaperCentre() {
 
       {paper.sections.some(item => item.kind === "essay") && <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Writing response</CardTitle></CardHeader><CardContent className="space-y-4">{paper.sections.filter(item => item.kind === "essay").map(item => <div key={item.id} className="rounded-xl border p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">{item.title}</p><p className="mt-2 font-semibold">{essayPrompts[item.id] || "No prompt selected"}</p><p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{essayResponses[item.id] || "No response submitted."}</p></div>)}</CardContent></Card>}
 
-      <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Error and partial-credit review</CardTitle><CardDescription>{reviewQuestions.length ? "Review every question that did not receive full raw marks." : "Every scored question received full raw marks."}</CardDescription></CardHeader><CardContent className="space-y-4">{reviewQuestions.map((item, index) => <div key={item.id} className="rounded-xl border p-4"><div className="flex flex-wrap gap-2"><Badge variant="outline">{item.sectionTitle}</Badge><Badge variant="outline">Review {index + 1}</Badge>{isYesNoStatementQuestion(item) && <Badge variant="outline">{questionRawMark(item, answers[item.id])}/{questionMaxMarks(item)} marks</Badge>}</div><p className="mt-3 whitespace-pre-line font-semibold">{item.prompt}</p>{isYesNoStatementQuestion(item) ? <div className="mt-3 space-y-2">{item.statements.map((statement, statementIndex) => { const actual = statementResponse(answers[item.id], statementIndex); const expected = statementAnswerLabel(item, statementIndex); return <div key={statementIndex} className="rounded-lg bg-slate-100 p-3 text-sm"><p className="font-medium">{statementIndex + 1}. {statement}</p><p className="mt-1 text-slate-600">Your answer: {actual === undefined ? "Unanswered" : actual ? "Yes" : "No"} · Correct: {expected}</p></div> })}<p className="text-sm text-slate-600">Correct statements: {countCorrectStatements(item, answers[item.id])}/5</p></div> : <div className="mt-3 grid gap-2 text-sm"><p><strong>Your answer:</strong> {answerSummary(item, answers[item.id])}</p><p><strong>Correct answer:</strong> {correctAnswerSummary(item)}</p></div>}<p className="mt-3 rounded-lg bg-slate-100 p-3 text-sm leading-relaxed"><strong>Why:</strong> {item.explanation}</p></div>)}</CardContent></Card>
+      <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Error and partial-credit review</CardTitle><CardDescription>{reviewQuestions.length ? "Review every question that did not receive full raw marks." : "Every scored question received full raw marks."}</CardDescription></CardHeader><CardContent className="space-y-4">{reviewQuestions.map((item, index) => <div key={item.id} className="rounded-xl border p-4"><div className="flex flex-wrap gap-2"><Badge variant="outline">{item.sectionTitle}</Badge><Badge variant="outline">Review {index + 1}</Badge>{Number.isFinite(questionSeconds[item.id]) && <Badge variant="outline">Approx. {Math.round(questionSeconds[item.id])}s visible</Badge>}{isYesNoStatementQuestion(item) && <Badge variant="outline">{questionRawMark(item, answers[item.id])}/{questionMaxMarks(item)} marks</Badge>}</div><p className="mt-3 whitespace-pre-line font-semibold">{item.prompt}</p>{isYesNoStatementQuestion(item) ? <div className="mt-3 space-y-2">{item.statements.map((statement, statementIndex) => { const actual = statementResponse(answers[item.id], statementIndex); const expected = statementAnswerLabel(item, statementIndex); return <div key={statementIndex} className="rounded-lg bg-slate-100 p-3 text-sm"><p className="font-medium">{statementIndex + 1}. {statement}</p><p className="mt-1 text-slate-600">Your answer: {actual === undefined ? "Unanswered" : actual ? "Yes" : "No"} · Correct: {expected}</p></div> })}<p className="text-sm text-slate-600">Correct statements: {countCorrectStatements(item, answers[item.id])}/5</p></div> : <div className="mt-3 grid gap-2 text-sm"><p><strong>Your answer:</strong> {answerSummary(item, answers[item.id])}</p><p><strong>Correct answer:</strong> {correctAnswerSummary(item)}</p></div>}<p className="mt-3 rounded-lg bg-slate-100 p-3 text-sm leading-relaxed"><strong>Why:</strong> {item.explanation}</p></div>)}</CardContent></Card>
 
-      <div className="flex flex-wrap gap-3"><Button onClick={resetToSetup}><RotateCcw />Choose another paper</Button><Button variant="outline" asChild><Link href="/test-results">View test history</Link></Button><Button variant="outline" asChild><Link href="/advanced-practice">Target weak sections</Link></Button></div>
+      <p className="text-sm text-slate-600">Question timing is approximate visible-tab dwell time; it excludes background periods and may miss brief visits. It is not used to judge ability.</p><div className="flex flex-wrap gap-3"><Button onClick={resetToSetup}><RotateCcw />Choose another paper</Button><Button variant="outline" asChild><Link href="/test-results">View test history</Link></Button><Button variant="outline" asChild><Link href="/advanced-practice">Target weak sections</Link></Button></div>
     </div></main>
   }
 
