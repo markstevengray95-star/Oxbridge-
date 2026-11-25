@@ -111,6 +111,9 @@ jobs:
       - name: Phase nine school tracking and account access checks
         run: npm run test:school-tracking
 
+      - name: Phase ten release safety and writing validation checks
+        run: npm run test:launch-readiness
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 
