@@ -1,10 +1,11 @@
 "use client"
 import Link from "next/link"
+import { CoachWrittenPractice } from "@/components/coach-written-practice"
 import { useEffect, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { coachPacks, skillLabels, type CoachAttempt } from "@/lib/academic-coach"
 
-type CoachData={attempts:CoachAttempt[];recommendation:{packId:string|null;reason:string;course:string|null}}
+type CoachData={attempts:CoachAttempt[];recommendation:{packId:string|null;reason:string;course:string|null;nextReviewAt:string|null};reviewSchedule:{packId:string;skill:keyof typeof skillLabels;dueAt:string;due:boolean}[]}
 const primary="rounded-xl bg-[#102a43] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
 const secondary="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-[#102a43] hover:bg-slate-50 disabled:opacity-40"
 
@@ -15,6 +16,7 @@ export function AcademicCoach(){
  const [transfer,setTransfer]=useState<number|null>(null)
  const [stage,setStage]=useState<"diagnose"|"learn"|"transfer"|"result">("diagnose")
  const [result,setResult]=useState<CoachAttempt|null>(null)
+ const [writtenPack,setWrittenPack]=useState<string|null>(null)
  const [busy,setBusy]=useState(false)
  const [error,setError]=useState("")
  const generation=useRef(0)
@@ -22,7 +24,7 @@ export function AcademicCoach(){
  async function load(reset=true){
   const token=++generation.current
   setStatus("loading");setData(null);setError("");setBusy(false)
-  if(reset){setDiagnostic(null);setTransfer(null);setStage("diagnose");setResult(null)}
+  if(reset){setDiagnostic(null);setTransfer(null);setStage("diagnose");setResult(null);setWrittenPack(null)}
   try{
    const response=await fetch("/api/academic-coach",{cache:"no-store"})
    if(token!==generation.current)return
@@ -40,7 +42,7 @@ export function AcademicCoach(){
    if(userId===authId.current&&_event!=="INITIAL_SESSION")return
    authId.current=userId
    ++generation.current
-   setData(null);setDiagnostic(null);setTransfer(null);setResult(null);setStage("diagnose");setError("");setBusy(false)
+   setData(null);setDiagnostic(null);setTransfer(null);setResult(null);setWrittenPack(null);setStage("diagnose");setError("");setBusy(false)
    if(userId)void load();else setStatus("signin")
   })
   return()=>{++generation.current;listener.subscription.unsubscribe()}
@@ -71,10 +73,11 @@ export function AcademicCoach(){
    {status==="error"&&<div className="mt-5"><p role="alert" className="mb-3 text-sm">Your saved practice could not be loaded.</p><button className={secondary} onClick={()=>void load()}>Retry</button></div>}
    {status==="ready"&&data&&<>
     <div className="my-5 grid gap-3 sm:grid-cols-3">
-     <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-600">Completed practice pairs</p><p className="text-2xl font-bold text-[#102a43]">{data.attempts.length} / {coachPacks.length}</p></div>
+     <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-600">Completed practice pairs</p><p className="text-2xl font-bold text-[#102a43]">{data.attempts.length}</p></div>
      <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-600">Fresh questions correct</p><p className="text-2xl font-bold text-[#102a43]">{data.attempts.filter(a=>a.transferCorrect).length} / {data.attempts.length}</p></div>
      <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-600">Course profile</p><p className="mt-1 font-semibold text-[#102a43]">{data.recommendation.course||"Not yet saved"}</p></div>
     </div>
+    {data.reviewSchedule.length>0&&<div className="mb-5 rounded-xl border p-4"><h3 className="font-semibold text-[#102a43]">Spaced review schedule</h3><ul className="mt-2 space-y-1 text-sm">{data.reviewSchedule.map(r=><li key={r.packId}>{skillLabels[r.skill]} — {r.due?"Due now":new Date(r.dueAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</li>)}</ul><p className="mt-2 text-xs text-slate-600">Fresh review questions are scheduled one day after a missed transfer or three days after a correct transfer. One review pair per skill in this release.</p></div>}
     {pack?<div className="rounded-2xl border border-slate-200 p-4 sm:p-6">
      <p className="text-xs font-semibold text-[#147d91]">{skillLabels[pack.skill]} · {stage==="diagnose"?"Step 1 of 3":stage==="learn"?"Step 2 of 3":stage==="transfer"?"Step 3 of 3":"Practice recorded"}</p>
      <h3 className="mt-1 text-xl font-bold text-[#102a43]">{pack.title}</h3>
@@ -88,7 +91,9 @@ export function AcademicCoach(){
      {stage==="result"&&result&&<div role="status" className="mt-5 rounded-xl bg-slate-50 p-4"><h4 className="font-bold text-[#102a43]">{result.transferCorrect?(result.diagnosticCorrect?"Both answers correct":"Fresh answer correct after teaching"):"Further practice recommended"}</h4><p className="mt-2 text-sm">{pack.transfer.explanation}</p><p className="mt-2 text-xs text-slate-600">Your first completed pair is saved. Two items are not enough to establish mastery.</p><button className={primary+" mt-4"} onClick={()=>void load()}>Get next recommendation</button></div>}
      {error&&<p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
     </div>:<p className="rounded-xl bg-slate-50 p-4 text-sm">{data.recommendation.reason}</p>}
-    {data.attempts.length>0&&<details className="mt-5"><summary className="cursor-pointer font-semibold text-[#102a43]">Your completed coaching exercises</summary><ul className="mt-3 space-y-2 text-sm">{data.attempts.slice().sort((a,b)=>b.completedAt.localeCompare(a.completedAt)).map(a=><li key={a.packId} className="rounded-xl border p-3">{coachPacks.find(p=>p.id===a.packId)?.title}: diagnostic {a.diagnosticCorrect?"correct":"incorrect"} · fresh question {a.transferCorrect?"correct":"incorrect"}</li>)}</ul></details>}
+    {stage==="result"&&result&&pack&&<CoachWrittenPractice key={pack.id} packId={pack.id}/>}
+    {data.attempts.length>0&&<details className="mt-5"><summary className="cursor-pointer font-semibold text-[#102a43]">Your completed coaching exercises</summary><ul className="mt-3 space-y-2 text-sm">{data.attempts.slice().sort((a,b)=>b.completedAt.localeCompare(a.completedAt)).map(a=><li key={a.packId} className="rounded-xl border p-3">{coachPacks.find(p=>p.id===a.packId)?.title}: diagnostic {a.diagnosticCorrect?"correct":"incorrect"} · fresh question {a.transferCorrect?"correct":"incorrect"} <button type="button" className="ml-2 font-semibold text-[#147d91] underline" onClick={()=>setWrittenPack(a.packId)}>Written practice</button></li>)}</ul></details>}
+    {writtenPack&&writtenPack!==((stage==="result"&&result)?pack?.id:null)&&<CoachWrittenPractice key={writtenPack} packId={writtenPack}/>}
     <div className="mt-5 flex flex-wrap gap-2"><Link className={secondary} href="/paper-intervention">Subject-specific test intervention</Link><Link className={secondary} href="/interview-room">Apply reasoning in an interview</Link><Link className={secondary} href="/essay-tutor">Writing practice</Link></div>
    </>}
   </div>
