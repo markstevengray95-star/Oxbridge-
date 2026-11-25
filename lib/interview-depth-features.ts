@@ -99,6 +99,90 @@ export function applicationLaunchQuestion(context: ApplicationInterviewContext |
 }
 
 export function courseInterviewProfile(course: string, track?: string): CourseInterviewProfile {
+  // The selected course has priority over a broader subject family when
+  // choosing panel roles, so Medicine/ Biology and Physics/ Chemistry differ.
+  const name = clean(course).toLowerCase()
+  const specialised: Array<[RegExp, CourseInterviewProfile]> = [
+    [/computer|computing/, {
+      family: "Computer Science",
+      interviewerA: "algorithm designer probing correctness and representation",
+      interviewerB: "complexity and adversarial-input examiner",
+      priorities: ["algorithmic correctness", "edge cases", "complexity", "time-space trade-offs"],
+      preferredMoves: ["trace an algorithm", "prove an invariant", "find an edge case", "compare complexities"],
+    }],
+    [/engineer|material|earth science/, {
+      family: "Engineering and Materials",
+      interviewerA: "design-and-constraints investigator",
+      interviewerB: "failure-mode and empirical-testing challenger",
+      priorities: ["design trade-offs", "loads and constraints", "measurement", "failure modes"],
+      preferredMoves: ["justify a design", "vary a load", "identify a failure mode", "design a test"],
+    }],
+    [/chemistr|chemical/, {
+      family: "Chemistry",
+      interviewerA: "particle-mechanism and stoichiometry investigator",
+      interviewerB: "equilibrium and experimental-evidence challenger",
+      priorities: ["reaction mechanisms", "stoichiometry", "kinetics and equilibrium", "controls"],
+      preferredMoves: ["predict a reaction condition", "identify a controlled variable", "compare mechanisms", "test an equilibrium"],
+    }],
+    [/medicine|medical|biomed/, {
+      family: "Medicine",
+      interviewerA: "clinical-reasoning and causality investigator",
+      interviewerB: "trial-design and research-ethics challenger",
+      priorities: ["clinical evidence", "causality", "confounders", "informed consent", "ethics"],
+      preferredMoves: ["evaluate a study", "identify a confounder", "consider a subgroup", "balance ethical principles"],
+    }],
+    [/psycholog/, {
+      family: "Psychology",
+      interviewerA: "operational-definition and mechanism investigator",
+      interviewerB: "study-design and competing-explanations examiner",
+      priorities: ["operational definitions", "confounding", "research design", "evidence quality"],
+      preferredMoves: ["design a fair test", "identify a confounder", "compare measures", "evaluate inference"],
+    }],
+    [/ppe|philosophy, politics|politics, philosophy/, {
+      family: "Philosophy, Politics and Economics",
+      interviewerA: "normative principle and political-institution analyst",
+      interviewerB: "economic trade-off and counterargument challenger",
+      priorities: ["moral principles", "incentives", "institutional constraints", "opposing arguments"],
+      preferredMoves: ["define a principle", "test a counterexample", "analyse a trade-off", "reconcile competing aims"],
+    }],
+    [/history/, {
+      family: "History",
+      interviewerA: "source-provenance and context historian",
+      interviewerB: "causation and rival-interpretation historian",
+      priorities: ["primary sources", "provenance", "corroboration", "historical causation"],
+      preferredMoves: ["evaluate provenance", "corroborate a source", "compare interpretations", "challenge a causal claim"],
+    }],
+    [/philosoph/, {
+      family: "Philosophy",
+      interviewerA: "premise and conceptual-clarity philosopher",
+      interviewerB: "counterexample and logical-validity challenger",
+      priorities: ["premises", "logical validity", "conceptual clarity", "counterexamples"],
+      preferredMoves: ["test validity", "clarify a concept", "construct a counterexample", "refine a principle"],
+    }],
+    [/english|literat|classics/, {
+      family: "Literature and Classics",
+      interviewerA: "close-reading and language analyst",
+      interviewerB: "form-and-rival-interpretation scholar",
+      priorities: ["textual detail", "form", "language", "competing readings"],
+      preferredMoves: ["quote a specific phrase", "compare readings", "analyse form", "defend an inference"],
+    }],
+    [/geograph/, {
+      family: "Geography",
+      interviewerA: "physical and human systems analyst",
+      interviewerB: "spatial-data and scale examiner",
+      priorities: ["spatial evidence", "scale", "causal systems", "uncertainty"],
+      preferredMoves: ["compare locations", "test across scales", "interpret a pattern", "identify a confounder"],
+    }],
+    [/language|linguist|french|spanish|german|italian|mandarin/, {
+      family: "Languages and Linguistics",
+      interviewerA: "meaning and translation analyst",
+      interviewerB: "register-and-structure challenger",
+      priorities: ["linguistic structure", "pragmatics", "translation", "context"],
+      preferredMoves: ["compare translations", "analyse register", "consider a different audience", "justify nuance"],
+    }],
+  ]
+  const match = specialised.find(([pattern]) => pattern.test(name))
+  if (match) return match[1]
   const key = `${course} ${track || ""}`.toLowerCase()
   if (/math|computer|computing/.test(key)) return {
     family: "Mathematics & Computer Science",

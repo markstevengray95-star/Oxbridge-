@@ -96,6 +96,9 @@ jobs:
       - name: Phase four live voice conversation checks
         run: npm run test:live-conversation
 
+      - name: Phase five subject-specific interview checks
+        run: npm run test:interview-subjects
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 

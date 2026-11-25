@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getGeminiApiKeyCandidates, hasGeminiApiKey } from "@/lib/gemini/api-key"
 import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
+import { subjectPathwayBrief, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
 
 type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
 type SessionRequest = { course?: string; track?: string; persona?: string; mode?: string; voice?: GeminiVoice; material?: string; preparationNotes?: string; focus?: string; panel?: boolean; resume?: boolean }
@@ -52,6 +53,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
     STUDENT_AI_SAFETY_POLICY,
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     `Course: ${course}. Subject family: ${track}. Interviewer style: ${persona}. Session mode: ${mode}.`,
+    subjectPathwayBrief(course, track),
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
     "Sound like a real university academic in a tutorial or admissions interview: calm, curious, understated, precise, and conversational; never like a customer-service assistant, motivational coach, quiz host, or announcer.",
     "Allow the candidate time to think aloud. Never answer on their behalf or treat a brief hesitation as a completed answer. If interrupted, stop and address what they say before continuing.",
@@ -105,7 +107,9 @@ function interviewInstructions(course: string, track: string, persona: string, m
     ...modeInstructions(mode),
     resume
       ? "You are resuming after a technical disconnection. Do not greet the student again, restart the original problem, or ignore the transcript recap. Continue the existing line of academic reasoning and ask one relevant question."
-      : "For the opening turn, give a brief natural greeting and one challenging but accessible opening question. Do not give feedback before the candidate has answered.",
+      : material
+        ? "For the opening turn, use the student-provided unseen material and ask one grounded academic question. Do not start an unrelated problem."
+        : "For the opening turn, give a brief natural greeting and then ask this exact course-specific problem without solving it: " + subjectInterviewStarter(course, track, mode === "Stress" ? "Challenge" : "Stretch").prompt,
     "When the candidate asks to finish, stop the question cycle and give a concise spoken debrief: one specific reasoning strength, one specific academic weakness, one example from the conversation, and one next practice action. Then clearly say that the interview is complete and ask no further question.",
     "Keep the interaction focused on academic preparation and do not collect unnecessary personal information.",
   ].join("\n")
