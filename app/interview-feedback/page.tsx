@@ -9,10 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { analyseInterviewAnswer } from "@/lib/feedback-engine"
+import { InterviewEvidenceReview } from "@/components/interview-evidence-review"
+import type { EvidenceLinkedFeedback } from "@/lib/interview-feedback-intelligence"
 
 const PROGRESS_KEY = "oxbridge-tutor-progress-v2"
 
-type Log = { id?: string; title?: string; score?: number; date?: string; events?: string[] }
+type Log = { id?: string; title?: string; score?: number; date?: string; events?: string[]; feedbackReport?: EvidenceLinkedFeedback }
 type Exchange = { question: string; answer: string }
 type Dimension = { label: string; score: number; evidence: string; action: string }
 type AnswerFeedback = { index: number; question: string; answer: string; score: number; strengths: string[]; improvements: string[]; dimensions: Dimension[]; nextMove: string; dominantTarget: string }
@@ -22,7 +24,7 @@ function parseExchanges(events: string[]) {
   const exchanges: Exchange[] = []
   let currentQuestion = ""
   for (const event of events) {
-    if (event.startsWith("Interviewer: ")) currentQuestion = event.slice("Interviewer: ".length)
+    if (/^Interviewer(?: [AB])?: /i.test(event)) currentQuestion = event.replace(/^Interviewer(?: [AB])?: /i,"")
     if (event.startsWith("Candidate: ")) exchanges.push({ question: currentQuestion || "Interview question", answer: event.slice("Candidate: ".length).split(" | Feedback: ")[0] })
   }
   return exchanges.filter(item => item.answer.trim())
@@ -54,7 +56,7 @@ export default function InterviewFeedbackPage() {
   useEffect(() => {
     try {
       const progress = JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}") as { logs?: Log[] }
-      const interviews = (Array.isArray(progress.logs) ? progress.logs : []).filter(log => /interview/i.test(log.title ?? "") && Array.isArray(log.events))
+      const interviews = (Array.isArray(progress.logs) ? progress.logs : []).filter(log => /interview|gemini live/i.test(log.title ?? "") && Array.isArray(log.events))
       setLogs(interviews)
       if (interviews[0]?.id) setSelectedId(interviews[0].id)
     } catch { setLogs([]) }
@@ -95,6 +97,8 @@ export default function InterviewFeedbackPage() {
       <section className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Interview answer analysis</p><h1 className="mt-2 font-serif text-4xl font-bold">Feedback on every answer, not just one overall score.</h1><p className="mt-3 max-w-3xl text-slate-600">Each response is reviewed for reasoning chain, relevance, assumptions, evidence/testing, precision, adaptability and communication. Gemini provides the detailed review when available, with the built-in reasoning engine as a fallback.</p></div><Card className="border-0 bg-[#102a43] text-white shadow-none"><CardHeader><div className="flex items-center justify-between gap-2"><div><CardDescription className="text-white/60">Session practice signal</CardDescription><CardTitle className="font-serif text-5xl">{overall}<span className="text-xl text-white/40">/100</span></CardTitle></div>{provider && <Badge className="bg-white/10 text-white">{provider === "gemini" ? "AI review" : "Built-in review"}</Badge>}</div><CardDescription className="text-white/60">{selected.title} · {active.answers.length} candidate answers</CardDescription></CardHeader></Card></section>
 
       {logs.length > 1 && <div className="flex flex-wrap gap-2">{logs.slice(0, 8).map(log => <Button key={log.id} size="sm" variant={(log.id ?? "") === selectedId ? "default" : "outline"} onClick={() => { setSelectedId(log.id ?? ""); setRevision("") }}>{log.title} · {log.date}</Button>)}</div>}
+
+      {selected.feedbackReport?.version==="phase8.1"?<InterviewEvidenceReview report={selected.feedbackReport}/>:<Card className="shadow-none"><CardContent className="flex flex-wrap items-center justify-between gap-3 p-5"><p className="text-sm text-slate-600">This older interview has no Phase 8 evidence record. Review its saved transcript and use the new history page for transcript-grounded observations.</p><Button asChild variant="outline" size="sm"><Link href="/interview-insights">Open evidence history</Link></Button></CardContent></Card>}
 
       <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Whole-session diagnosis</CardTitle><CardDescription>{active.overallSummary}</CardDescription></CardHeader><CardContent className="grid gap-4 lg:grid-cols-3"><div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-emerald-800">Recurring strengths</p>{active.recurringStrengths.slice(0, 3).map(item => <p key={item} className="mt-2 text-sm leading-6">• {item}</p>)}</div><div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-amber-800">Priority target</p><p className="mt-2 font-serif text-xl font-bold">{active.priorityTarget}</p>{active.recurringWeaknesses.slice(0, 3).map(item => <p key={item} className="mt-2 text-sm leading-6">• {item}</p>)}</div><div className="rounded-2xl border bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Next interview plan</p>{active.nextInterviewPlan.slice(0, 4).map((item, index) => <p key={item} className="mt-2 flex gap-2 text-sm leading-6"><span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#102a43] text-[10px] font-bold text-white">{index + 1}</span>{item}</p>)}</div></CardContent></Card>
 
