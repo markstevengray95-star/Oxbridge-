@@ -114,6 +114,9 @@ jobs:
       - name: Phase ten release safety and writing validation checks
         run: npm run test:launch-readiness
 
+      - name: Phase eleven academic coach checks
+        run: node --experimental-strip-types --test tests/academic-coach.test.mjs
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 
@@ -146,6 +149,9 @@ jobs:
 
       - name: Phase 12 exam session and reserve checks
         run: npm run test:exam-session-quality
+
+      - name: Phase 13 interview realism checks
+        run: npm run test:interview-realism-phase13
 
       - name: Full paper uniqueness checks
         run: node tests/full-paper-uniqueness.mjs
