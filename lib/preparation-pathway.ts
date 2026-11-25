@@ -13,7 +13,7 @@ export const officialSources={
  Oxford:"https://www.ox.ac.uk/admissions/undergraduate/courses/admissions-requirements/summary-table-of-admissions-requirements",
  Cambridge:"https://www.undergraduate.study.cam.ac.uk/apply/how/admission-tests"
 } as const
-export const requirementReview={entryYear:2027,checkedAt:"2026-11-25",reviewAfterDays:90}
+export const requirementReview={entryYear:2027,checkedAt:"2026-09-23",reviewAfterDays:90}
 export function requirementFreshness(year:number,now=Date.now()){
  const age=(now-Date.parse(requirementReview.checkedAt+"T00:00:00Z"))/86400000
  return year!==requirementReview.entryYear?"unverified-year":age<0||age>requirementReview.reviewAfterDays?"review-due":"reference-only"
