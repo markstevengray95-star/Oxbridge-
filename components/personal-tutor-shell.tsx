@@ -8,10 +8,12 @@ import { TutorEvidenceQuality } from "@/components/tutor-evidence-quality"
 import { TutorIntelligenceProvider } from "@/components/tutor-intelligence-context"
 import { TutorProgressRecordsHub } from "@/components/tutor-progress-records-hub"
 import { TutorStrategicBrief } from "@/components/tutor-strategic-brief"
+import { AcademicCoach } from "@/components/academic-coach"
 import { NextgenTutorPanel } from "@/components/nextgen-tutor-panel"
 
 const tutorSections = [
   { href: "#tutor-today", label: "Today", icon: Compass },
+  { href: "#academic-coach", label: "Academic coach", icon: Brain },
   { href: "#tutor-insight", label: "Deep insight", icon: BarChart3 },
   { href: "#tutor-week", label: "Weekly loop", icon: CalendarCheck2 },
   { href: "#tutor-progress-records", label: "Progress & records", icon: History },
@@ -34,6 +36,7 @@ export function PersonalTutorShell() {
         </div>
       </nav>
 
+      <AcademicCoach />
       <TutorEvidenceQuality />
       <div id="tutor-insight" className="scroll-mt-28"><TutorDeepInsightLoader /></div>
       <div id="tutor-week" className="scroll-mt-28"><TutorExecutionLoopLoader /></div>
