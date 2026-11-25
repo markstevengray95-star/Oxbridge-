@@ -25,6 +25,7 @@ const AI_ROUTE_PREFIXES = [
   "/api/interview-adjudicate",
   "/api/interview-feedback",
   "/api/interview-turn",
+  "/api/reasoning-interview-turn",
   "/api/natural-speech",
   "/api/personal-tutor",
   "/api/personalised-question",
