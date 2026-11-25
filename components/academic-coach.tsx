@@ -91,9 +91,8 @@ export function AcademicCoach(){
      {stage==="result"&&result&&<div role="status" className="mt-5 rounded-xl bg-slate-50 p-4"><h4 className="font-bold text-[#102a43]">{result.transferCorrect?(result.diagnosticCorrect?"Both answers correct":"Fresh answer correct after teaching"):"Further practice recommended"}</h4><p className="mt-2 text-sm">{pack.transfer.explanation}</p><p className="mt-2 text-xs text-slate-600">Your first completed pair is saved. Two items are not enough to establish mastery.</p><button className={primary+" mt-4"} onClick={()=>void load()}>Get next recommendation</button></div>}
      {error&&<p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
     </div>:<p className="rounded-xl bg-slate-50 p-4 text-sm">{data.recommendation.reason}</p>}
-    {stage==="result"&&result&&pack&&<CoachWrittenPractice key={pack.id} packId={pack.id}/>}
     {data.attempts.length>0&&<details className="mt-5"><summary className="cursor-pointer font-semibold text-[#102a43]">Your completed coaching exercises</summary><ul className="mt-3 space-y-2 text-sm">{data.attempts.slice().sort((a,b)=>b.completedAt.localeCompare(a.completedAt)).map(a=><li key={a.packId} className="rounded-xl border p-3">{coachPacks.find(p=>p.id===a.packId)?.title}: diagnostic {a.diagnosticCorrect?"correct":"incorrect"} · fresh question {a.transferCorrect?"correct":"incorrect"} <button type="button" className="ml-2 font-semibold text-[#147d91] underline" onClick={()=>setWrittenPack(a.packId)}>Written practice</button></li>)}</ul></details>}
-    {writtenPack&&writtenPack!==((stage==="result"&&result)?pack?.id:null)&&<CoachWrittenPractice key={writtenPack} packId={writtenPack}/>}
+    {(writtenPack||(stage==="result"&&result?pack?.id:null))&&<CoachWrittenPractice key={writtenPack??pack?.id} packId={(writtenPack??pack?.id)!}/>}
     <div className="mt-5 flex flex-wrap gap-2"><Link className={secondary} href="/paper-intervention">Subject-specific test intervention</Link><Link className={secondary} href="/interview-room">Apply reasoning in an interview</Link><Link className={secondary} href="/essay-tutor">Writing practice</Link></div>
    </>}
   </div>
