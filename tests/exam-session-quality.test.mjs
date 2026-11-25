@@ -1,6 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import {readFileSync} from "node:fs"
+import {phase12QuestionBank} from "../lib/phase12-authored-bank.ts"
 import {remainingExamSeconds,resumeExamDeadline,paperMarkBreakdown,retestPromptSignature,retestSectionKey,chooseFreshRetest} from "../lib/exam-session-quality.ts"
 test("clock uses elapsed time, including suspended browser tabs",()=>{
  assert.equal(remainingExamSeconds(60000,0),60)
@@ -50,9 +51,18 @@ test("current full-paper result fields and retest records are integrated",()=>{
  const page=readFileSync(new URL("../app/paper-intervention/page.tsx",import.meta.url),"utf8")
  const centre=readFileSync(new URL("../components/full-paper-centre.tsx",import.meta.url),"utf8")
  assert.match(feedback,/section\.maxMarks \?\? section\.questionCount/)
- assert.match(page,/chooseFreshRetest\(reliableFullPaperQuestionBank/)
+ assert.match(page,/chooseFreshRetest\(\[\.\.\.phase12QuestionBank, \.\.\.reliableFullPaperQuestionBank\]/)
  assert.match(page,/questionReview: retestOrdered\.map/)
  assert.match(centre,/remainingExamSeconds\(deadlineMs, Date\.now\(\)\)/)
  assert.match(centre,/if \(!canAnswer\(\) \|\| !question/)
  assert.match(centre,/paperMarkBreakdown\(/)
+})
+
+test("30 original reserve questions cover all five tests with valid answer keys",()=>{
+ assert.equal(phase12QuestionBank.length,30)
+ assert.equal(new Set(phase12QuestionBank.map(q=>q.id)).size,30)
+ assert.equal(new Set(phase12QuestionBank.map(q=>q.test)).size,5)
+ for(const q of phase12QuestionBank){assert.ok(q.answer>=0&&q.answer<q.options.length);assert.equal(new Set(q.options).size,q.options.length);assert.ok(q.explanation.length>20);assert.ok(q.topic)}
+ assert.equal(phase12QuestionBank.find(q=>q.id==="phase12-authored-09").options[1],"1/3")
+ assert.equal(phase12QuestionBank.find(q=>q.id==="phase12-authored-17").options[3],"64")
 })
