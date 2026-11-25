@@ -19,11 +19,11 @@ export function CoachWrittenPractice({packId}:{packId:string}){
   setBusy(true);setError("")
   try{
    const response=await fetch("/api/personal-tutor/academic-coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({packId,answer,followUp,consent}),signal:request.signal})
-   const body=await response.json()
+   const body=await response.json() as {error?:string;feedback?:unknown;provider?:unknown}
    if(request.signal.aborted)return
    if(!response.ok){setError(body.error||"Feedback unavailable. Use the criteria below.");setShowCriteria(true);return}
    if(typeof body.feedback!=="string"){setError("Feedback unavailable. Use the criteria below.");setShowCriteria(true);return}
-   setFeedback({provider:body.provider,feedback:body.feedback});setShowCriteria(true)
+   setFeedback({provider:typeof body.provider==="string"?body.provider:"local",feedback:body.feedback});setShowCriteria(true)
   }catch{if(!request.signal.aborted){setError("Connection unavailable. You can still use the rubric.");setShowCriteria(true)}}
   finally{if(!request.signal.aborted){setBusy(false);setConsent(false)}}
  }
