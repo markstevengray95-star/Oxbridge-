@@ -65,10 +65,10 @@ export function chooseCoachPack(progressValue:unknown,profileValue:unknown,attem
  for(const item of arr(progress.fullPaperResults).slice(0,12)){
   const paper=obj(item);if(!recent(paper.date??paper.createdAt))continue
   for(const item of arr(paper.sections).slice(0,12)){
-   const section=obj(item),accuracy=n(section.accuracy), attempted=n(section.attempted)
+   const section=obj(item),accuracy=n(section.accuracy), attempted=n(section.answered??section.attempted)
    if(section.kind==="essay"||accuracy===null||accuracy<0||accuracy>=60||attempted===null||attempted<5)continue
    const title=text(section.title)
-   if(/quantitative|mathematics|maths|numerical/i.test(title))evidence.push({skill:"quantitative",why:"A recent quantitative paper section had below 60% accuracy across at least five attempted questions. This exercise checks a general quantitative reasoning skill, not the exact missed topic.",weight:2})
+   if(/quantitative|mathematics|maths|numerical/i.test(title))evidence.push({skill:"quantitative",why:"A recent quantitative paper section had below 60% overall accuracy and at least five answered questions. This exercise checks a general quantitative reasoning skill, not the exact missed topic.",weight:2})
   }
  }
  for(const a of attempts){
