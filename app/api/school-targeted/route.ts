@@ -36,9 +36,9 @@ async function hasSchoolAccess(admin: ReturnType<typeof createAdminClient>, user
   return seat?.active === true || paidTier === "school"
 }
 
-function safeHref(value?: string) {
-  const href = (value || "/tutor").trim()
-  return href.startsWith("/") && !href.startsWith("//") ? href.slice(0, 300) : "/tutor"
+function safeHref(value: unknown) {
+  const href=typeof value==="string"?value.trim():"/tutor"
+  return /^\/[a-z0-9-]+(?:\/[a-z0-9-]+)*(?:#[a-z0-9-]+)?$/i.test(href)&&href.length<=300?href:"/tutor"
 }
 
 export async function GET() {
@@ -60,7 +60,7 @@ export async function GET() {
 
   const joined = await Promise.all((memberships ?? []).map(async membership => {
     const [{ data: cohort }, { data: assignments }, { data: progress }] = await Promise.all([
-      admin.from("school_cohorts").select("id,name,course,join_code,owner_user_id,created_at").eq("id", membership.cohort_id).maybeSingle(),
+      admin.from("school_cohorts").select("id,name,course,created_at").eq("id", membership.cohort_id).maybeSingle(),
       admin.from("school_assignments")
         .select("id,title,description,href,due_at,created_at,target_user_id,task_type,submission_required")
         .eq("cohort_id", membership.cohort_id)
@@ -74,7 +74,7 @@ export async function GET() {
     return cohort ? { cohort: { ...cohort, role: "student" }, assignments: assignments ?? [], progress: progress ?? [] } : null
   }))
 
-  return NextResponse.json({ joined: joined.filter(Boolean) })
+  return NextResponse.json({ joined: joined.filter(Boolean) },{headers:{"Cache-Control":"private, no-store"}})
 }
 
 export async function POST(request: Request) {
@@ -82,13 +82,14 @@ export async function POST(request: Request) {
   if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 })
   if (!hasSupabaseAdminConfig()) return NextResponse.json({ error: "School cloud workspace is not configured" }, { status: 503 })
 
+  if(request.headers.get("origin")!==new URL(request.url).origin)return NextResponse.json({error:"Invalid request origin"},{status:403})
   let body: TargetedBody
-  try { body = await request.json() as TargetedBody } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }) }
+  try { const raw=await request.text();if(raw.length>8000)throw Error();body=JSON.parse(raw) as TargetedBody;if(!body||typeof body!=="object"||Array.isArray(body))throw Error() } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }) }
   if (body.action !== "createTargetedAssignment") return NextResponse.json({ error: "Unsupported action" }, { status: 400 })
 
-  const cohortId = body.cohortId || ""
-  const targetUserId = body.targetUserId || ""
-  const title = (body.title || "").trim().slice(0, 160)
+  const cohortId = typeof body.cohortId==="string"?body.cohortId:""
+  const targetUserId = typeof body.targetUserId==="string"?body.targetUserId:""
+  const title = typeof body.title==="string"?body.title.trim().slice(0,160):""
   if (!cohortId || !targetUserId || !title) return NextResponse.json({ error: "Cohort, student and title are required" }, { status: 400 })
 
   const admin = createAdminClient()
@@ -101,16 +102,19 @@ export async function POST(request: Request) {
   if (cohort?.owner_user_id !== userId) return NextResponse.json({ error: "Teacher access required" }, { status: 403 })
   if (membership?.role !== "student") return NextResponse.json({ error: "Target student is not in this cohort" }, { status: 400 })
 
+  const dueAt=typeof body.dueAt==="string"&&Number.isFinite(Date.parse(body.dueAt))?new Date(body.dueAt).toISOString():null
+  if(body.dueAt&&!dueAt)return NextResponse.json({error:"Invalid due date"},{status:400})
+  const taskType=body.taskType&&["general","paper","interview","essay","defence","reading","other"].includes(body.taskType)?body.taskType:"general"
   const { data, error } = await admin.from("school_assignments").insert({
     cohort_id: cohortId,
     created_by: userId,
     target_user_id: targetUserId,
     title,
-    description: (body.description || "").trim().slice(0, 2500),
+    description: typeof body.description==="string"?body.description.trim().slice(0,2500):"",
     href: safeHref(body.href),
-    due_at: body.dueAt || null,
-    task_type: body.taskType || "general",
-    submission_required: Boolean(body.submissionRequired),
+    due_at: dueAt,
+    task_type: taskType,
+    submission_required: body.submissionRequired===true,
   }).select("id").single()
 
   if (error || !data) return NextResponse.json({ error: "Could not create targeted assignment" }, { status: 500 })

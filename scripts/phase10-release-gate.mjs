@@ -49,6 +49,13 @@ function staticChecks() {
   check("Gemini Live cloud history handles missing mock metadata",cloud.includes("Number(mock?.elapsedSeconds)"),"Missing mock metadata must not break a production build")
   const telemetry = read("components/orbits-telemetry.tsx")
   check("App telemetry strips sensitive URL details",telemetry.includes("schoolSafePagePath(pathname)")&&!telemetry.includes("location.pathname + location.search"),"Do not send query strings or student IDs to telemetry")
+  const newRoutes=["app/api/assessment-report/route.ts","app/api/academic-coach/route.ts"]
+  for(const route of newRoutes){const source=read(route);check("Private academic records: "+route,source.includes("auth.getUser()")&&source.includes('.eq("user_id",auth.user.id)')&&source.includes("no-store"),"Keep account identity verified, records scoped and private responses uncached")}
+  const school=read("app/api/school/route.ts")
+  check("School mutation origin and input checks",school.includes('request.headers.get("origin")!==new URL(request.url).origin')&&school.includes("Array.isArray(body)")&&school.includes('membership?.role!=="student"'),"Reject untrusted mutation payloads and enforce student membership")
+  const pathway=read("lib/preparation-pathway.ts")
+  check("Entry-year requirement freshness",pathway.includes("unverified-year")&&pathway.includes("review-due"),"Do not reuse outdated deadlines for future admission cycles")
+  check("Phase 11–15 regression suites registered",["test:academic-coach","test:exam-session-quality","test:interview-realism-phase13","test:assessment-intelligence","test:schools-pathways"].every(name=>pkg.scripts?.[name]&&pkg.scripts?.prebuild?.includes(name)),"All new feature suites must run before build")
   check("School tracking and Phase 8 are regression tested",pkg.scripts?.["test:school-tracking"]&&pkg.scripts?.["test:interview-feedback-intelligence"],"Keep both tracking/privacy and feedback checks in CI")
 }
 function envChecks() {
@@ -93,6 +100,12 @@ async function smoke(base) {
     const response=await fetch(new URL("/api/teacher/student-detail?studentId=00000000-0000-4000-8000-000000000000",url),{redirect:"manual",signal:AbortSignal.timeout(12000)})
     check("Anonymous school-detail API locked",response.status===401||response.status===403,"Anonymous users must not read protected school data")
   }catch{check("Anonymous school-detail API locked",false,"Could not check anonymous access")}
+  for(const route of ["/api/assessment-report","/api/academic-coach","/api/school","/api/school-targeted","/api/privacy/export"]){
+    try{
+      const response=await fetch(new URL(route,url),{redirect:"manual",cache:"no-store",signal:AbortSignal.timeout(12000)})
+      check("Anonymous access denied: "+route,response.status===401||response.status===403,"Expected explicit 401 or 403; got "+response.status)
+    }catch{check("Anonymous access denied: "+route,false,"Protected endpoint not reachable")}
+  }
 }
 staticChecks()
 if(process.argv.includes("--strict-env"))envChecks()

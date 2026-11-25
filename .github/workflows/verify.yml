@@ -153,6 +153,12 @@ jobs:
       - name: Phase 13 interview realism checks
         run: npm run test:interview-realism-phase13
 
+      - name: Phase 14 assessment intelligence checks
+        run: npm run test:assessment-intelligence
+
+      - name: Phase 15 school and pathway checks
+        run: npm run test:schools-pathways
+
       - name: Full paper uniqueness checks
         run: node tests/full-paper-uniqueness.mjs
 

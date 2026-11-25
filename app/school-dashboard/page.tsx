@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { ProgressWorkspace } from "@/components/school/progress-workspace"
-import { csvCell, studentSummary } from "@/lib/school/progress"
+import { csvCell, cohortAssignmentSummary, assignmentSummary } from "@/lib/school/progress"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, ArrowRight, ClipboardList, Download, Loader2, Plus, RefreshCw, School, Trash2, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 type Skill = { label?: string; score?: number; status?: string }
 type Student = { userId: string; displayName: string; targetCourse?: string | null; targetUniversity?: string | null; applicationYear?: string | null; preparationScore: number; interviewCount: number; fullPaperCount: number; essayCount: number; priority?: Skill | null; strongest?: Skill | null; updatedAt?: string | null }
-type Assignment = { id: string; title: string; description: string; href: string; due_at?: string | null; created_at: string }
+type Assignment = { id: string; title: string; description: string; href: string; due_at?: string | null; created_at: string; target_user_id?: string | null; task_type?: string; submission_required?: boolean }
 type AssignmentProgress = { assignment_id: string; user_id: string; status: "not_started" | "in_progress" | "completed"; note?: string; updated_at?: string }
 type Cohort = { id: string; name: string; course?: string | null; join_code: string; created_at: string }
 type OwnedDetail = { cohort: Cohort; students: Student[]; assignments: Assignment[]; progress: AssignmentProgress[] }
@@ -28,6 +28,10 @@ const taskOptions = [
   ["/daily-challenge", "Daily challenge"],
   ["/tutorial-lab", "Tutorial Lab"],
   ["/application-defence", "Application defence"],
+  ["/tutor#academic-coach", "Academic coaching"],
+  ["/assessment-report", "Academic assessment review"],
+  ["/preparation-pathway", "Personal preparation pathway"],
+  ["/supercurricular-coach", "Supercurricular exploration"],
 ]
 
 async function post(body: Record<string, unknown>) {
@@ -50,6 +54,9 @@ export default function SchoolDashboardPage() {
   const [description, setDescription] = useState("")
   const [href, setHref] = useState("/tutor")
   const [dueAt, setDueAt] = useState("")
+  const [targetId,setTargetId]=useState("")
+  const [saving,setSaving]=useState(false)
+  const [notice,setNotice]=useState("")
 
   async function load() {
     setLoading(true); setError("")
@@ -69,12 +76,7 @@ export default function SchoolDashboardPage() {
     const values = (active?.students ?? []).filter(student => student.updatedAt).map(student => student.preparationScore).filter(Number.isFinite)
     return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null
   }, [active])
-  const completion = useMemo(() => {
-    if (!active?.students.length || !active.assignments.length) return 0
-    const possible = active.students.length * active.assignments.length
-    const done = active.students.reduce((sum, student) => sum + studentSummary(active, student, Date.now()).completed, 0)
-    return Math.round(done / possible * 100)
-  }, [active])
+  const completion=active?cohortAssignmentSummary(active,Date.now()).percent:null
 
   async function createCohort() {
     if (!cohortName.trim()) return
@@ -83,9 +85,18 @@ export default function SchoolDashboardPage() {
   }
 
   async function createAssignment() {
-    if (!active || !title.trim()) return
-    setError("")
-    try { await post({ action: "createAssignment", cohortId: active.cohort.id, title, description, href, dueAt: dueAt ? new Date(dueAt).toISOString() : null }); setTitle(""); setDescription(""); setDueAt(""); await load() } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create assignment") }
+    if (!active || !title.trim() || saving) return
+    if(targetId&&!active.students.some(s=>s.userId===targetId)){setError("Choose a pupil in the active cohort.");return}
+    setSaving(true);setError("");setNotice("")
+    try {
+      const task={cohortId:active.cohort.id,title,description,href,dueAt:dueAt?new Date(dueAt).toISOString():null}
+      if(targetId){
+       const response=await fetch("/api/school-targeted",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...task,action:"createTargetedAssignment",targetUserId:targetId,taskType:href.includes("paper")?"paper":href.includes("interview")?"interview":href.includes("essay")?"essay":href.includes("defence")?"defence":href.includes("supercurricular")?"reading":"general",submissionRequired:true})})
+       const result=await response.json() as {error?:string}
+       if(!response.ok)throw new Error(result.error||"Could not assign individual task")
+      }else await post({...task,action:"createAssignment"})
+      setNotice(targetId?"Individual intervention assigned.":"Cohort assignment created.");setTitle("");setDescription("");setDueAt("");await load()
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not create assignment")}finally{setSaving(false)}
   }
 
   async function deleteAssignment(id: string) {
@@ -110,13 +121,13 @@ export default function SchoolDashboardPage() {
       {loading && !data ? <Card className="shadow-none"><CardContent className="flex items-center gap-3 p-6"><Loader2 className="animate-spin" />Loading school workspace…</CardContent></Card> : <>
         <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Create cohort</CardTitle><CardDescription>Each cohort gets a private join code that students enter from Student Classroom.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-[1fr_1fr_auto]"><input className="h-10 rounded-md border bg-white px-3 text-sm" value={cohortName} onChange={event => setCohortName(event.target.value)} placeholder="Cohort name, e.g. 2027 Oxbridge Physics" /><input className="h-10 rounded-md border bg-white px-3 text-sm" value={cohortCourse} onChange={event => setCohortCourse(event.target.value)} placeholder="Course / focus" /><Button onClick={() => void createCohort()} disabled={!cohortName.trim()}><Plus />Create</Button></CardContent></Card>
         {data?.owned.length ? <>
-          <div className="flex flex-wrap gap-2">{data.owned.map(item => <Button key={item.cohort.id} variant={(active?.cohort.id ?? "") === item.cohort.id ? "default" : "outline"} onClick={() => setActiveId(item.cohort.id)}>{item.cohort.name}</Button>)}</div>
+          <div className="flex flex-wrap gap-2">{data.owned.map(item => <Button key={item.cohort.id} variant={(active?.cohort.id ?? "") === item.cohort.id ? "default" : "outline"} onClick={() => {setActiveId(item.cohort.id);setTargetId("");setNotice("")}}>{item.cohort.name}</Button>)}</div>
           {active && <>
             <ProgressWorkspace key={active.cohort.id} detail={active} />
-            <section className="grid gap-3 md:grid-cols-4"><Card className="border-0 bg-[#102a43] text-white shadow-none"><CardHeader><CardDescription className="text-white/60">Students</CardDescription><CardTitle className="font-serif text-4xl">{active.students.length}</CardTitle></CardHeader></Card><Card className="shadow-none"><CardHeader><CardDescription>Average preparation</CardDescription><CardTitle className="font-serif text-4xl">{averagePreparation ?? "—"}{averagePreparation !== null ? "%" : ""}</CardTitle></CardHeader></Card><Card className="shadow-none"><CardHeader><CardDescription>Assignment completion</CardDescription><CardTitle className="font-serif text-4xl">{completion}%</CardTitle></CardHeader><CardContent><Progress value={completion} /></CardContent></Card><Card className="border-[#b9d8dd] bg-[#edf7f8] shadow-none"><CardHeader><CardDescription>Student join code</CardDescription><CardTitle className="font-mono text-3xl tracking-[.18em]">{active.cohort.join_code}</CardTitle></CardHeader></Card></section>
+            <section className="grid gap-3 md:grid-cols-4"><Card className="border-0 bg-[#102a43] text-white shadow-none"><CardHeader><CardDescription className="text-white/60">Students</CardDescription><CardTitle className="font-serif text-4xl">{active.students.length}</CardTitle></CardHeader></Card><Card className="shadow-none"><CardHeader><CardDescription>Average preparation</CardDescription><CardTitle className="font-serif text-4xl">{averagePreparation ?? "—"}{averagePreparation !== null ? "%" : ""}</CardTitle></CardHeader></Card><Card className="shadow-none"><CardHeader><CardDescription>Assignment completion</CardDescription><CardTitle className="font-serif text-4xl">{completion===null?"—":completion+"%"}</CardTitle></CardHeader><CardContent><Progress value={completion??0} /></CardContent></Card><Card className="border-[#b9d8dd] bg-[#edf7f8] shadow-none"><CardHeader><CardDescription>Student join code</CardDescription><CardTitle className="font-mono text-3xl tracking-[.18em]">{active.cohort.join_code}</CardTitle></CardHeader></Card></section>
             <section className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]"><Card className="shadow-none"><CardHeader><div className="flex items-center justify-between gap-2"><div><CardTitle className="font-serif text-2xl">Student preparation overview</CardTitle><CardDescription>Aggregate coaching evidence from each student's Personal Tutor profile.</CardDescription></div><Button size="sm" variant="outline" onClick={exportCsv}><Download />Export CSV</Button></div></CardHeader><CardContent className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead><tr className="border-b text-left text-xs uppercase tracking-wider text-slate-500"><th className="p-2">Student</th><th className="p-2">Preparation</th><th className="p-2">Activity</th><th className="p-2">Current priority</th><th className="p-2">Strongest</th></tr></thead><tbody>{active.students.map(student => <tr key={student.userId} className="border-b last:border-0"><td className="p-2"><strong>{student.displayName}</strong><p className="text-xs text-slate-500">{student.targetCourse || active.cohort.course || "Course not set"}</p></td><td className="p-2"><div className="flex items-center gap-2"><Progress value={student.preparationScore} className="w-24" /><strong>{student.updatedAt ? `${student.preparationScore}%` : "—"}</strong></div></td><td className="p-2 text-xs text-slate-600">{student.interviewCount} interviews · {student.fullPaperCount} papers · {student.essayCount} essays</td><td className="p-2"><Badge variant="outline">{student.priority?.label || "Building baseline"}</Badge></td><td className="p-2">{student.strongest?.label || "—"}</td></tr>)}{!active.students.length && <tr><td className="p-4 text-slate-500" colSpan={5}>No students have joined this cohort yet. Share the join code above.</td></tr>}</tbody></table></CardContent></Card>
-              <Card className="shadow-none"><CardHeader><ClipboardList className="size-5 text-[#147d91]" /><CardTitle className="font-serif text-2xl">Assign preparation</CardTitle></CardHeader><CardContent className="space-y-3"><input className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={title} onChange={event => setTitle(event.target.value)} placeholder="Assignment title" /><Textarea rows={4} value={description} onChange={event => setDescription(event.target.value)} placeholder="What should students focus on?" /><select className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={href} onChange={event => setHref(event.target.value)}>{taskOptions.map(([path, label]) => <option key={path} value={path}>{label}</option>)}</select><label className="block"><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Due date (optional)</span><input type="datetime-local" className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={dueAt} onChange={event => setDueAt(event.target.value)} /></label><Button className="w-full" onClick={() => void createAssignment()} disabled={!title.trim()}><Plus />Create assignment</Button></CardContent></Card></section>
-            <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Assignments</CardTitle></CardHeader><CardContent className="space-y-3">{active.assignments.map(assignment => { const done = active.students.filter(student => active.progress.some(row => row.assignment_id === assignment.id && row.user_id === student.userId && row.status === "completed")).length; const pct = active.students.length ? Math.round(done / active.students.length * 100) : 0; return <div key={assignment.id} className="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-[1fr_220px_auto] md:items-center"><div><div className="flex flex-wrap gap-2"><strong>{assignment.title}</strong>{assignment.due_at && <Badge variant="outline">Due {new Date(assignment.due_at).toLocaleDateString("en-GB")}</Badge>}</div><p className="mt-1 text-sm text-slate-600">{assignment.description || assignment.href}</p></div><div><div className="flex justify-between text-xs"><span>{done}/{active.students.length} complete</span><span>{pct}%</span></div><Progress value={pct} className="mt-1" /></div><div className="flex gap-1"><Button asChild size="sm" variant="outline"><Link href={assignment.href}>Open <ArrowRight /></Link></Button><Button size="icon" variant="ghost" onClick={() => void deleteAssignment(assignment.id)}><Trash2 className="size-4" /></Button></div></div>})}{!active.assignments.length && <p className="text-sm text-slate-500">No assignments yet.</p>}</CardContent></Card>
+              <Card className="shadow-none"><CardHeader><ClipboardList className="size-5 text-[#147d91]" /><CardTitle className="font-serif text-2xl">Assign preparation or intervention</CardTitle></CardHeader><CardContent className="space-y-3"><label className="block text-sm font-semibold">Assign to<select className="mt-1 h-10 w-full rounded-md border bg-white px-3 text-sm" value={targetId} onChange={e=>setTargetId(e.target.value)}><option value="">Whole cohort</option>{active.students.map(s=><option key={s.userId} value={s.userId}>{s.displayName}</option>)}</select></label><button type="button" className="rounded-lg border px-3 py-2 text-sm" onClick={()=>{setTitle("Targeted reasoning follow-up");setDescription("Baseline: review one previous response and identify the missing reasoning step. Practice: complete a fresh task. Success criterion: explain the new answer and test an assumption without consulting the solution. Reflection: record what changed and what still needs checking.");setHref("/tutor#academic-coach")}}>Use intervention template</button>{notice&&<p role="status" className="text-sm">{notice}</p>}<input className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={title} onChange={event => setTitle(event.target.value)} placeholder="Assignment title" /><Textarea rows={4} value={description} onChange={event => setDescription(event.target.value)} placeholder="What should students focus on?" /><select className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={href} onChange={event => setHref(event.target.value)}>{taskOptions.map(([path, label]) => <option key={path} value={path}>{label}</option>)}</select><label className="block"><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Due date (optional)</span><input type="datetime-local" className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={dueAt} onChange={event => setDueAt(event.target.value)} /></label><Button className="w-full" onClick={() => void createAssignment()} disabled={!title.trim()||saving}><Plus />{saving?"Saving…":"Create assignment"}</Button></CardContent></Card></section>
+            <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-2xl">Assignments</CardTitle></CardHeader><CardContent className="space-y-3">{active.assignments.map(assignment => { const {done,eligible,percent}=assignmentSummary(active,assignment);const pct=percent??0; return <div key={assignment.id} className="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-[1fr_220px_auto] md:items-center"><div><div className="flex flex-wrap gap-2"><strong>{assignment.title}</strong>{assignment.target_user_id&&<Badge variant="outline">Individual · {active.students.find(s=>s.userId===assignment.target_user_id)?.displayName??"Former member"}</Badge>}{assignment.due_at && <Badge variant="outline">Due {new Date(assignment.due_at).toLocaleDateString("en-GB")}</Badge>}</div><p className="mt-1 text-sm text-slate-600">{assignment.description || assignment.href}</p></div><div><div className="flex justify-between text-xs"><span>{done}/{eligible} complete</span><span>{percent===null?"—":pct+"%"}</span></div><Progress value={pct} className="mt-1" /></div><div className="flex gap-1"><Button asChild size="sm" variant="outline"><Link href={assignment.href}>Open <ArrowRight /></Link></Button><Button size="icon" variant="ghost" onClick={() => void deleteAssignment(assignment.id)}><Trash2 className="size-4" /></Button></div></div>})}{!active.assignments.length && <p className="text-sm text-slate-500">No assignments yet.</p>}</CardContent></Card>
           </>}
         </> : <Card className="shadow-none"><CardHeader><Users className="size-6 text-[#147d91]" /><CardTitle className="font-serif text-2xl">Create your first cohort</CardTitle><CardDescription>The cloud workspace is ready; add a cohort above, then share its join code with students.</CardDescription></CardHeader></Card>}
       </>}
