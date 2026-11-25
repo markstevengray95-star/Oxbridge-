@@ -21,6 +21,8 @@ const userTables: ExportTable[] = [
   { name: "human_review_orders", ownerColumns: ["user_id"] },
   { name: "practice_access_accounts", ownerColumns: ["user_id"] },
   { name: "fellow_practice_activity_events", ownerColumns: ["user_id"] },
+  { name: "fellow_learning_activity_events", ownerColumns: ["user_id"] },
+  { name: "fellow_school_student_access_audit", ownerColumns: ["viewer_user_id", "student_user_id"] },
   { name: "school_seat_entitlements", ownerColumns: ["user_id"] },
   { name: "school_organization_members", ownerColumns: ["user_id"] },
   { name: "school_memberships", ownerColumns: ["user_id"] },

@@ -25,6 +25,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import { subjectInterviewPathway, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
+import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
+import { mockDurations, mockInterviewFormat, mockInterviewStage, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
+import { InterviewEvidencePanel } from "@/components/interview-evidence-panel"
+import { InterviewEvidenceReview } from "@/components/interview-evidence-review"
+import { buildEvidenceLinkedFeedback, extractInsightSnapshots, type EvidenceLinkedFeedback } from "@/lib/interview-feedback-intelligence"
+import { evidenceChallengeForCourse, evidenceContext , canRevealNextEvidence, nextEvidenceStage } from "@/lib/interview-evidence-challenges"
 import {
   buildLiveResumePrompt,
   canSendLiveAudio,
@@ -195,6 +201,13 @@ export default function GeminiLiveNextPage() {
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [voice, setVoice] = useState<GeminiVoice>("Gacrux")
   const [panelMode, setPanelMode] = useState(false)
+  const [evidenceEnabled, setEvidenceEnabled] = useState(false)
+  const [evidenceStage, setEvidenceStage] = useState(-1)
+  const [evidenceLastAnswerCount, setEvidenceLastAnswerCount] = useState(0)
+  const [mockDuration, setMockDuration] = useState<MockDuration | null>(null)
+  const [mockStageIndex, setMockStageIndex] = useState(0)
+  const [mockVisited, setMockVisited] = useState<MockStageId[]>([])
+  const [secondProblemSent, setSecondProblemSent] = useState(false)
   const [voicePace, setVoicePace] = useState<InterviewVoicePace>("thoughtful")
   const [allowBargeIn, setAllowBargeIn] = useState(true)
   const [muted, setMuted] = useState(false)
@@ -212,6 +225,7 @@ export default function GeminiLiveNextPage() {
   const [cameraAnalysing, setCameraAnalysing] = useState(false)
   const [workingAnalysis, setWorkingAnalysis] = useState("")
   const [confidenceTarget, setConfidenceTarget] = useState<string | null>(null)
+  const [feedbackReport,setFeedbackReport] = useState<EvidenceLinkedFeedback | null>(null)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const cameraStreamRef = useRef<MediaStream | null>(null)
@@ -243,6 +257,9 @@ export default function GeminiLiveNextPage() {
   const setupReadyRef = useRef(false)
   const bargeInRef = useRef(true)
   const droppedAudioWarningRef = useRef(false)
+  const lastMockAnswerCountRef = useRef(0)
+
+  useEffect(()=>{const requested=mockInterviewFormat(Number(new URLSearchParams(window.location.search).get("mock")));if(requested)setMockDuration(requested.minutes)},[])
 
   useEffect(() => {
     try {
@@ -282,7 +299,40 @@ export default function GeminiLiveNextPage() {
   useEffect(() => () => teardown(false), [])
 
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
+  const evidenceChallenge = evidenceEnabled ? evidenceChallengeForCourse(course, track) : null
+  const candidateTurnCount = turns.filter(turn => turn.role === "candidate").length
+  const mockStatus = mockDuration ? mockInterviewStage({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:candidateTurnCount,previousStageIndex:mockStageIndex}):null
+  const secondProblem = realisticInterviewQuestions.find(item=>item.track===track && item.prompt!==subjectInterviewStarter(course,track).prompt)
   const coursePathway = subjectInterviewPathway(course, track)
+
+  useEffect(() => {
+    if (phase !== "live" || !mockDuration || candidateTurnCount <= lastMockAnswerCountRef.current) return
+    lastMockAnswerCountRef.current = candidateTurnCount
+    const stage = mockInterviewStage({ minutes:mockDuration, elapsedSeconds:seconds, candidateAnswers:candidateTurnCount, previousStageIndex:mockStageIndex })
+    if (stage && stage.index !== mockStageIndex) {
+      setMockStageIndex(stage.index)
+      setMockVisited(previous => [...new Set([...previous, stage.stage.id])])
+    }
+  }, [phase, mockDuration, candidateTurnCount, seconds, mockStageIndex])
+
+  function startSecondProblem() {
+    const ws = wsRef.current
+    if (!mockStatus || mockStatus.stage.id !== "second-problem" || secondProblemSent || !ws || ws.readyState !== WebSocket.OPEN) return
+    const question = secondProblem?.prompt || subjectInterviewStarter(course, track, "Challenge").prompt
+    ws.send(JSON.stringify({ clientContent: { turns: [{ role: "user", parts: [{ text:
+      "The interview has moved to the second academic problem. This is a facilitator instruction, not the candidate answer. Ask this new course-relevant problem, without supplying the solution: " + question
+    }] }], turnComplete: true } }))
+    setSecondProblemSent(true)
+    addTurn("system", "Second academic problem introduced: " + question)
+  }
+
+  function plannedVoiceReconnect() {
+    if (phase !== "live" || !mockDuration || mockDuration < 40) return
+    preserveUnfinishedTranscript()
+    teardown(false)
+    setPhase("reconnect")
+    setNotice("Timed mock paused for a secure voice reconnection. Resume to continue with your transcript and elapsed time.")
+  }
 
   function syncTurns(next: Turn[]) {
     turnsRef.current = next
@@ -419,13 +469,31 @@ export default function GeminiLiveNextPage() {
     silent.connect(context.destination)
   }
 
+  function revealEvidence() {
+    const ws=wsRef.current
+    const candidateCount=turnsRef.current.filter(turn=>turn.role==="candidate").length
+    if(!evidenceChallenge||!ws||ws.readyState!==WebSocket.OPEN||endingRef.current||!canRevealNextEvidence(evidenceStage,candidateCount,evidenceLastAnswerCount))return
+    const nextState=nextEvidenceStage(evidenceChallenge,evidenceStage,candidateCount,evidenceLastAnswerCount)
+    if(!nextState)return
+    const next=nextState.index
+    const exhibit=nextState.stage
+    const current=evidenceContext({challengeId:evidenceChallenge.id,stage:next})
+    if(!current)return
+    setEvidenceStage(next)
+    setEvidenceLastAnswerCount(candidateCount)
+    stopOutput()
+    addTurn("system",`New evidence released: ${exhibit.change}. ${exhibit.material.title}`)
+    setNotice("New evidence shown. The interviewer will now ask how it changes your reasoning.")
+    ws.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:"The student has chosen to view a new academic exhibit in the interview. This is original fictional practice evidence, not their spoken answer. Only these exhibits have been shown:\n"+current.material+"\nAsk this next academic question verbatim, without revealing the answer: "+exhibit.question}]}],turnComplete:true}}))
+  }
+
   function sendOpening(ws: WebSocket) {
     openingRef.current = true
     const materialHint = interviewContext.material
       ? " Start with the unseen or supercurricular material supplied in your system instructions."
       : ""
     const prompt = resumeRef.current
-      ? buildLiveResumePrompt(course, turnsRef.current)
+      ? buildLiveResumePrompt(course, turnsRef.current) + (evidenceChallenge && evidenceStage>=0 ? "\n\nCurrent interactive evidence already shown to the student:\n" + (evidenceContext({challengeId:evidenceChallenge.id,stage:evidenceStage})?.material || "") : "")
       : interviewContext.material
         ? `Begin the formal ${course} practice interview now.${materialHint} Ask one challenging but accessible question grounded in the supplied material.`
         : `Begin the formal ${course} practice interview now. Give a brief natural greeting, then ask this opening academic problem without answering it: ${subjectInterviewStarter(course, track).prompt}`
@@ -604,7 +672,7 @@ export default function GeminiLiveNextPage() {
     setPhase("connecting")
     setStatus("connecting")
     setNotice("")
-    if (!restore) syncTurns([])
+    if (!restore) { syncTurns([]);setEvidenceStage(-1);setEvidenceLastAnswerCount(0);setMockStageIndex(0);setMockVisited(mockDuration?["opening"]:[]);setSecondProblemSent(false);lastMockAnswerCountRef.current=0 }
     setCandidateLive("")
     setInterviewerLive("")
     if (!restore) setSeconds(0)
@@ -653,6 +721,7 @@ export default function GeminiLiveNextPage() {
           voice,
           panel: panelMode,
           resume: restore,
+          mockMinutes: mockDuration || undefined,
           material: interviewContext.material || "",
           preparationNotes: interviewContext.notes || "",
           focus: retestFocus,
@@ -869,6 +938,7 @@ export default function GeminiLiveNextPage() {
       ? Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000))
       : seconds
     const replay = buildReasoningReplay(course, turnsRef.current, duration)
+    const mockSession = mockDuration ? mockCompletionReport({minutes:mockDuration,elapsedSeconds:duration,candidateAnswers:turnsRef.current.filter(turn=>turn.role==="candidate").length,visitedStages:mockVisited,endedBy:"student"}) : null
 
     try {
       const existingReplayValue = JSON.parse(localStorage.getItem(LIVE_REPLAY_KEY) || "[]")
@@ -889,6 +959,8 @@ export default function GeminiLiveNextPage() {
 
       const progress = JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}") as Record<string, unknown>
       const logs = Array.isArray(progress.logs) ? progress.logs as Array<Record<string, unknown>> : []
+      const feedbackReport=buildEvidenceLinkedFeedback({sessionId:replay.id,course,source:"voice",turns:turnsRef.current.map(turn=>({role:turn.role,text:turn.text,feedback:turn.feedback})),createdAt:new Date().toISOString(),previous:extractInsightSnapshots(logs)})
+      setFeedbackReport(feedbackReport)
       const events = turnsRef.current
         .filter(turn => turn.role !== "system")
         .map(turn => {
@@ -907,9 +979,12 @@ export default function GeminiLiveNextPage() {
           id: replay.id,
           title: `Gemini Live Next · ${course}`,
           score: 0,
-          date: new Date().toLocaleDateString("en-GB"),
+          date: new Date().toISOString(),
           events,
           replayId: replay.id,
+          durationSeconds: duration,
+          feedbackReport,
+          mockSession,
         }, ...logs].slice(0, 50),
       }))
 
@@ -969,6 +1044,11 @@ export default function GeminiLiveNextPage() {
     syncTurns([])
     setWorkingAnalysis("")
     setConfidenceTarget(null)
+    setFeedbackReport(null)
+    setMockStageIndex(0)
+    setMockVisited([])
+    setSecondProblemSent(false)
+    lastMockAnswerCountRef.current=0
     endingRef.current = false
     mutedRef.current = false
     setMuted(false)
@@ -1007,6 +1087,7 @@ export default function GeminiLiveNextPage() {
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Interviewer style</span><NativeSelect value={personaKey} onChange={event => setPersonaKey(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Session style</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Tutor", "Realistic", "No-hint", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as GeminiVoice)}>{(Object.keys(voiceLabels) as GeminiVoice[]).map(item => <NativeSelectOption key={item} value={item}>{voiceLabels[item]}</NativeSelectOption>)}</NativeSelect></label>
+              <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Full-length mock session</span><NativeSelect value={mockDuration??"standard"} onChange={event=>setMockDuration(event.target.value==="standard"?null:Number(event.target.value) as MockDuration)}><NativeSelectOption value="standard">Standard voice interview</NativeSelectOption>{mockDurations.map(minutes=><NativeSelectOption key={minutes} value={String(minutes)}>{minutes}-minute academic mock</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">A planned academic pace, never an interruption. Longer voice mocks need a controlled secure reconnect.</span></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Time to think</span><NativeSelect value={voicePace} onChange={event => setVoicePace(event.target.value as InterviewVoicePace)}><NativeSelectOption value="thoughtful">Thoughtful · longer pauses</NativeSelectOption><NativeSelectOption value="balanced">Natural conversation</NativeSelectOption><NativeSelectOption value="quick">Quick responses</NativeSelectOption></NativeSelect></label>
               <button type="button" onClick={() => setAllowBargeIn(value => !value)} className="rounded-xl border bg-white p-3 text-left"><strong>{allowBargeIn ? "Interruptions allowed" : "Interruptions disabled"}</strong><p className="mt-1 text-xs text-slate-500">Let the student speak over the interviewer naturally. Headphones recommended.</p></button>
 
@@ -1016,6 +1097,7 @@ export default function GeminiLiveNextPage() {
               </button>
 
               {interviewContext.material && <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-4"><strong>Interview context loaded: {interviewContext.title || "unseen material"}</strong><p className="mt-1 text-sm text-blue-900">The interviewer will use the material and your preparation notes.</p></div>}
+              <button type="button" onClick={() => setEvidenceEnabled(value => !value)} className="sm:col-span-2 rounded-xl border bg-white p-3 text-left text-sm"><strong>{evidenceEnabled ? "Interactive evidence on" : "Add interactive unseen evidence"}</strong><p className="mt-1 text-xs text-slate-500">Reveal charts, data and changed conditions between spoken answers.</p></button>
               {retestFocus && <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4"><strong>Delayed oral retest due</strong><p className="mt-1 text-sm text-amber-900">The same reasoning habit will return through a fresh problem without revealing the target first.</p></div>}
               {notice && <div className="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div>}
               {phase === "reconnect" && <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">Your interview transcript is still here. Resuming creates a fresh secure voice connection and recaps the academic discussion; you do not need to start over.</div>}
@@ -1048,9 +1130,10 @@ export default function GeminiLiveNextPage() {
     return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]">
       <div className="mx-auto max-w-4xl px-4 py-12">
         <Card className="shadow-none">
-          <CardHeader><CheckCircle2 className="size-8 text-emerald-600" /><CardTitle className="font-serif text-3xl">Interview saved to Reasoning Replay</CardTitle><CardDescription>Your transcript, confidence estimates, branching path, feedback and any shared working summary are ready for review.</CardDescription></CardHeader>
+          <CardHeader><CheckCircle2 className="size-8 text-emerald-600" /><CardTitle className="font-serif text-3xl">Interview saved to Reasoning Replay</CardTitle><CardDescription>Your transcript, confidence estimates, branching path, feedback and any shared working summary are ready for review.{mockDuration ? <span className="mt-2 block font-semibold text-[#147d91]">{mockCompletionReport({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:candidateTurnCount,visitedStages:mockVisited})?.status}. Actual practice: {(seconds/60).toFixed(1)} of {mockDuration} minutes; {mockVisited.length} academic stages reached.</span> : null}</CardDescription></CardHeader>
           <CardContent className="flex flex-wrap gap-2"><Button asChild><Link href="/reasoning-replay">Open reasoning replay</Link></Button><Button variant="outline" onClick={reset}><RefreshCw />New interview</Button></CardContent>
         </Card>
+        {feedbackReport?<InterviewEvidenceReview report={feedbackReport}/>:null}
       </div>
     </main>
   }
@@ -1061,6 +1144,7 @@ export default function GeminiLiveNextPage() {
         <Badge className="bg-emerald-700">Live</Badge>
         <strong className="mr-auto">{course} · {statusLabel}</strong>
         <Badge variant="outline">{formatTime(seconds)}</Badge>
+        {mockStatus ? <Badge variant="outline">{mockStatus.stage.label} · {mockStatus.remainingSeconds===0?"time reached":formatTime(mockStatus.remainingSeconds)+" left"}</Badge> : null}
         <Button size="sm" variant="outline" onClick={toggleMute}>{muted ? <MicOff /> : <Mic />}{muted ? "Unmute" : "Mute"}</Button>
         <Button size="sm" variant="destructive" onClick={finishInterview}><PhoneOff />Finish</Button>
       </div>
@@ -1085,6 +1169,8 @@ export default function GeminiLiveNextPage() {
       </section>
 
       <aside className="space-y-4">
+        {mockStatus && mockDuration ? <Card className="border-cyan-200 bg-cyan-50"><CardHeader><CardTitle className="text-lg">Timed mock · {mockDuration} minutes</CardTitle><CardDescription>Stage {mockStatus.index+1} of {mockStatus.format.stages.length}: {mockStatus.stage.label}. {mockStatus.scheduledTimeReached?"Scheduled time reached: finish naturally after your reasoning.":"Progression occurs after completed candidate answers."}</CardDescription></CardHeader><CardContent className="space-y-2">{mockStatus.stage.id==="second-problem"&&!secondProblemSent?<Button type="button" onClick={startSecondProblem} className="w-full">Introduce second academic problem</Button>:null}{mockDuration>=40&&seconds>=24*60?<><p className="text-xs text-slate-600">A new secure connection may be needed to finish this longer mock. Your transcript and elapsed time stay in this browser.</p><Button type="button" variant="outline" onClick={plannedVoiceReconnect} className="w-full">Reconnect voice to continue</Button></>:null}</CardContent></Card> : null}
+        {evidenceChallenge ? <InterviewEvidencePanel challenge={evidenceChallenge} stageIndex={evidenceStage} canReveal={canRevealNextEvidence(evidenceStage,candidateTurnCount,evidenceLastAnswerCount)} onReveal={revealEvidence} disabled={phase!=="live"}/> : null}
         <Card className="shadow-none">
           <CardHeader><div className="flex items-center justify-between gap-3"><div><Camera className="size-5 text-[#147d91]" /><CardTitle className="mt-2 font-serif text-xl">Show your working</CardTitle></div><Button size="sm" variant="outline" onClick={() => void toggleCamera()}>{cameraOn ? <CameraOff /> : <Camera />}{cameraOn ? "Stop" : "Camera"}</Button></div><CardDescription>No continuous video is uploaded. A still image is captured only when you press Analyse working.</CardDescription></CardHeader>
           <CardContent className="space-y-3"><div className="aspect-video overflow-hidden rounded-xl border bg-slate-950"><video ref={videoRef} className="h-full w-full object-cover" muted playsInline /></div><Button className="w-full" onClick={() => void analyseCameraWorking()} disabled={!cameraOn || cameraAnalysing}>{cameraAnalysing ? <Loader2 className="animate-spin" /> : <ScanSearch />}{cameraAnalysing ? "Analysing…" : "Analyse working"}</Button>{workingAnalysis && <details className="rounded-xl bg-slate-50 p-3" open><summary className="cursor-pointer text-sm font-semibold">Latest working analysis</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">{workingAnalysis}</p></details>}</CardContent>

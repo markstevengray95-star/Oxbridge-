@@ -2,9 +2,10 @@ import { NextResponse } from "next/server"
 import { getGeminiApiKeyCandidates, hasGeminiApiKey } from "@/lib/gemini/api-key"
 import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
 import { subjectPathwayBrief, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
+import { mockInterviewFormat, mockStageInstruction } from "@/lib/full-mock-interview"
 
 type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
-type SessionRequest = { course?: string; track?: string; persona?: string; mode?: string; voice?: GeminiVoice; material?: string; preparationNotes?: string; focus?: string; panel?: boolean; resume?: boolean }
+type SessionRequest = { course?: string; track?: string; persona?: string; mode?: string; voice?: GeminiVoice; material?: string; preparationNotes?: string; focus?: string; panel?: boolean; resume?: boolean; mockMinutes?: number }
 type GoogleTokenResponse = { name?: unknown; authToken?: { name?: unknown } }
 type GoogleErrorResponse = { error?: { code?: unknown; message?: unknown; status?: unknown } }
 
@@ -44,7 +45,15 @@ function subjectInstructions(course: string, track: string) {
   return ["Choose academically demanding questions that are answerable through reasoning from accessible foundations, then adapt the difficulty to the candidate's response."]
 }
 
-function interviewInstructions(course: string, track: string, persona: string, mode: string, material: string, preparationNotes: string, focus: string, panel: boolean, resume: boolean) {
+function interviewInstructions(course: string, track: string, persona: string, mode: string, material: string, preparationNotes: string, focus: string, panel: boolean, resume: boolean, mockMinutes?: number) {
+  const mockFormat = mockInterviewFormat(Number(mockMinutes))
+  const mockAgenda = mockFormat ? [
+    mockStageInstruction({minutes:mockFormat.minutes,elapsedSeconds:0,candidateAnswers:0}),
+    "Approximate stage sequence and proportions: " + mockFormat.stages.map(stage => stage.label+" at about "+Math.round(stage.startFraction*mockFormat.minutes)+" minutes").join("; ")+".",
+    "Do not advance just because a clock reaches a number: wait for a completed substantive answer. Keep the interview natural and never interrupt mid-explanation.",
+    mockFormat.minutes>=40 ? "This is an extended two-part practice with a genuinely different second problem in the second portion. The client may introduce the next problem explicitly." : "Continue one connected academic problem through progressive challenge and synthesis.",
+    "The practice client records actual elapsed time and honest partial completion; do not claim the session is a real university interview.",
+  ] : []
   const contextInstructions = material ? ["The candidate has been given unseen pre-interview material. Use it actively rather than ignoring it.", `UNSEEN MATERIAL: ${material}`, preparationNotes ? `CANDIDATE PREPARATION NOTES: ${preparationNotes}` : "The candidate supplied no preparation notes.", "Begin by asking the candidate to interpret, question or defend something from the material. Do not supply an authoritative interpretation first."] : []
   const focusInstructions = focus ? [`DELAYED RETEST FOCUS: ${focus}`, "Test this reasoning habit naturally in a different problem. Do not tell the candidate the exact weakness before they have attempted the task."] : []
   const panelInstructions = panel ? ["This is a two-interviewer simulation. Alternate academic roles between Interviewer A and Interviewer B on successive substantive model turns.", "Interviewer A should usually develop the candidate's line of reasoning. Interviewer B should usually test assumptions, counterexamples or alternative interpretations.", "Prefix every substantive response with exactly 'A:' or 'B:' so the client can render two distinct interviewer roles. Keep the turn natural rather than following a rigid feedback template."] : []
@@ -54,6 +63,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     `Course: ${course}. Subject family: ${track}. Interviewer style: ${persona}. Session mode: ${mode}.`,
     subjectPathwayBrief(course, track),
+    ...mockAgenda,
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
     "Sound like a real university academic in a tutorial or admissions interview: calm, curious, understated, precise, and conversational; never like a customer-service assistant, motivational coach, quiz host, or announcer.",
     "Allow the candidate time to think aloud. Never answer on their behalf or treat a brief hesitation as a completed answer. If interrupted, stop and address what they say before continuing.",
@@ -155,6 +165,7 @@ export async function createLiveSession(request: Request) {
   const track = safeText(body.track, "the selected subject family", 80)
   const persona = safeText(body.persona, "Socratic academic", 80)
   const mode = safeText(body.mode, "Realistic", 40)
+  const mockMinutes = mockInterviewFormat(Number(body.mockMinutes))?.minutes
   const material = safeLongText(body.material, 6000)
   const preparationNotes = safeLongText(body.preparationNotes, 2500)
   const focus = safeLongText(body.focus, 800)
@@ -164,7 +175,7 @@ export async function createLiveSession(request: Request) {
   const model = normalizeLiveModelName(process.env.GEMINI_LIVE_MODEL)
   try {
     const { token, credentialSource } = await createEphemeralTokenFromConfiguredKeys()
-    return NextResponse.json({ token, model, voice, instructions: interviewInstructions(course, track, persona, mode, material, preparationNotes, focus, panel, resume), expiresInSeconds: 1800, revision: GEMINI_LIVE_REVISION, credentialSource }, { headers: { "Cache-Control": "no-store" } })
+    return NextResponse.json({ token, model, voice, instructions: interviewInstructions(course, track, persona, mode, material, preparationNotes, focus, panel, resume, mockMinutes), expiresInSeconds: 1800, revision: GEMINI_LIVE_REVISION, credentialSource }, { headers: { "Cache-Control": "no-store" } })
   } catch (error) {
     console.error("Gemini Live session error", error)
     const message = error instanceof Error ? error.message : "Unknown server error"

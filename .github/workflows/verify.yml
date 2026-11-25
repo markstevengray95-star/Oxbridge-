@@ -99,6 +99,21 @@ jobs:
       - name: Phase five subject-specific interview checks
         run: npm run test:interview-subjects
 
+      - name: Phase six interactive academic evidence checks
+        run: npm run test:interview-evidence
+
+      - name: Phase seven full-length mock interview checks
+        run: npm run test:full-mock-interviews
+
+      - name: Phase eight interview evidence feedback checks
+        run: npm run test:interview-feedback-intelligence
+
+      - name: Phase nine school tracking and account access checks
+        run: npm run test:school-tracking
+
+      - name: Phase ten release safety and writing validation checks
+        run: npm run test:launch-readiness
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 

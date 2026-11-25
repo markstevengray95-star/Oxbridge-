@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { PROGRESS_KEY } from "@/lib/personal-tutor"
 
-type Log = { id?: unknown; title?: unknown; date?: unknown; events?: unknown; score?: unknown; dimensions?: unknown }
+type Log = { id?: unknown; title?: unknown; date?: unknown; events?: unknown; score?: unknown; dimensions?: unknown; feedbackReport?: unknown; mockSession?: unknown; durationSeconds?: unknown }
 type TestResult = { id?: unknown; test?: unknown; form?: unknown; title?: unknown; date?: unknown; rawScore?: unknown; maxRawMarks?: unknown; totalQuestions?: unknown; accuracy?: unknown; durationSeconds?: unknown; [key: string]: unknown }
 
 type Turn = { role: "candidate" | "interviewer"; content: string; feedback: string | null }
@@ -36,7 +36,7 @@ function dateValue(value: unknown) {
 }
 
 function parseTurn(event: string): Turn | null {
-  const candidate = event.match(/^Candidate:\s*(.+)$/i)
+  const candidate = event.match(/^Candidate:\s*([\s\S]+)$/i)
   if (candidate) {
     const marker = " | Feedback: "
     const at = candidate[1].indexOf(marker)
@@ -44,7 +44,7 @@ function parseTurn(event: string): Turn | null {
     const feedback = at >= 0 ? candidate[1].slice(at + marker.length).replace(/\s+\|\s+Confidence:\s*\d+%?\s*$/i, "").trim() : ""
     return content ? { role: "candidate", content, feedback: feedback || null } : null
   }
-  const interviewer = event.match(/^Interviewer(?:\s+[A-Za-z0-9/ -]+)?:\s*(.+)$/i)
+  const interviewer = event.match(/^Interviewer(?:\s+[A-Za-z0-9/ -]+)?:\s*([\s\S]+)$/i)
   return interviewer?.[1]?.trim() ? { role: "interviewer", content: interviewer[1].trim(), feedback: null } : null
 }
 
@@ -74,19 +74,21 @@ export function HistoryCloudMirror() {
       syncing = true
       try {
         const logs = Array.isArray(progress.logs) ? progress.logs as Log[] : []
-        for (const [index, log] of logs.filter(item => /interview|panel/i.test(String(item.title ?? ""))).slice(0, 100).entries()) {
+        for (const [index, log] of logs.filter(item => /interview|panel|gemini live next/i.test(String(item.title ?? ""))).slice(0, 100).entries()) {
           const events = Array.isArray(log.events) ? log.events.filter((item): item is string => typeof item === "string") : []
           const turns = events.map(parseTurn).filter((item): item is Turn => Boolean(item))
           if (!turns.length) continue
           const title = String(log.title || "Saved interview")
           const sourceRef = typeof log.id === "string" && log.id ? log.id : `history-${index}-${title}-${String(log.date ?? "")}`
           const course = title.includes("·") ? title.split("·").slice(1).join("·").trim() || "General" : "General"
-          const feedback = { source: "history_cloud_mirror", title, score: typeof log.score === "number" ? log.score : null, dimensions: record(log.dimensions) }
+          const mock = record(log.mockSession)
+          const feedback = { source: "history_cloud_mirror", title, score: typeof log.score === "number" ? log.score : null, dimensions: record(log.dimensions), feedbackReport: record(log.feedbackReport), mockSession: mock }
+          const savedDuration = Math.max(0, Math.min(7200, optionalInteger(log.durationSeconds) ?? optionalInteger(mock.elapsedSeconds) ?? duration(events)))
           const existing = await supabase.from("interview_sessions").select("id").eq("user_id", userId).eq("source_ref", sourceRef).maybeSingle()
           if (existing.error) throw existing.error
           let sessionId = existing.data?.id as string | undefined
           if (sessionId) {
-            const updated = await supabase.from("interview_sessions").update({ course, duration_seconds: duration(events), summary: title, overall_feedback: feedback, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", userId)
+            const updated = await supabase.from("interview_sessions").update({ course, duration_seconds: savedDuration, summary: title, overall_feedback: feedback, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", userId)
             if (updated.error) throw updated.error
           } else {
             const created = await supabase.from("interview_sessions").insert({ user_id: userId, course, duration_seconds: duration(events), summary: title, overall_feedback: feedback, source_ref: sourceRef, created_at: dateValue(log.date) }).select("id").single()
