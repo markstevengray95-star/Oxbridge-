@@ -419,6 +419,7 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
           dimensions: { reasoning: scored.reasoning, accuracy: scored.accuracy, responsiveness: scored.responsiveness, adaptability: scored.adaptability, evidence: scored.evidence, communication: scored.communication },
           reasoningFirst: scored.reasoningFirst,
           feedbackReport,
+          durationSeconds: Math.max(0,mockDuration?(mockStartRef.current?Math.floor((Date.now()-mockStartRef.current)/1000):mockElapsed):((mode==="Stress"?12:18)*60-seconds)),
           mockSession: completedMock,
         }, ...logs].slice(0, 50),
       }))

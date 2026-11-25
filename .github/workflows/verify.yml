@@ -108,6 +108,9 @@ jobs:
       - name: Phase eight interview evidence feedback checks
         run: npm run test:interview-feedback-intelligence
 
+      - name: Phase nine school tracking and account access checks
+        run: npm run test:school-tracking
+
       - name: Interview answer-quality behaviour checks
         run: node tests/interview-answer-quality.mjs
 

@@ -105,8 +105,9 @@ function turnFromEvent(event: string) {
       feedback: markerIndex >= 0 ? raw.slice(markerIndex + marker.length) : null,
     }
   }
-  if (event.startsWith("Interviewer: ")) {
-    return { role: "interviewer", content: event.slice("Interviewer: ".length), feedback: null }
+  const interviewer = event.match(/^Interviewer(?:\s+[A-Za-z0-9/ -]+)?:\s*([\s\S]+)$/i)
+  if (interviewer) {
+    return { role: "interviewer", content: interviewer[1], feedback: null }
   }
   return null
 }
@@ -159,11 +160,15 @@ export function CloudProgressSync() {
 
       for (const [logIndex, log] of logs.slice(0, 40).entries()) {
         const title = typeof log.title === "string" ? log.title : ""
-        if (!title.startsWith("Gemini Live Interview")) continue
+        if (!/^(?:Gemini Live Interview|Gemini Live Next)\b/i.test(title)) continue
 
         const events = Array.isArray(log.events) ? log.events.filter((item): item is string => typeof item === "string") : []
         const sourceRef = typeof log.id === "string" && log.id ? log.id : `gemini-import-${logIndex}-${title}-${String(log.date ?? "")}`
         const course = title.includes("·") ? title.split("·").slice(1).join("·").trim() || "General" : "General"
+        const mock = asRecord((log as ProgressLog & { mockSession?: unknown }).mockSession)
+        const elapsed = Number(mock.elapsedSeconds)
+        const explicitDuration = Number((log as ProgressLog & {durationSeconds?:unknown}).durationSeconds)
+        const recordedDuration = Number.isFinite(explicitDuration)&&explicitDuration>0 ? Math.min(7200,Math.floor(explicitDuration)) : Number.isFinite(elapsed)&&elapsed>0 ? Math.min(7200,Math.floor(elapsed)) : durationSeconds(events)
 
         let sessionId: string | null = null
         const { data: existing } = await supabase
@@ -181,9 +186,9 @@ export function CloudProgressSync() {
             .insert({
               user_id: userId,
               course,
-              duration_seconds: durationSeconds(events),
-              summary: "Saved Gemini Live interview",
-              overall_feedback: { source: "cloud_progress_sync" },
+              duration_seconds: recordedDuration,
+              summary: title,
+              overall_feedback: { source: "cloud_progress_sync", mockSession: mock, feedbackReport: asRecord((log as ProgressLog & {feedbackReport?:unknown}).feedbackReport) },
               source_ref: sourceRef,
             })
             .select("id")
