@@ -22,7 +22,10 @@
     "test:school-tracking": "node --experimental-strip-types --test tests/phase9-school-tracking.test.mjs",
     "test:launch-readiness": "node --experimental-strip-types --test tests/phase10-launch-readiness.test.mjs",
     "release:check": "node scripts/phase10-release-gate.mjs",
-    "test:exam-session-quality": "node --experimental-strip-types --test tests/exam-session-quality.test.mjs"
+    "test:academic-coach": "node --experimental-strip-types --test tests/academic-coach.test.mjs",
+    "prebuild": "npm run test:academic-coach && npm run test:exam-session-quality && npm run test:interview-realism-phase13",
+    "test:exam-session-quality": "node --experimental-strip-types --test tests/exam-session-quality.test.mjs",
+    "test:interview-realism-phase13": "node --experimental-strip-types --test tests/interview-realism-phase13.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
