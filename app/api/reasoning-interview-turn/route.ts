@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { courseInterviewProfile } from "@/lib/interview-depth-features"
 import { interviewerStyle, nextPanelSpeaker, styleLocalPrompt, validWhiteboardPayload, type WhiteboardSnapshot } from "@/lib/interview-realism"
 import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
 import { evaluateInterviewAnswerLocally, type InterviewAnswerClassification, type InterviewAnswerIssue } from "@/lib/interview-answer-quality"
@@ -45,8 +46,8 @@ type GeminiReply = {
   reply?: string
 }
 
-function clean(text: string | undefined, max = 4000) {
-  return (text ?? "").replace(/\s+/g, " ").trim().slice(0, max)
+function clean(text: unknown, max = 4000) {
+  return (typeof text==="string"?text:"").replace(/\s+/g, " ").trim().slice(0, max)
 }
 
 function canonicalQuestion(questionId?: string, prompt?: string) {
@@ -193,7 +194,7 @@ export async function POST(request: Request) {
   const mock = body.mock ? mockInterviewStage({minutes:Number(body.mock.minutes),elapsedSeconds:Math.max(0,Math.min(7200,Number(body.mock.elapsedSeconds)||0)),candidateAnswers:turns.filter(turn=>turn.role==="candidate").length,previousStageIndex:Number(body.mock.stageIndex)||0}):null
   const workingEvidence = clean(typeof body.workingEvidence==="string"?body.workingEvidence:undefined, 1400)
   const style=interviewerStyle(body.interviewerStyle)
-  let whiteboard=validWhiteboardPayload(body.whiteboard)
+  const whiteboard=validWhiteboardPayload(body.whiteboard)
   if(body.whiteboard!==undefined&&!whiteboard)return NextResponse.json({error:"Invalid or unconsented whiteboard attachment."},{status:400})
   if(whiteboard){
     const supabase=await createClient()
@@ -253,6 +254,9 @@ export async function POST(request: Request) {
   if (intervention.kind === "silence") reply = "Take a moment. Keep thinking aloud: what would you test or establish next before I intervene?"
   if (intervention.kind === "move-on") reply = "Give me your final synthesis of this problem: conclusion, decisive step, key assumption, strongest challenge and what you would carry into a new problem."
   const speaker=nextPanelSpeaker(body.panelMode===true,candidateTurnCount)
+  const panel=courseInterviewProfile(clean(body.course,120),clean(body.track,80))
+  const perspective=speaker==="Interviewer A"?panel.interviewerA:speaker==="Interviewer B"?panel.interviewerB:""
+  const presentation=style.instruction+(perspective?" Academic perspective: "+perspective+". Preserve the current problem and selected branch, do not invent a second conversation.":"")
   reply=styleLocalPrompt(reply,style.id,intervention.supportLevel)
   let provider: "local" | "gemini" = "local"
   const keys = getGeminiApiKeyCandidates()
@@ -279,7 +283,7 @@ export async function POST(request: Request) {
         strategyRationale: extendedTreeTurn ? node.branchReason : planned.rationale,
         evidenceBrief: evidence?.material,
         workingEvidence,
-        styleInstruction:style.instruction,
+        styleInstruction:presentation,
         panelSpeaker:speaker,
         whiteboard,
         mockGuidance: mock ? mockStageInstruction({minutes:mock.format.minutes,elapsedSeconds:mock.elapsedSeconds,candidateAnswers:candidateTurnCount,previousStageIndex:mock.index}) : undefined,
