@@ -499,3 +499,11 @@ export const phase12QuestionBank:Phase12Question[] = [
   "explanation": "Prompt transparent correction prevents downstream errors. The response is proportionate to a minor administrative mistake."
  }
 ]
+
+export function nextChallengeQuestion(pool:Phase12Question[],attempts:{id:string;correct:boolean}[]){
+ const seen=new Set(attempts.map(a=>a.id))
+ const misses=new Set(pool.filter(q=>attempts.some(a=>a.id===q.id&&!a.correct)).map(q=>q.topic))
+ const recent=attempts.filter(a=>pool.some(q=>q.id===a.id)).slice(0,3)
+ const preferred=recent.length>=2&&recent.every(a=>a.correct)?"Challenge":recent.length>=2&&recent.every(a=>!a.correct)?"Foundation":"Stretch"
+ return pool.filter(q=>!seen.has(q.id)).map((q,i)=>({q,i,score:Number(misses.has(q.topic))*3+Number(q.difficulty===preferred)})).sort((a,b)=>b.score-a.score||a.i-b.i)[0]?.q??null
+}
