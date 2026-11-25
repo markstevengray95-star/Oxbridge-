@@ -54,10 +54,11 @@ export function AcademicCoach(){
   setBusy(true);setError("")
   try{
    const response=await fetch("/api/academic-coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({packId:pack.id,diagnostic,transfer})})
-   const payload=await response.json()
+   const payload=await response.json() as {error?:string;attempt?:CoachAttempt}
    if(token!==generation.current)return
    if(!response.ok){setError(payload.error||"Could not save this exercise.");return}
-   setResult(payload.attempt as CoachAttempt);setStage("result")
+   if(!payload.attempt){setError("Save could not be verified.");return}
+   setResult(payload.attempt);setStage("result")
   }catch{if(token===generation.current)setError("Connection failed. Your choices are still available to retry.")}
   finally{if(token===generation.current)setBusy(false)}
  }
