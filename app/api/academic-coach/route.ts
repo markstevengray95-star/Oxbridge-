@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { PROFILE_KEY, PROGRESS_KEY } from "@/lib/personal-tutor"
-import { coachPacks, COACH_STATE_PREFIX, chooseCoachPack, gradeCoachAttempt, readCoachAttempt, type CoachAttempt } from "@/lib/academic-coach"
+import { coachPacks, COACH_STATE_PREFIX, chooseCoachPack, coachReviewSchedule, matchesCoachCourse, gradeCoachAttempt, readCoachAttempt, type CoachAttempt } from "@/lib/academic-coach"
 
 export const dynamic = "force-dynamic"
 function reply(data:unknown,status=200){
@@ -17,7 +17,7 @@ export async function GET(){
  const state=new Map<string,unknown>((data??[]).map(row=>[row.state_key,row.state_value]))
  const attempts=coachPacks.map(p=>readCoachAttempt(state.get(COACH_STATE_PREFIX+p.id),p.id)).filter((a):a is CoachAttempt=>a!==null)
  const recommendation=chooseCoachPack(state.get(PROGRESS_KEY),state.get(PROFILE_KEY),attempts)
- return reply({attempts,recommendation})
+ return reply({attempts,recommendation, reviewSchedule:coachReviewSchedule(attempts)})
 }
 export async function POST(request:Request){
  const supabase=await createClient()
@@ -33,6 +33,16 @@ export async function POST(request:Request){
  const input=body as Record<string,unknown>
  const attempt=gradeCoachAttempt(input.packId,input.diagnostic,input.transfer)
  if(!attempt)return reply({error:"Invalid exercise or answer choice."},400)
+ const pack=coachPacks.find(p=>p.id===attempt.packId)!
+ const {data:rows,error:lookupError}=await supabase.from("user_state").select("state_key,state_value").eq("user_id",auth.user.id).in("state_key",[PROFILE_KEY,...keys])
+ if(lookupError)return reply({error:"Could not verify your exercise eligibility. Please retry."},503)
+ const state=new Map<string,unknown>((rows??[]).map(row=>[row.state_key,row.state_value]))
+ const existing=readCoachAttempt(state.get(COACH_STATE_PREFIX+pack.id),pack.id)
+ if(existing)return reply({attempt:existing})
+ const profile=state.get(PROFILE_KEY) as {course?:unknown}|undefined
+ if(pack.course&&!matchesCoachCourse(pack.course,typeof profile?.course==="string"?profile.course:""))return reply({error:"This exercise is not part of your saved course."},403)
+ const previous=coachPacks.map(p=>readCoachAttempt(state.get(COACH_STATE_PREFIX+p.id),p.id)).filter((a):a is CoachAttempt=>a!==null)
+ if(pack.review&&!coachReviewSchedule(previous).some(x=>x.packId===pack.id&&x.due))return reply({error:"This spaced review is not due yet."},409)
  const key=COACH_STATE_PREFIX+attempt.packId
  // One immutable first completed pair per pack. Duplicate requests cannot inflate progress.
  const {error}=await supabase.from("user_state").upsert({user_id:auth.user.id,state_key:key,state_value:attempt,updated_at:attempt.completedAt},{onConflict:"user_id,state_key",ignoreDuplicates:true})
