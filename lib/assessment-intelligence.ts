@@ -25,7 +25,7 @@ export function buildAssessmentReport(progressValue:unknown,profileValue:unknown
   const reason=int(s.reasonedCount,0,answers??0),testing=int(s.testedCount,0,answers??0),revision=int(s.revisionCount,0,answers??0)
   if(!course||name.toLowerCase()!==course.toLowerCase()||!id||unique.has("i:"+id)||!d||!modes.has(mode)||answers===null||reason===null||testing===null||revision===null)continue
   unique.add("i:"+id)
-  const g=interviews.get(mode)??{course:name,mode,sessionCount:0,points:[],comparison:null,examples:[]}
+  const g:InterviewTrend=interviews.get(mode)??{course:name,mode,sessionCount:0,points:[],comparison:null,examples:[]}
   g.points.push({date:d,answers,reasoning:reason,testing,revision});g.sessionCount++
   for(const item of arr(report.improvements).slice(0,2)){
    const e=obj(item),quote=str(e.quote,220),question=str(e.question,240),observation=str(e.observation,400)
@@ -57,7 +57,7 @@ export function buildAssessmentReport(progressValue:unknown,profileValue:unknown
    if(s.kind!=="mcq"||!section||sectionSeen.has(section)||max===null||max<=0||max>300||raw===null||raw<0||raw>max)continue
    sectionSeen.add(section)
    const key=test+"|"+section
-   const g=paperTrends.get(key)??{test,section,points:[]}
+   const g:PaperTrend=paperTrends.get(key)??{test,section,points:[]}
    g.points.push({date:d,form:str(typeof p.form==="number"?String(p.form):p.form,20)||"Unknown",raw,max,accuracy:pct(raw,max)!});paperTrends.set(key,g)
   }
   const seen=new Set<string>()
@@ -66,7 +66,7 @@ export function buildAssessmentReport(progressValue:unknown,profileValue:unknown
    if(!qid||seen.has(qid)||!section||!prompt||!response||raw===null||max===null||max<=0||max>10||raw<0||raw>max)continue
    seen.add(qid)
    const key=test+"|"+section
-   const g=patterns.get(key)??{test,section,papers:new Set<string>(),missIds:new Set<string>(),attemptedCount:0,missedCount:0,omittedCount:0,examples:[]}
+   const g:Group=patterns.get(key)??{test,section,papers:new Set<string>(),missIds:new Set<string>(),attemptedCount:0,missedCount:0,omittedCount:0,examples:[]}
    // An omission is not evidence of a conceptual misconception.
    const omitted=/^unanswered$/i.test(response)||(/^\d+:\s*—(?:\s*·\s*\d+:\s*—)*$/.test(response))
    if(omitted){g.omittedCount++;patterns.set(key,g);continue}
@@ -86,7 +86,10 @@ export function buildAssessmentReport(progressValue:unknown,profileValue:unknown
   return {skill,completed:initial.length,diagnosticCorrect:initial.filter(r=>r.diagnosticCorrect).length,transferCorrect:initial.filter(r=>r.transferCorrect).length,delayedCompleted:reviews.length,delayedCorrect:reviews.filter(r=>r.transferCorrect).length,records:group.slice(0,8)}
  })
  const retests=arr(progress.interventionResults).slice(0,50).map(obj).filter(r=>{const id=str(r.id),accuracy=num(r.retestAccuracy);if(!id||unique.has("r:"+id)||!date(r.date)||!tests.has(str(r.test))||accuracy===null||accuracy<0||accuracy>100)return false;unique.add("r:"+id);return true}).map(r=>({date:date(r.date)!,test:str(r.test),accuracy:num(r.retestAccuracy)!,questions:int(r.questionCount,1,300),answered:int(r.answered,0,300),targets:arr(r.targets).map(t=>str(t)).filter(Boolean).slice(0,5)})).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8)
- const next=recurring.length?{title:"Investigate a recurring test difficulty",detail:recurring[0].test+" · "+recurring[0].section+". "+recurring[0].action,href:"/paper-intervention",success:"Explain the method, then answer a fresh item without the worked solution."}:coach.some(r=>!r.transferCorrect)?{title:"Revisit a missed fresh coaching check",detail:"Use another example of "+coach.find(r=>!r.transferCorrect)!.skill+".",href:"/tutor#academic-coach",success:"Justify a fresh answer, then complete the delayed review when due."}:{title:"Collect more comparable evidence",detail:"Complete another subject interview or admissions paper before making conclusions about progress.",href:"/tutor#academic-coach",success:"Record a new independent practice attempt."}
+ const latestCoachBySkill=coach.filter((r,i)=>coach.findIndex(x=>x.skill===r.skill)===i)
+ const missedCoach=latestCoachBySkill.find(r=>!r.transferCorrect)
+ const lowInterview=[...interviews.values()].find(g=>g.sessionCount>=2&&g.points.slice(-2).every(p=>p.testing===0))
+ const next=recurring.length?{title:"Investigate a recurring test difficulty",detail:recurring[0].test+" · "+recurring[0].section+". "+recurring[0].action,href:"/paper-intervention",success:"Explain the method, then answer a fresh item without the worked solution."}:missedCoach?{title:"Revisit a missed fresh coaching check",detail:"Use another example of "+missedCoach.skill+".",href:"/tutor#academic-coach",success:"Justify a fresh answer, then complete the delayed review when due."}:lowInterview?{title:"Make a checkable prediction in your next interview",detail:"The two latest "+lowInterview.mode+" sessions contained no explicit testing language in the recorded answers. Other forms of reasoning may still be present.",href:"/interview-room",success:"State a prediction or counterexample and explain how it could test your conclusion."}:{title:"Collect more comparable evidence",detail:"Complete another subject interview or admissions paper before making conclusions about progress.",href:"/tutor#academic-coach",success:"Record a new independent practice attempt."}
  return {asOf,course:course||null,windowDays:90,interviewCount:[...interviews.values()].reduce((n,g)=>n+g.sessionCount,0),paperCount,coachCount:coach.length,interviews:[...interviews.values()],paperTrends:[...paperTrends.values()].map(g=>({...g,points:g.points.sort((a,b)=>a.date.localeCompare(b.date)).slice(-8)})).sort((a,b)=>a.test.localeCompare(b.test)||a.section.localeCompare(b.section)),recurring,coachSkills,retests,next}
 }
 export type AssessmentReport=ReturnType<typeof buildAssessmentReport>
