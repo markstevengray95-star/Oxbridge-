@@ -1,7 +1,7 @@
 /** Phase 11: bounded formative practice, not an admissions prediction. */
 export type CoachSkill = "inference" | "evidence" | "quantitative" | "revision"
 export type CoachQuestion = { prompt: string; options: [string,string,string]; correct: number; explanation: string }
-export type CoachPack = { id: string; skill: CoachSkill; title: string; lesson: string; diagnostic: CoachQuestion; transfer: CoachQuestion }
+export type CoachPack = { id: string; skill: CoachSkill; title: string; lesson: string; diagnostic: CoachQuestion; transfer: CoachQuestion; course?: string; review?: boolean; written?: {prompt:string;criteria:string[]} }
 export type CoachAttempt = { packId: string; diagnosticCorrect: boolean; transferCorrect: boolean; completedAt: string }
 export const COACH_STATE_PREFIX = "fellow-academic-coach-v1:"
 export const skillLabels: Record<CoachSkill,string> = {inference:"Justifying conclusions",evidence:"Testing explanations",quantitative:"Quantitative interpretation",revision:"Adapting to new evidence"}
@@ -32,6 +32,677 @@ export const coachPacks: CoachPack[] = [
  diagnostic:q("A spring extends proportionally to load for small loads. At a large load the extension is no longer proportional. What is the best interpretation?",["The small-load relationship may still be valid within its range.","All previous measurements must be wrong.","The relationship must remain proportional at every load."],0,"The observation limits the range over which the model is supported."),
  transfer:q("A policy increased attendance in small schools. A large school shows no improvement. What should you conclude?",["The policy never works.","The effect may depend on school context; investigate which conditions differ.","The large school's evidence must be ignored."],1,"The effect may have a boundary condition; the earlier result need not be invalid.")}
 ]
+// Authored subject and delayed-transfer exercises. IDs are stable account record keys.
+coachPacks.push(...([
+ {
+  "id": "subject-physics",
+  "course": "physics",
+  "skill": "quantitative",
+  "title": "Mechanics: compare models",
+  "lesson": "Use conservation laws and state the conditions under which they apply.",
+  "diagnostic": {
+   "prompt": "A cart doubles its speed at constant mass. What happens to kinetic energy?",
+   "options": [
+    "Doubles",
+    "Quadruples",
+    "Remains unchanged"
+   ],
+   "correct": 1,
+   "explanation": "Kinetic energy is proportional to speed squared."
+  },
+  "transfer": {
+   "prompt": "A ball falls from rest through twice the height, ignoring drag. What happens to impact speed?",
+   "options": [
+    "Multiplies by two",
+    "Stays the same",
+    "Multiplies by √2"
+   ],
+   "correct": 2,
+   "explanation": "mgh = ½mv², so speed scales with the square root of height."
+  },
+  "written": {
+   "prompt": "Two balls with different masses fall through the same height. Explain when they reach the same speed and what would invalidate the model.",
+   "criteria": [
+    "Conservation of energy or constant gravitational acceleration",
+    "Mass cancels in the ideal model",
+    "Discuss drag or other non-ideal conditions"
+   ]
+  }
+ },
+ {
+  "id": "subject-maths",
+  "course": "mathematics",
+  "skill": "inference",
+  "title": "Mathematics: proof and counterexample",
+  "lesson": "One counterexample disproves a universal statement; examples alone cannot prove it.",
+  "diagnostic": {
+   "prompt": "Which disproves the claim that every positive integer has an even square?",
+   "options": [
+    "3² = 9",
+    "2² = 4",
+    "4² = 16"
+   ],
+   "correct": 0,
+   "explanation": "An odd square is a single counterexample."
+  },
+  "transfer": {
+   "prompt": "Which is sufficient to prove the sum of two odd integers is even?",
+   "options": [
+    "Check 3+5 only",
+    "Observe many examples",
+    "Write them as 2a+1 and 2b+1 and simplify"
+   ],
+   "correct": 2,
+   "explanation": "The general expression is 2(a+b+1)."
+  },
+  "written": {
+   "prompt": "Prove that the square of any odd integer is odd, then explain why numerical examples do not constitute a proof.",
+   "criteria": [
+    "Represent odd integers as 2k+1",
+    "Expand and express as twice an integer plus one",
+    "Distinguish proof from examples"
+   ]
+  }
+ },
+ {
+  "id": "subject-computing",
+  "course": "computer science",
+  "skill": "inference",
+  "title": "Computing: algorithm assumptions",
+  "lesson": "An algorithm's correctness depends on its preconditions and the invariant maintained.",
+  "diagnostic": {
+   "prompt": "Binary search assumes which property of an array?",
+   "options": [
+    "All values are distinct",
+    "The array is sorted",
+    "The array length is even"
+   ],
+   "correct": 1,
+   "explanation": "Sorted order permits safely discarding half of the search space."
+  },
+  "transfer": {
+   "prompt": "A function returns the maximum element after initialising max to zero. Which input exposes a bug?",
+   "options": [
+    "[0, 1]",
+    "[7, 3]",
+    "[-5, -2]"
+   ],
+   "correct": 2,
+   "explanation": "Zero would be returned even though it is absent and larger than the actual maximum."
+  },
+  "written": {
+   "prompt": "Explain an invariant for a one-pass maximum-finding algorithm and why initialising from the first element works for non-empty arrays.",
+   "criteria": [
+    "State invariant for processed prefix",
+    "Initialisation from first element",
+    "Maintenance and termination"
+   ]
+  }
+ },
+ {
+  "id": "subject-engineering",
+  "course": "engineering",
+  "skill": "evidence",
+  "title": "Engineering: test design choices",
+  "lesson": "Compare designs under the same loading conditions and distinguish a measured outcome from a causal explanation.",
+  "diagnostic": {
+   "prompt": "Two beams have different materials and dimensions. What isolates the effect of material on bending?",
+   "options": [
+    "Test beams of equal geometry and load",
+    "Use different loads too",
+    "Choose the longer beam"
+   ],
+   "correct": 0,
+   "explanation": "Matching geometry and load controls alternative explanations."
+  },
+  "transfer": {
+   "prompt": "A prototype fails more often outdoors. Which test best isolates temperature?",
+   "options": [
+    "Compare unrelated outdoor prototypes",
+    "Change temperature while controlling other environmental factors",
+    "Record only the date of failure"
+   ],
+   "correct": 1,
+   "explanation": "A controlled temperature comparison isolates a plausible cause."
+  },
+  "written": {
+   "prompt": "Propose an experiment to investigate whether changing a beam's cross-section affects bending, with a prediction and limitations.",
+   "criteria": [
+    "Identify changed and controlled variables",
+    "Specify measurable deflection and prediction",
+    "Discuss repeat measurements and limitations"
+   ]
+  }
+ },
+ {
+  "id": "subject-chemistry",
+  "course": "chemistry",
+  "skill": "evidence",
+  "title": "Chemistry: kinetics and evidence",
+  "lesson": "A proposed mechanism needs predictions that can be compared with measurements.",
+  "diagnostic": {
+   "prompt": "A reaction runs faster after temperature and concentration both rise. How isolate temperature?",
+   "options": [
+    "Raise both again",
+    "Measure final colour only",
+    "Vary temperature at fixed initial concentrations"
+   ],
+   "correct": 2,
+   "explanation": "Changing only temperature permits a controlled comparison."
+  },
+  "transfer": {
+   "prompt": "Doubling reactant A doubles initial rate while B stays fixed. What does this support under these conditions?",
+   "options": [
+    "First-order dependence on A",
+    "A one-step mechanism is proved",
+    "Zero-order dependence on A"
+   ],
+   "correct": 0,
+   "explanation": "The measured dependence supports first order in A but not a unique mechanism."
+  },
+  "written": {
+   "prompt": "Two mechanisms predict different dependence of initial rate on concentration. Explain an experiment to distinguish them and why matching one rate law does not prove a mechanism.",
+   "criteria": [
+    "Controlled initial-rate experiment",
+    "Compare specific predicted dependencies",
+    "A rate law may fit multiple mechanisms"
+   ]
+  }
+ },
+ {
+  "id": "subject-biology",
+  "course": "biology",
+  "skill": "evidence",
+  "title": "Biology: controls and competing causes",
+  "lesson": "Use comparable groups and test alternative explanations before making causal claims.",
+  "diagnostic": {
+   "prompt": "Fertiliser-treated plants receive more water too. Which design improves the test?",
+   "options": [
+    "Measure only treated plants",
+    "Hold water constant and randomise fertiliser treatment",
+    "Add a different plant species"
+   ],
+   "correct": 1,
+   "explanation": "Control water and allocate treatments to reduce bias."
+  },
+  "transfer": {
+   "prompt": "An allele is common in a population. What can frequency alone establish?",
+   "options": [
+    "It must be advantageous",
+    "It must be harmful",
+    "Frequency alone cannot establish selective advantage"
+   ],
+   "correct": 2,
+   "explanation": "Selection, drift, migration and history can affect frequency."
+  },
+  "written": {
+   "prompt": "Design a study testing whether a trait increases survival in a defined environment, without assuming that correlation proves adaptation.",
+   "criteria": [
+    "Define measurable survival and trait",
+    "Account for environmental or genetic confounding",
+    "Distinguish association from causal selection"
+   ]
+  }
+ },
+ {
+  "id": "subject-medicine",
+  "course": "medicine",
+  "skill": "quantitative",
+  "title": "Medicine: interpret screening data",
+  "lesson": "The proportion of positive tests that are true positives depends on prevalence as well as test performance.",
+  "diagnostic": {
+   "prompt": "In 1000 people, 10 have a condition; all 10 test positive and 90 unaffected people test positive. What fraction of positive tests are true positives?",
+   "options": [
+    "10%",
+    "90%",
+    "100%"
+   ],
+   "correct": 0,
+   "explanation": "10 of 100 positive results are true positives."
+  },
+  "transfer": {
+   "prompt": "With unchanged sensitivity and specificity, lower prevalence generally changes positive predictive value how?",
+   "options": [
+    "Raises it",
+    "Lowers it",
+    "Always leaves it unchanged"
+   ],
+   "correct": 1,
+   "explanation": "Fewer true positives relative to false positives lowers positive predictive value."
+  },
+  "written": {
+   "prompt": "Explain why a positive screening result is not automatically a diagnosis, using prevalence and false positives.",
+   "criteria": [
+    "Distinguish sensitivity and positive predictive value",
+    "Use a denominator or example",
+    "Explain confirmatory testing in general terms"
+   ]
+  }
+ },
+ {
+  "id": "subject-psychology",
+  "course": "psychology",
+  "skill": "evidence",
+  "title": "Psychology: experimental validity",
+  "lesson": "Distinguish measured associations from causal effects, and consider operational definitions.",
+  "diagnostic": {
+   "prompt": "A study compares sleep and memory, with participants choosing their own sleep duration. What threatens causal inference?",
+   "options": [
+    "Random assignment",
+    "Identical tasks",
+    "Self-selection and confounding"
+   ],
+   "correct": 2,
+   "explanation": "Participants may differ in other relevant ways."
+  },
+  "transfer": {
+   "prompt": "Which best operationalises short-term recall in a study?",
+   "options": [
+    "Number of specified words recalled after a fixed delay",
+    "Whether a participant seems intelligent",
+    "Whether the researcher likes the answer"
+   ],
+   "correct": 0,
+   "explanation": "A defined observable measure improves consistency."
+  },
+  "written": {
+   "prompt": "Propose a fair study of the relationship between distraction and recall, addressing a confound and measurement validity.",
+   "criteria": [
+    "Specify distraction manipulation and recall measure",
+    "Control or randomise relevant variables",
+    "Discuss validity and limitations"
+   ]
+  }
+ },
+ {
+  "id": "subject-law",
+  "course": "law",
+  "skill": "inference",
+  "title": "Law: rules and exceptions",
+  "lesson": "Distinguish the facts that trigger a rule from its consequences and consider how exceptions affect interpretation.",
+  "diagnostic": {
+   "prompt": "A fictional rule prohibits vehicles in a park except emergency vehicles. Which is clearly within the stated exception?",
+   "options": [
+    "A private taxi",
+    "An ambulance responding to an emergency",
+    "A commuter's car"
+   ],
+   "correct": 1,
+   "explanation": "The explicit emergency exception applies to the ambulance."
+  },
+  "transfer": {
+   "prompt": "A fictional rule allows late appeals only if a delay was unavoidable. Proof of unavoidable delay alone establishes what?",
+   "options": [
+    "An appeal must succeed on merits",
+    "No appeal can be heard",
+    "One necessary condition for permission, not the merits"
+   ],
+   "correct": 2,
+   "explanation": "Eligibility and the merits are separate questions."
+  },
+  "written": {
+   "prompt": "A fictional rule bans vehicles from a park to protect pedestrians. Discuss whether an electric wheelchair should fall within it, considering text, purpose and a counterargument.",
+   "criteria": [
+    "Distinguish wording and purpose",
+    "Consider competing interpretation",
+    "Reach a justified provisional conclusion"
+   ]
+  }
+ },
+ {
+  "id": "subject-economics",
+  "course": "economics",
+  "skill": "quantitative",
+  "title": "Economics: elasticity and causation",
+  "lesson": "Use proportional changes with clear assumptions; distinguish an observed relationship from a causal effect.",
+  "diagnostic": {
+   "prompt": "Price rises 10% and quantity demanded falls 20%. Using these stated percentages, what is the absolute price elasticity?",
+   "options": [
+    "2",
+    "0.5",
+    "20"
+   ],
+   "correct": 0,
+   "explanation": "Absolute elasticity is 20/10 = 2."
+  },
+  "transfer": {
+   "prompt": "A price rise of 5% causes quantity demanded to fall 2%, other things equal. What is the absolute elasticity?",
+   "options": [
+    "2.5",
+    "5",
+    "0.4"
+   ],
+   "correct": 2,
+   "explanation": "2/5 = 0.4."
+  },
+  "written": {
+   "prompt": "Explain why higher observed prices and higher sales across two years need not contradict a downward-sloping demand curve.",
+   "criteria": [
+    "Distinguish movement along demand from shift",
+    "Identify possible demand or supply changes",
+    "State what evidence would isolate the relationship"
+   ]
+  }
+ },
+ {
+  "id": "subject-ppe",
+  "course": "ppe",
+  "skill": "revision",
+  "title": "PPE: revise a policy argument",
+  "lesson": "Separate normative aims from empirical predictions and revise the latter when evidence changes.",
+  "diagnostic": {
+   "prompt": "A policy is justified solely by a prediction of lower costs. Reliable data show higher costs. What is justified?",
+   "options": [
+    "The prediction needs revisiting",
+    "The policy must be morally wrong",
+    "Ignore the costs"
+   ],
+   "correct": 0,
+   "explanation": "The empirical premise is undermined; other values or evidence may matter."
+  },
+  "transfer": {
+   "prompt": "Two policies have equal average benefits but different distributions. What does equal average benefit establish?",
+   "options": [
+    "They are equally fair",
+    "Their average outcomes match, not necessarily their fairness",
+    "They have identical effects on every person"
+   ],
+   "correct": 1,
+   "explanation": "Distribution and ethical criteria are separate from averages."
+  },
+  "written": {
+   "prompt": "Assess a fictional policy that raises total welfare but harms a disadvantaged group. Distinguish empirical and normative assumptions.",
+   "criteria": [
+    "Separate welfare measurement and ethical criterion",
+    "Consider distribution or rights",
+    "Give a conditional judgement and counterargument"
+   ]
+  }
+ },
+ {
+  "id": "subject-history",
+  "course": "history",
+  "skill": "evidence",
+  "title": "History: corroborate a source",
+  "lesson": "Evaluate provenance, purpose and corroboration rather than treating a source as automatically reliable or unreliable.",
+  "diagnostic": {
+   "prompt": "A government pamphlet claims a reform was popular. What would best test the claim?",
+   "options": [
+    "Repeat the pamphlet's claim",
+    "Read only its title",
+    "Compare independent contemporary accounts and evidence of participation"
+   ],
+   "correct": 2,
+   "explanation": "Independent sources can corroborate or challenge the claim."
+  },
+  "transfer": {
+   "prompt": "Two eyewitnesses disagree about an event. What is the most useful first step?",
+   "options": [
+    "Compare vantage point, timing and purpose",
+    "Choose the more dramatic account",
+    "Assume both are entirely false"
+   ],
+   "correct": 0,
+   "explanation": "Context helps explain disagreement."
+  },
+  "written": {
+   "prompt": "A fictional official report describes a protest as small, while a participant's diary describes it as large. Explain how you would assess the disagreement.",
+   "criteria": [
+    "Analyse provenance and intended audience",
+    "Identify independent corroboration",
+    "Avoid equating bias with total unreliability"
+   ]
+  }
+ },
+ {
+  "id": "subject-literature",
+  "course": "english",
+  "skill": "revision",
+  "title": "Literature: support an interpretation",
+  "lesson": "Interpretation should respond to the language of the text, including evidence against the initial reading.",
+  "diagnostic": {
+   "prompt": "A speaker calls an empty room a 'crowded silence'. Which claim is best supported by the phrase?",
+   "options": [
+    "The room literally contains a crowd",
+    "The paradox may suggest a silence felt as emotionally full",
+    "The author definitely experienced a specific event"
+   ],
+   "correct": 1,
+   "explanation": "The phrase supports an interpretation; it does not establish biography."
+  },
+  "transfer": {
+   "prompt": "A later line contradicts your initial view of a narrator. What is the strongest response?",
+   "options": [
+    "Ignore it",
+    "Declare interpretation impossible",
+    "Re-examine the view using both passages"
+   ],
+   "correct": 2,
+   "explanation": "A defensible interpretation accounts for conflicting details."
+  },
+  "written": {
+   "prompt": "Interpret the original fictional line 'The clock applauded every hour, but nobody came.' Offer two plausible readings and explain how wording supports each.",
+   "criteria": [
+    "Analyse personification or contrast",
+    "Provide textual support for two readings",
+    "Distinguish inference from certainty"
+   ]
+  }
+ },
+ {
+  "id": "subject-philosophy",
+  "course": "philosophy",
+  "skill": "inference",
+  "title": "Philosophy: validity and truth",
+  "lesson": "Validity concerns whether a conclusion follows if premises are true, not whether the premises actually are true.",
+  "diagnostic": {
+   "prompt": "All birds are mammals. All mammals are animals. Therefore all birds are animals. How assess the argument?",
+   "options": [
+    "Valid form, but an unsound premise",
+    "Invalid because one premise is false",
+    "Sound because conclusion is true"
+   ],
+   "correct": 0,
+   "explanation": "The conclusion follows from the premises; the first premise is false."
+  },
+  "transfer": {
+   "prompt": "If P then Q. Q is true. Therefore P. What is the problem?",
+   "options": [
+    "It is modus ponens",
+    "It proves P is false",
+    "It affirms the consequent"
+   ],
+   "correct": 2,
+   "explanation": "Q can hold even when P is false."
+  },
+  "written": {
+   "prompt": "Construct a valid argument with a false premise and explain the distinction between validity and soundness.",
+   "criteria": [
+    "Give a valid argument form",
+    "Identify a false premise",
+    "Explain why validity is independent of actual premise truth"
+   ]
+  }
+ },
+ {
+  "id": "subject-geography",
+  "course": "geography",
+  "skill": "evidence",
+  "title": "Geography: scale and spatial patterns",
+  "lesson": "Spatial associations may change with scale, aggregation and other variables.",
+  "diagnostic": {
+   "prompt": "A map shows areas with high rainfall also have high crop yield. What can be concluded?",
+   "options": [
+    "Rainfall is the only cause",
+    "The spatial association needs further causal evidence",
+    "All individual farms have high yields"
+   ],
+   "correct": 1,
+   "explanation": "The map shows association, not a unique causal explanation."
+  },
+  "transfer": {
+   "prompt": "A regional average hides neighbourhood variation. Which follow-up best reveals that variation?",
+   "options": [
+    "Aggregate to a national average",
+    "Repeat the regional average",
+    "Examine smaller-area data and compare distributions"
+   ],
+   "correct": 2,
+   "explanation": "Finer-scale data can reveal variation obscured by aggregation."
+  },
+  "written": {
+   "prompt": "Explain how a relationship between income and transport access might change when analysed at neighbourhood rather than city scale.",
+   "criteria": [
+    "Discuss aggregation and scale",
+    "Identify potential confounding or within-area variation",
+    "Propose relevant disaggregated data"
+   ]
+  }
+ },
+ {
+  "id": "subject-languages",
+  "course": "languages",
+  "skill": "inference",
+  "title": "Languages and linguistics: infer patterns",
+  "lesson": "Compare examples systematically and avoid extrapolating beyond the evidence.",
+  "diagnostic": {
+   "prompt": "In an invented language, 'tal' means walk and 'taled' means walked; 'mor' means sing and 'mored' means sang. Which hypothesis fits?",
+   "options": [
+    "-ed may mark past tense",
+    "-ed marks plural nouns",
+    "All verbs must be irregular"
+   ],
+   "correct": 0,
+   "explanation": "The two examples support, but do not prove, a past marker."
+  },
+  "transfer": {
+   "prompt": "A new verb uses a different past ending. What is the best response?",
+   "options": [
+    "Reject all earlier examples",
+    "Assume it is not a verb",
+    "Investigate whether the language has different verb classes"
+   ],
+   "correct": 2,
+   "explanation": "The new evidence may suggest an exception or subgroup."
+  },
+  "written": {
+   "prompt": "Given invented forms 'pim' (see), 'pima' (sees), 'nok' (hear), 'noka' (hears), and 'rul' (run), propose a rule and explain how to test it.",
+   "criteria": [
+    "Identify the repeated suffix pattern",
+    "Predict a form conditionally",
+    "Seek additional examples and exceptions"
+   ]
+  }
+ },
+ {
+  "id": "review-inference",
+  "skill": "inference",
+  "title": "Delayed check: conditional reasoning",
+  "lesson": "Test whether the reverse implication is justified.",
+  "review": true,
+  "diagnostic": {
+   "prompt": "All eligible applicants have submitted a form. Someone has submitted a form. Are they necessarily eligible?",
+   "options": [
+    "Yes",
+    "No, not from that information",
+    "They are necessarily ineligible"
+   ],
+   "correct": 1,
+   "explanation": "Submitting is necessary here, not sufficient."
+  },
+  "transfer": {
+   "prompt": "If a number is divisible by 6 it is divisible by 3. 15 is divisible by 3. Must it be divisible by 6?",
+   "options": [
+    "No; 15 is a counterexample",
+    "Yes",
+    "No number can be divisible by both"
+   ],
+   "correct": 0,
+   "explanation": "The reverse implication does not hold."
+  }
+ },
+ {
+  "id": "review-evidence",
+  "skill": "evidence",
+  "title": "Delayed check: fair comparison",
+  "lesson": "Seek a comparison that separates the causes.",
+  "review": true,
+  "diagnostic": {
+   "prompt": "Two classes use different textbooks and have different teachers. How best isolate the textbook?",
+   "options": [
+    "Compare only highest scores",
+    "Change teacher and textbook together",
+    "Use comparable classes with the same teaching conditions and vary textbook"
+   ],
+   "correct": 2,
+   "explanation": "Control relevant differences."
+  },
+  "transfer": {
+   "prompt": "A sensor reading rises when humidity and temperature rise. Which check tests humidity alone?",
+   "options": [
+    "Vary humidity at fixed temperature",
+    "Vary both together",
+    "Take a single reading"
+   ],
+   "correct": 0,
+   "explanation": "Hold temperature constant."
+  }
+ },
+ {
+  "id": "review-quantitative",
+  "skill": "quantitative",
+  "title": "Delayed check: proportional interpretation",
+  "lesson": "Use comparable denominators and multiplicative change.",
+  "review": true,
+  "diagnostic": {
+   "prompt": "18 of 60 and 14 of 35 are successes. Which fraction is higher?",
+   "options": [
+    "18/60",
+    "14/35",
+    "Equal"
+   ],
+   "correct": 1,
+   "explanation": "30% versus 40%."
+  },
+  "transfer": {
+   "prompt": "A quantity grows by 50% then falls by one third of its new value. What remains?",
+   "options": [
+    "Two thirds",
+    "One half",
+    "The original quantity"
+   ],
+   "correct": 2,
+   "explanation": "1.5 × 2/3 = 1."
+  }
+ },
+ {
+  "id": "review-revision",
+  "skill": "revision",
+  "title": "Delayed check: change assumptions",
+  "lesson": "New evidence may limit an explanation rather than invalidate every part.",
+  "review": true,
+  "diagnostic": {
+   "prompt": "A model fits low speeds but not high speeds. What follows?",
+   "options": [
+    "Investigate its range and assumptions",
+    "It is useless at all speeds",
+    "Ignore high-speed results"
+   ],
+   "correct": 0,
+   "explanation": "A model can have a limited domain."
+  },
+  "transfer": {
+   "prompt": "A source changes your interpretation of an event. What should you retain?",
+   "options": [
+    "Every previous conclusion",
+    "Claims still supported, revising those undermined",
+    "Nothing from earlier evidence"
+   ],
+   "correct": 1,
+   "explanation": "Evaluate claims individually."
+  }
+ }
+] as CoachPack[]))
 const obj=(v:unknown):Record<string,unknown>=>v&&typeof v==="object"&&!Array.isArray(v)?v as Record<string,unknown>:{}
 const arr=(v:unknown):unknown[]=>Array.isArray(v)?v:[]
 const text=(v:unknown)=>typeof v==="string"?v:""
@@ -49,7 +720,10 @@ export function gradeCoachAttempt(packId:unknown,diagnostic:unknown,transfer:unk
 export function chooseCoachPack(progressValue:unknown,profileValue:unknown,attempts:CoachAttempt[],now=new Date()){
  const progress=obj(progressValue), profile=obj(profileValue), course=text(profile.course).trim()
  const done=new Set(attempts.map(a=>a.packId))
- const available=coachPacks.filter(p=>!done.has(p.id))
+ const available=coachPacks.filter(p=>!done.has(p.id)&&!p.review&&(!p.course||matchesCoachCourse(p.course,course)))
+ const scheduled=coachReviewSchedule(attempts,now)
+ const due=scheduled.find(x=>x.due)
+ if(due)return {packId:due.packId,reason:"A spaced review is due: try a new example without rereading your previous answer.",course:course||null,nextReviewAt:scheduled[0]?.dueAt??null}
  const evidence: {skill:CoachSkill;why:string;weight:number}[]=[]
  const recent=(v:unknown)=>{const t=Date.parse(text(v));return Number.isFinite(t)&&t<=now.getTime()&&now.getTime()-t<=30*86400000}
  // Only count bounded, dated Phase 8 observations in the selected course.
@@ -75,8 +749,30 @@ export function chooseCoachPack(progressValue:unknown,profileValue:unknown,attem
   const pack=coachPacks.find(p=>p.id===a.packId)
   if(pack&&!a.transferCorrect&&recent(a.completedAt))evidence.push({skill:pack.skill,why:"Your previous fresh-question check for this skill was incorrect. Try a different example before treating it as secure.",weight:4})
  }
- const ranked=available.map((pack,index)=>({pack,index,weight:evidence.filter(e=>e.skill===pack.skill).reduce((s,e)=>s+e.weight,0)})).sort((a,b)=>b.weight-a.weight||a.index-b.index)
+ const ranked=available.map((pack,index)=>({pack,index,weight:evidence.filter(e=>e.skill===pack.skill).reduce((s,e)=>s+e.weight,0)+(pack.course?0.5:0)})).sort((a,b)=>b.weight-a.weight||a.index-b.index)
  const pack=ranked[0]?.pack??null
  const reason=pack?evidence.filter(e=>e.skill===pack.skill).sort((a,b)=>b.weight-a.weight)[0]?.why??"No sufficiently specific recent evidence supports this choice. Use this short exercise as a baseline.": "You have completed every current exercise. Use the existing interview or paper intervention tools for further practice."
- return {packId:pack?.id??null,reason,course:course||null}
+ return {packId:pack?.id??null,reason,course:course||null,nextReviewAt:scheduled[0]?.dueAt??null}
+}
+
+export function matchesCoachCourse(tag:string,course:string){
+ const clean=course.toLowerCase()
+ const aliases:Record<string,RegExp>={physics:/physic/,mathematics:/math/, "computer science":/comput|informatics/, engineering:/engineer/, chemistry:/chemistr/, biology:/biolog|natural sciences/, medicine:/medic|biomed/,psychology:/psycholog/,law:/\blaw\b|jurisprudence/,economics:/econom/,ppe:/\bppe\b|politic/,history:/histor/,english:/english|literat|classics/,philosophy:/philosoph/,geography:/geograph/,languages:/language|linguist|french|german|spanish/}
+ return (aliases[tag]??new RegExp("^"+tag+"$")).test(clean)
+}
+export function coachReviewSchedule(attempts:CoachAttempt[],now=new Date()){
+ const completed=new Set(attempts.map(a=>a.packId))
+ return (Object.keys(skillLabels) as CoachSkill[]).flatMap(skill=>{
+  const pack=coachPacks.find(p=>p.review&&p.skill===skill)
+  if(!pack||completed.has(pack.id))return []
+  const initial=attempts.filter(a=>coachPacks.some(p=>p.id===a.packId&&p.skill===skill&&!p.review)&&Date.parse(a.completedAt)<=now.getTime()).sort((a,b)=>Date.parse(a.completedAt)-Date.parse(b.completedAt))[0]
+  if(!initial)return []
+  const dueAt=new Date(Date.parse(initial.completedAt)+(initial.transferCorrect?3:1)*86400000).toISOString()
+  return [{packId:pack.id,skill,dueAt,due:Date.parse(dueAt)<=now.getTime()}]
+ }).sort((a,b)=>a.dueAt.localeCompare(b.dueAt))
+}
+export function coachWrittenTask(packId:string){
+ const p=coachPacks.find(x=>x.id===packId)
+ if(!p)return null
+ return p.written??{prompt:"Explain the reasoning principle from this exercise in your own words. Invent a different example, justify your conclusion, and state one limitation.",criteria:["State the underlying principle accurately","Give a new relevant example and justify the conclusion","Identify a limitation or counterexample"]}
 }
