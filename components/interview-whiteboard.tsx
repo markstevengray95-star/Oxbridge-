@@ -17,9 +17,10 @@ type Props = {
   onUsed?: () => void
   onSnapshot?: (snapshot:WhiteboardSnapshot|null) => void
   disabled?: boolean
+  attachmentPending?: boolean
 }
 
-export function InterviewWhiteboard({ task, onUse, onUsed, onSnapshot, disabled=false }: Props) {
+export function InterviewWhiteboard({ task, onUse, onUsed, onSnapshot, disabled=false, attachmentPending=false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const strokesRef = useRef<Stroke[]>([])
   const activeRef = useRef<Point[] | null>(null)
@@ -94,6 +95,7 @@ export function InterviewWhiteboard({ task, onUse, onUsed, onSnapshot, disabled=
   }
 
   function pointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
+    if(disabled)return
     const active = activeRef.current
     const point = pointFromEvent(event)
     if (!active || !point) return
@@ -201,7 +203,7 @@ export function InterviewWhiteboard({ task, onUse, onUsed, onSnapshot, disabled=
       <label className="block"><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Equation / reasoning notes</span><textarea value={workingNote} onChange={event => { invalidateSnapshot(); setWorkingNote(event.target.value); if (event.target.value.trim()) markUsed() }} rows={2} className="w-full rounded-xl border bg-white px-3 py-2 text-sm" placeholder="e.g. assume negligible drag; F = ma; gradient represents…" /></label>
       <div className="flex gap-2 md:pb-0.5"><Button type="button" size="sm" variant="outline" onClick={undo} disabled={!strokeCount}><RotateCcw className="size-4" />Undo</Button><Button type="button" size="sm" variant="outline" onClick={clear} disabled={!strokeCount && !workingNote}>Clear</Button></div>
     </div>
-    {onSnapshot&&<div className="rounded-xl border bg-slate-50 p-3 text-sm"><p>Optional: attach this sketch and its notes to your next answer for Gemini to interpret. Do not include names or personal information. The sketch is not saved in your interview history by this feature. Its interpretation is not a verified mark.</p><div className="mt-2 flex flex-wrap gap-2"><Button type="button" size="sm" onClick={shareSnapshot} disabled={disabled||!strokeCount}>Attach sketch to next answer</Button><Button type="button" size="sm" variant="outline" disabled={disabled} onClick={invalidateSnapshot}>Remove attachment</Button></div>{snapshotNotice&&<p role="status" className="mt-2 text-xs">{snapshotNotice}</p>}</div>}
+    {onSnapshot&&<div className="rounded-xl border bg-slate-50 p-3 text-sm"><p>Optional: attach this sketch and its notes to your next answer for Gemini to interpret. Do not include names or personal information. The sketch is not saved in your interview history by this feature. Its interpretation is not a verified mark.</p><div className="mt-2 flex flex-wrap gap-2"><Button type="button" size="sm" onClick={shareSnapshot} disabled={disabled||!strokeCount}>Attach sketch to next answer</Button><Button type="button" size="sm" variant="outline" disabled={disabled} onClick={invalidateSnapshot}>Remove attachment</Button></div>{snapshotNotice&&(!snapshotNotice.startsWith("Sketch attached")||attachmentPending)&&<p role="status" className="mt-2 text-xs">{snapshotNotice}</p>}</div>}
     <p className="text-xs leading-5 text-slate-500">Use the grid for proportional reasoning and diagrams, axes for graph-based problems, and the straight-line tool for vectors, rays, construction lines and force arrows.</p>
   </div>
 }
