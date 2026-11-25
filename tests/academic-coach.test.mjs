@@ -15,9 +15,9 @@ test("other course, stale, future or thin evidence is not used",()=>{
  for(const log of [report({course:"Law"}),report({createdAt:"2025-11-20"}),report({createdAt:"2026-11-26"}),report({answerCount:2})])assert.match(select({logs:[log]},{course:"Physics"}).reason,/baseline/)
 })
 test("quantitative evidence needs enough attempted items and valid low accuracy",()=>{
- const row={date:recent,sections:[{title:"Quantitative Reasoning",attempted:9,accuracy:40}]}
+ const row={date:recent,sections:[{title:"Quantitative Reasoning",answered:9,accuracy:40}]}
  assert.equal(select({fullPaperResults:[row]}).packId,"quantitative-1")
- assert.match(select({fullPaperResults:[{...row,sections:[{title:"Mathematics",attempted:2,accuracy:40}]}]}).reason,/baseline/)
+ assert.match(select({fullPaperResults:[{...row,sections:[{title:"Mathematics",answered:2,accuracy:40}]}]}).reason,/baseline/)
 })
 test("server grading distinguishes diagnosis from fresh transfer",()=>{
  const p=coachPacks[0];const a=gradeCoachAttempt(p.id,(p.diagnostic.correct+1)%3,p.transfer.correct,now)
