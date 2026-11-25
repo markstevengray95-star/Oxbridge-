@@ -1,41 +1,50 @@
-const fs = require('fs')
-const path = require('path')
-
-const nav = fs.readFileSync('components/global-focus-nav.tsx', 'utf8')
-const layout = fs.readFileSync('app/layout.tsx', 'utf8')
-const mobileCss = fs.readFileSync('app/mobile.css', 'utf8')
-
-function expect(condition, message) {
-  if (!condition) throw new Error(message)
+const fs = require('node:fs')
+const path = require('node:path')
+const assert = require('node:assert/strict')
+async function main(){
+ const {studentAreas,tools,visibleTools,routeArea,searchTools,noAccess}=await import('../lib/navigation-directory.ts')
+ const nav=fs.readFileSync('components/global-focus-nav.tsx','utf8')
+ const layout=fs.readFileSync('app/layout.tsx','utf8')
+ const mobileCss=fs.readFileSync('app/mobile.css','utf8')
+ const shell=fs.readFileSync('components/personal-tutor-shell.tsx','utf8')
+ const provider=fs.readFileSync('components/navigation-access-provider.tsx','utf8')
+ const api=fs.readFileSync('app/api/navigation-access/route.ts','utf8')
+ const student={...noAccess,signedIn:true}
+ const staff={...student,staff:true}
+ const manager={...staff,manage:true,owner:true}
+ const admin={...student,admin:true}
+ assert.deepEqual(studentAreas.map(a=>a.label),['Home','My Tutor','Interviews','Admissions Tests','My Application','My Progress'])
+ assert.equal(new Set(tools.map(t=>t.href)).size,tools.length)
+ assert.equal(visibleTools(noAccess).length,0)
+ assert.ok(visibleTools(student).every(t=>!t.access))
+ assert.ok(visibleTools(staff).some(t=>t.href==='/teacher-dashboard'))
+ assert.ok(!visibleTools(staff).some(t=>t.href==='/school/teachers'||t.href==='/admin'||t.href==='/school-dashboard'))
+ assert.ok(visibleTools(manager).some(t=>t.href==='/school/teachers'))
+ assert.ok(visibleTools(admin).some(t=>t.href==='/admin'))
+ assert.ok(visibleTools(student).some(t=>t.href==='/human-review'))
+ assert.ok(searchTools(student,'academic coach').some(t=>t.href==='/tutor#academic-coach'))
+ assert.ok(searchTools(student,'teacher dashboard').every(t=>t.area!=='school'))
+ assert.equal(routeArea('/study/interviews'),'interviews')
+ assert.equal(routeArea('/admissions-challenges'),'tests')
+ assert.equal(routeArea('/interview-insights'),'progress')
+ assert.equal(routeArea('/school/teachers'),'school')
+ assert.equal(routeArea('/unknown'),null)
+ for(const {href} of [...tools,...studentAreas]){
+  const route=href.split('#')[0]
+  const file=route.startsWith('/study/')?'app/study/[area]/page.tsx':path.join('app',...route.split('/').filter(Boolean),'page.tsx')
+  assert.ok(fs.existsSync(file),'Navigation points to missing page: '+route)
+ }
+ assert.ok(nav.includes('mobile-bottom-nav')&&nav.includes('grid-cols-5'))
+ assert.ok(nav.includes('Find a tool')&&nav.includes('showModal()')&&nav.includes('onClose='))
+ assert.ok(nav.includes('scholarbridge-mobile-mode')&&nav.includes('window.matchMedia("(max-width: 767px)")'))
+ assert.ok(nav.includes('env(safe-area-inset-bottom)'))
+ assert.ok(!shell.includes('aria-label="Tutor quick actions"'))
+ assert.ok(layout.includes('<NavigationAccessProvider>')&&!layout.includes('<CommandPalette />'))
+ assert.ok(provider.includes('onAuthStateChange')&&provider.includes('generation===id'))
+ assert.ok(api.includes('auth.getUser()')&&api.includes('loadStaffScope')&&api.includes('private, no-store'))
+ assert.ok(mobileCss.includes('[data-slot="tabs-list"]')&&mobileCss.includes('overflow-x: auto'))
+ assert.ok(mobileCss.includes('padding-bottom: calc(4.25rem + env(safe-area-inset-bottom))'))
+ assert.ok(layout.includes('import "./mobile.css"'))
+ console.log('PASS: six student areas, '+tools.length+' unique tool destinations, role-filtered search, route checks and one mobile dock')
 }
-
-for (const hub of ['Practice', 'Application', 'Learn', 'Progress']) {
-  expect(nav.includes(`label: "${hub}"`), `Missing tidy navigation hub: ${hub}`)
-}
-
-for (const destination of ['/full-papers', '/interviews', '/application-profile', '/course-bank', '/school-dashboard', '/account']) {
-  expect(nav.includes(`href: "${destination}"`), `Navigation lost destination ${destination}`)
-}
-
-const declaredRoutes = new Set([
-  ...[...nav.matchAll(/href:\s*"(\/[^"?#]*)"/g)].map(match => match[1]),
-  ...[...nav.matchAll(/href="(\/[^"?#]*)"/g)].map(match => match[1]),
-])
-for (const route of declaredRoutes) {
-  if (route === '/') continue
-  const page = path.join('app', ...route.split('/').filter(Boolean), 'page.tsx')
-  expect(fs.existsSync(page), `Navigation points to missing page ${route}`)
-}
-
-expect(nav.includes('mobile-bottom-nav'), 'Mobile bottom navigation is not rendered')
-expect(nav.includes('All tools'), 'Mobile all-tools drawer is missing')
-expect(nav.includes('Find a tool'), 'Mobile navigation search is missing')
-expect(nav.includes('scholarbridge-mobile-mode'), 'Persisted compact-mode preference is missing')
-expect(nav.includes('window.matchMedia("(max-width: 767px)")'), 'Automatic phone-mode detection is missing')
-expect(nav.includes('env(safe-area-inset-bottom)'), 'Mobile navigation should account for phone safe areas')
-expect(mobileCss.includes('[data-slot="tabs-list"]'), 'Mobile tab overflow treatment is missing')
-expect(mobileCss.includes('overflow-x: auto'), 'Mobile tab bars should scroll horizontally')
-expect(mobileCss.includes('padding-bottom: calc(4.25rem + env(safe-area-inset-bottom))'), 'Pages need bottom-dock clearance')
-expect(layout.includes('import "./mobile.css"'), 'Root layout does not load mobile mode styles')
-
-console.log(`PASS: mobile mode, grouped tools and ${declaredRoutes.size} navigation destinations resolve to real pages`)
+main().catch(error=>{console.error(error);process.exitCode=1})
