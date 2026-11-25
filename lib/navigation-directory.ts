@@ -332,9 +332,8 @@ export const tools:Tool[]=[
     "href": "/human-review",
     "label": "Human + AI Review",
     "description": "Teacher comments alongside automated analysis",
-    "area": "school",
-    "featured": false,
-    "access": "staff"
+    "area": "progress",
+    "featured": false
   },
   {
     "href": "/parent-summary",
@@ -511,7 +510,7 @@ export const tools:Tool[]=[
     "description": "School reports and follow-up",
     "area": "school",
     "featured": false,
-    "access": "staff"
+    "access": "owner"
   },
   {
     "href": "/privacy-centre",
