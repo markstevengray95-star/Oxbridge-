@@ -24,6 +24,7 @@ import {
 } from "@/lib/interview-depth-features"
 import { realisticInterviewQuestions } from "@/lib/realistic-interview-bank"
 import { subjectPathwayBrief, subjectInterviewPathway, subjectPathwayProbes } from "@/lib/subject-interview-pathways"
+import { mockStageInstruction, mockInterviewStage } from "@/lib/full-mock-interview"
 import { validatedEvidenceContext, evidenceFollowUpProbes, evidenceQuestionProbes, type EvidenceSelection } from "@/lib/interview-evidence-challenges"
 import { planAcademicFollowUp, suitableAcademicFollowUp, type AcademicFollowUpInput, type FollowUpStrategy } from "@/lib/interview-followup-planner"
 import { advanceInterviewSession, interviewMemoryBrief, recordInterviewerMove, type InterviewSessionMemory } from "@/lib/interview-session-memory"
@@ -64,6 +65,7 @@ type InterviewRequest = {
   openingProblem?: string
   memory?: InterviewSessionMemory
   evidence?: EvidenceSelection
+  mock?: {minutes?:number;elapsedSeconds?:number;stageIndex?:number}
   workingEvidence?: string
 }
 
@@ -362,6 +364,7 @@ export async function POST(request: Request) {
   const previousAnswers = previousCandidateAnswers(recentTurns, answer)
   const candidateTurnCount = Math.max(1, recentTurns.filter(turn => turn.role === "candidate").length)
   const evidence = validatedEvidenceContext(body.course || "", body.track, body.evidence || {}, recentTurns)
+  const mock = body.mock ? mockInterviewStage({minutes:Number(body.mock.minutes),elapsedSeconds:Math.max(0,Math.min(7200,Number(body.mock.elapsedSeconds)||0)),candidateAnswers:candidateTurnCount,previousStageIndex:Number(body.mock.stageIndex)||0}):null
   const workingEvidence = typeof body.workingEvidence === "string" ? body.workingEvidence.replace(/\s+/g," ").trim().slice(0,1400) : ""
   const memory = advanceInterviewSession(body.memory, {
     openingProblem: body.openingProblem?.trim() || canonical?.prompt || body.question || "",
@@ -376,6 +379,8 @@ export async function POST(request: Request) {
   const otherInterviewer = derivedPanel.colleague
   const responseMetadata = {
     subjectPathway: subjectInterviewPathway(body.course ?? "", body.track).id,
+    mockStage: mock?.stage.id,
+    mockTargetMinutes: mock?.format.minutes,
     chainStage,
     evidenceStage: evidence ? {id:evidence.id,stage:evidence.stage} : undefined,
     courseFamily: courseProfile.family,
@@ -415,6 +420,7 @@ export async function POST(request: Request) {
   const predictedHintLevel = hintLevelFor({ moveHistory, repairDepth: fallback.repairDepth })
   const courseInstructions = [
     `Use the ${courseProfile.family} interview engine.`,
+    ...(mock ? [mockStageInstruction({minutes:mock.format.minutes,elapsedSeconds:mock.elapsedSeconds,candidateAnswers:candidateTurnCount,previousStageIndex:mock.index})] : []),
     ...(evidence ? [ `Only the following academic evidence has been revealed so far: ${evidence.material}`, `Stay grounded in the evidence, invite corrections, and do not refer to unseen stages or invent evidence.`] : []),
     ...(workingEvidence ? [`The student provided these written working notes (not automatically interpreted drawings): ${workingEvidence}`] : []),
     subjectPathwayBrief(body.course ?? "", body.track),
