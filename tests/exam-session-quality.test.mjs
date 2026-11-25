@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import {readFileSync} from "node:fs"
-import {phase12QuestionBank} from "../lib/phase12-authored-bank.ts"
+import {phase12QuestionBank,nextChallengeQuestion} from "../lib/phase12-authored-bank.ts"
 import {remainingExamSeconds,resumeExamDeadline,paperMarkBreakdown,retestPromptSignature,retestSectionKey,chooseFreshRetest} from "../lib/exam-session-quality.ts"
 test("clock uses elapsed time, including suspended browser tabs",()=>{
  assert.equal(remainingExamSeconds(60000,0),60)
@@ -65,4 +65,12 @@ test("30 original reserve questions cover all five tests with valid answer keys"
  for(const q of phase12QuestionBank){assert.ok(q.answer>=0&&q.answer<q.options.length);assert.equal(new Set(q.options).size,q.options.length);assert.ok(q.explanation.length>20);assert.ok(q.topic)}
  assert.equal(phase12QuestionBank.find(q=>q.id==="phase12-authored-09").options[1],"1/3")
  assert.equal(phase12QuestionBank.find(q=>q.id==="phase12-authored-17").options[3],"64")
+})
+
+test("adaptive reserve practice prioritises fresh related questions",()=>{
+ const q=phase12QuestionBank[0]
+ const a={...q,id:"related",difficulty:"Foundation"}
+ const b={...q,id:"unrelated",topic:"Other",difficulty:"Stretch"}
+ assert.equal(nextChallengeQuestion([q,b,a],[{id:q.id,correct:false}]).id,"related")
+ assert.equal(nextChallengeQuestion([q],[{id:q.id,correct:true}]),null)
 })
