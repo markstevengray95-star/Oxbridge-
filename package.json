@@ -21,7 +21,8 @@
     "test:interview-feedback-intelligence": "node --experimental-strip-types --test tests/interview-feedback-intelligence.test.mjs",
     "test:school-tracking": "node --experimental-strip-types --test tests/phase9-school-tracking.test.mjs",
     "test:launch-readiness": "node --experimental-strip-types --test tests/phase10-launch-readiness.test.mjs",
-    "release:check": "node scripts/phase10-release-gate.mjs"
+    "release:check": "node scripts/phase10-release-gate.mjs",
+    "test:exam-session-quality": "node --experimental-strip-types --test tests/exam-session-quality.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
