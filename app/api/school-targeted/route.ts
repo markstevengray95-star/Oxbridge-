@@ -58,8 +58,9 @@ export async function GET() {
 
   if (membershipError) return NextResponse.json({ error: "Could not load classroom memberships" }, { status: 500 })
 
+  try {
   const joined = await Promise.all((memberships ?? []).map(async membership => {
-    const [{ data: cohort }, { data: assignments }, { data: progress }] = await Promise.all([
+    const [{ data: cohort,error:cohortError }, { data: assignments,error:assignmentError }, { data: progress,error:progressError }] = await Promise.all([
       admin.from("school_cohorts").select("id,name,course,created_at").eq("id", membership.cohort_id).maybeSingle(),
       admin.from("school_assignments")
         .select("id,title,description,href,due_at,created_at,target_user_id,task_type,submission_required")
@@ -71,10 +72,12 @@ export async function GET() {
         .eq("cohort_id", membership.cohort_id)
         .eq("user_id", userId),
     ])
+    if(cohortError||assignmentError||progressError)throw Error("Classroom data unavailable")
     return cohort ? { cohort: { ...cohort, role: "student" }, assignments: assignments ?? [], progress: progress ?? [] } : null
   }))
 
   return NextResponse.json({ joined: joined.filter(Boolean) },{headers:{"Cache-Control":"private, no-store"}})
+  }catch{return NextResponse.json({error:"Classroom assignments could not be checked."},{status:503,headers:{"Cache-Control":"private, no-store"}})}
 }
 
 export async function POST(request: Request) {

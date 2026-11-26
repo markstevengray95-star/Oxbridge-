@@ -23,12 +23,13 @@
     "test:launch-readiness": "node --experimental-strip-types --test tests/phase10-launch-readiness.test.mjs",
     "release:check": "node scripts/phase10-release-gate.mjs",
     "test:academic-coach": "node --experimental-strip-types --test tests/academic-coach.test.mjs",
-    "prebuild": "npm run test:academic-coach && npm run test:exam-session-quality && npm run test:interview-realism-phase13 && npm run test:assessment-intelligence && npm run test:schools-pathways && npm run test:navigation",
+    "prebuild": "npm run test:academic-coach && npm run test:exam-session-quality && npm run test:interview-realism-phase13 && npm run test:assessment-intelligence && npm run test:schools-pathways && npm run test:navigation && npm run test:student-home",
     "test:exam-session-quality": "node --experimental-strip-types --test tests/exam-session-quality.test.mjs",
     "test:interview-realism-phase13": "node --experimental-strip-types --test tests/interview-realism-phase13.test.mjs",
     "test:assessment-intelligence": "node --experimental-strip-types --test tests/assessment-intelligence.test.mjs",
     "test:schools-pathways": "node --experimental-strip-types --test tests/phase15-schools-pathways.test.mjs",
-    "test:navigation": "node --experimental-strip-types tests/mobile-navigation.cjs"
+    "test:navigation": "node --experimental-strip-types tests/mobile-navigation.cjs",
+    "test:student-home": "node --experimental-strip-types --test tests/phase18-student-home.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
