@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import {InterviewNextSteps} from "@/components/interview-next-steps"
 import {readInterviewLaunch} from "@/lib/interview-launch"
 import { useEffect, useRef, useState } from "react"
 import {
@@ -1136,6 +1137,7 @@ export default function GeminiLiveNextPage() {
           <CardHeader><CheckCircle2 className="size-8 text-emerald-600" /><CardTitle className="font-serif text-3xl">Interview saved to Reasoning Replay</CardTitle><CardDescription>Your transcript, confidence estimates, branching path, feedback and any shared working summary are ready for review.{mockDuration ? <span className="mt-2 block font-semibold text-[#147d91]">{mockCompletionReport({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:candidateTurnCount,visitedStages:mockVisited})?.status}. Actual practice: {(seconds/60).toFixed(1)} of {mockDuration} minutes; {mockVisited.length} academic stages reached.</span> : null}</CardDescription></CardHeader>
           <CardContent className="flex flex-wrap gap-2"><Button asChild><Link href="/reasoning-replay">Open reasoning replay</Link></Button><Button variant="outline" onClick={reset}><RefreshCw />New interview</Button></CardContent>
         </Card>
+        <InterviewNextSteps/>
         {feedbackReport?<InterviewEvidenceReview report={feedbackReport}/>:null}
       </div>
     </main>
