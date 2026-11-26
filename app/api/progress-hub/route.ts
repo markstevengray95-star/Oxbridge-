@@ -12,13 +12,14 @@ export async function GET(){
  const userId=auth.user.id
  try{
   const [state,interviews,tests]=await Promise.all([
-   supabase.from("user_state").select("state_value").eq("user_id",userId).eq("state_key",PROGRESS_KEY).maybeSingle(),
+   supabase.from("user_state").select("state_key,state_value").eq("user_id",userId).in("state_key",[PROGRESS_KEY,"oxbridge-personal-statement-ucas-v3","oxbridge-personal-statement-analysis-v3","oxbridge-written-work-vault-v1"]),
    supabase.from("interview_sessions").select("id,course,duration_seconds,summary,overall_feedback,source_ref,created_at,interview_turns(turn_index,role,content,feedback)").eq("user_id",userId).order("created_at",{ascending:false}).limit(50),
    supabase.from("test_results").select("id,source_ref,test,form,title,completed_at,raw_score,max_raw_marks,total_questions,accuracy,payload").eq("user_id",userId).order("completed_at",{ascending:false}).limit(50),
   ])
   const availability={interviews:!interviews.error,tests:!tests.error,writing:!state.error}
   if(!Object.values(availability).some(Boolean))return reply({error:"Your preparation records are temporarily unavailable."},503)
-  const records=buildProgressRecords(interviews.error?[]:interviews.data,tests.error?[]:tests.data,state.error?{}:state.data?.state_value)
+  const saved=new Map<string,unknown>((state.error?[]:state.data??[]).map(row=>[row.state_key,row.state_value]))
+  const records=buildProgressRecords(interviews.error?[]:interviews.data,tests.error?[]:tests.data,saved.get(PROGRESS_KEY),{statement:saved.get("oxbridge-personal-statement-ucas-v3"),analysis:saved.get("oxbridge-personal-statement-analysis-v3"),writtenWork:saved.get("oxbridge-written-work-vault-v1")})
   const notices:string[]=[]
   if(interviews.error)notices.push("Some interview records could not be loaded.")
   if(tests.error)notices.push("Some admissions-test results could not be loaded.")

@@ -72,3 +72,26 @@ test("primary Progress navigation mounts unified records rather than a second to
  assert.match(read("components/student-progress-hub.tsx"),/Question-by-question responses/)
  assert.match(read("components/student-progress-hub.tsx"),/Interview transcript/)
 })
+
+test("saved UCAS personal statement includes its three sections and recorded analysis",()=>{
+ const extra={statement:{course:"Physics",savedAt:"2026-11-25T18:00:00Z",answers:{motivation:"I want to understand quantum mechanics.",preparation:"I studied wave behaviour.",outside:"I explored an optics project."}},analysis:{evidenceStrength:"developing",actions:["Explain the evidence behind the optics project."]}}
+ const rows=buildProgressRecords([],[],{},extra)
+ assert.equal(rows.length,1)
+ assert.equal(rows[0].href,"/personal-statement-map")
+ assert.match(rows[0].original??"",/quantum mechanics/)
+ assert.match(rows[0].original??"",/optics project/)
+ assert.match(rows[0].feedback[0],/evidence behind/)
+ assert.match(rows[0].summary,/developing/)
+})
+test("written-work vault drafts remain explicitly unmarked and linked",()=>{
+ const rows=buildProgressRecords([],[],{},{writtenWork:[{title:"Project draft",text:"My argument is supported by evidence.",saved:"2026-11-25T19:00:00Z"}]})
+ assert.equal(rows[0].title,"Project draft")
+ assert.equal(rows[0].href,"/written-work-vault")
+ assert.equal(rows[0].feedback.length,0)
+ assert.match(rows[0].summary,/No marking or feedback is implied/)
+})
+test("profile writing queries remain owner-scoped and include only supported synced keys",()=>{
+ const source=read("app/api/progress-hub/route.ts")
+ for(const key of ["oxbridge-personal-statement-ucas-v3","oxbridge-personal-statement-analysis-v3","oxbridge-written-work-vault-v1"])assert.ok(source.includes(key))
+ assert.equal((source.match(/\.eq\("user_id",userId\)/g)||[]).length,3)
+})
