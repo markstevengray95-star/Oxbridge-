@@ -1,7 +1,7 @@
 import Link from "next/link"
 import {AdminActionCentre} from "@/components/admin-action-centre"
 import { redirect } from "next/navigation"
-import { Activity, BarChart3, Brain, ClipboardCheck, FileLock2, Gauge, GraduationCap, KeyRound, Mic2, ShieldAlert, ShieldCheck, Sparkles, Users } from "lucide-react"
+import { BarChart3, Brain, GraduationCap, KeyRound, ShieldCheck, Sparkles, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
