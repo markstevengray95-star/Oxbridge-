@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import {selectedTest,nextUnansweredIndex} from "@/lib/admissions-centre"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AlarmClock, ArrowLeft, ArrowRight, CheckCircle2, Clock3, FileText, Flag, RotateCcw, Save, Trophy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -134,7 +135,7 @@ export default function FullPaperCentre() {
   const essayText = section?.kind === "essay" ? essayResponses[section.id] ?? "" : ""
   const essayWords = countWords(essayText)
 
-  useEffect(() => setSavedDraft(readDraft()), [])
+  useEffect(() => {setSavedDraft(readDraft());const requested=selectedTest(window.location.search);if(requested)setTest(requested)}, [])
 
   // Approximate visible question dwell time, not a measure of attention or ability.
   useEffect(() => {
