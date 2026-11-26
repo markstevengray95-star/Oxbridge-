@@ -40,7 +40,8 @@ export function StudentHomeDashboard(){
     if(data?.profile&&data?.week&&typeof data.asOf==="string"){setSummary(data);setStatus("ready")}
     else{setSummary(null);setStatus("error")}
    }else{setSummary(null);setStatus("error")}
-   if(classroom.status==="fulfilled"&&Array.isArray(classroom.value?.joined)){setSchool(classroom.value);setSchoolStatus("ready")}
+   const schoolPayload:unknown=classroom.status==="fulfilled"?classroom.value:null
+   if(schoolPayload&&typeof schoolPayload==="object"&&"joined" in schoolPayload&&Array.isArray(schoolPayload.joined)){setSchool(schoolPayload);setSchoolStatus("ready")}
    else{setSchool(null);setSchoolStatus("unavailable")}
   }
   const queue=()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>void refresh(),350)}
