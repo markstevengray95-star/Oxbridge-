@@ -14,9 +14,9 @@ export const tools:Tool[]=[
   },
   {
     "href": "/live-interview",
-    "label": "Gemini Live Voice",
+    "label": "Live voice interview",
     "description": "Realtime voice interview",
-    "keywords": "voice realtime interview microphone openai",
+    "keywords": "Gemini audio microphone speaking",
     "area": "interviews",
     "featured": true
   },
@@ -132,7 +132,7 @@ export const tools:Tool[]=[
     "label": "Essay Tutor",
     "description": "LNAT/TARA argument analysis",
     "keywords": "lnat tara essay writing argument",
-    "area": "tests",
+    "area": "application",
     "featured": false
   },
   {
@@ -145,7 +145,7 @@ export const tools:Tool[]=[
   },
   {
     "href": "/application-profile",
-    "label": "Application Digital Twin",
+    "label": "Application profile",
     "description": "Connect course, reading, projects and written work",
     "area": "application",
     "featured": true
@@ -175,7 +175,7 @@ export const tools:Tool[]=[
   },
   {
     "href": "/personal-statement-map",
-    "label": "Personal Statement Defence",
+    "label": "Personal statement analysis",
     "description": "Defend every academic claim",
     "keywords": "personal statement defence claims reading motivation",
     "area": "application",
@@ -279,7 +279,7 @@ export const tools:Tool[]=[
     "label": "Unseen Material Lab",
     "description": "Graphs, sources and unfamiliar data",
     "keywords": "unseen graph data source interview stimulus",
-    "area": "tutor",
+    "area": "interviews",
     "featured": false
   },
   {
@@ -531,6 +531,90 @@ export const tools:Tool[]=[
     "label": "Safeguarding",
     "description": "Safety and reporting",
     "area": "account",
+    "featured": false
+  },
+  {
+    "href": "/digital-twin",
+    "label": "Academic development profile",
+    "description": "Connect independence, retention and transfer",
+    "area": "tutor",
+    "featured": false
+  },
+  {
+    "href": "/tutor-autopilot",
+    "label": "Guided preparation",
+    "description": "Adaptive tutor-led practice",
+    "area": "tutor",
+    "featured": false
+  },
+  {
+    "href": "/prep-week",
+    "label": "Preparation week",
+    "description": "Seven-day study programme",
+    "area": "tutor",
+    "featured": false
+  },
+  {
+    "href": "/interview-academy",
+    "label": "Interview preparation programme",
+    "description": "Full guided preparation pathway",
+    "area": "interviews",
+    "featured": false
+  },
+  {
+    "href": "/socratic-whiteboard",
+    "label": "Whiteboard practice",
+    "description": "Visual problem solving",
+    "area": "interviews",
+    "featured": false
+  },
+  {
+    "href": "/reasoning-replay",
+    "label": "Reasoning replay",
+    "description": "Review reasoning and delayed retests",
+    "area": "progress",
+    "featured": false
+  },
+  {
+    "href": "/evidence-locker",
+    "label": "Academic portfolio",
+    "description": "Save reading, work and reflections",
+    "area": "application",
+    "featured": false
+  },
+  {
+    "href": "/reading-curriculum",
+    "label": "Reading programme",
+    "description": "Structured academic reading",
+    "area": "application",
+    "featured": false
+  },
+  {
+    "href": "/written-work-defence",
+    "label": "Written work defence",
+    "description": "Defend reasoning and assumptions",
+    "area": "application",
+    "featured": false
+  },
+  {
+    "href": "/essay-comparison",
+    "label": "Compare essay drafts",
+    "description": "Evaluate revisions",
+    "area": "application",
+    "featured": false
+  },
+  {
+    "href": "/test-player",
+    "label": "Timed question practice",
+    "description": "Individual questions and timing",
+    "area": "tests",
+    "featured": false
+  },
+  {
+    "href": "/retry-moment",
+    "label": "Retry a reasoning moment",
+    "description": "Fresh response to a previous difficulty",
+    "area": "progress",
     "featured": false
   }
 ]
