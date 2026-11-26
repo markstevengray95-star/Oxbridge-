@@ -1073,7 +1073,7 @@ export default function GeminiLiveNextPage() {
               : "Ready"
 
   if (phase === "lobby" || phase === "connecting" || phase === "reconnect") {
-    return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]">
+    return <main className="fellow-ui min-h-screen bg-[#f2f5f5] text-[#172b3a]">
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6 flex items-center justify-between gap-3">
           <Button asChild variant="ghost"><Link href="/interviews"><ArrowLeft />Interview Hub</Link></Button>
@@ -1131,7 +1131,7 @@ export default function GeminiLiveNextPage() {
   }
 
   if (phase === "ended") {
-    return <main className="min-h-screen bg-[#f2f5f5] text-[#172b3a]">
+    return <main className="fellow-ui min-h-screen bg-[#f2f5f5] text-[#172b3a]">
       <div className="mx-auto max-w-4xl px-4 py-12">
         <Card className="shadow-none">
           <CardHeader><CheckCircle2 className="size-8 text-emerald-600" /><CardTitle className="font-serif text-3xl">Interview saved to Reasoning Replay</CardTitle><CardDescription>Your transcript, confidence estimates, branching path, feedback and any shared working summary are ready for review.{mockDuration ? <span className="mt-2 block font-semibold text-[#147d91]">{mockCompletionReport({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:candidateTurnCount,visitedStages:mockVisited})?.status}. Actual practice: {(seconds/60).toFixed(1)} of {mockDuration} minutes; {mockVisited.length} academic stages reached.</span> : null}</CardDescription></CardHeader>
@@ -1143,7 +1143,7 @@ export default function GeminiLiveNextPage() {
     </main>
   }
 
-  return <main className="min-h-screen bg-[#eef2f3] text-[#172b3a]">
+  return <main className="fellow-ui min-h-screen bg-[#eef2f3] text-[#172b3a]">
     <header className="sticky top-0 z-50 border-b bg-white">
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 px-4 py-3">
         <Badge className="bg-emerald-700">Live</Badge>
