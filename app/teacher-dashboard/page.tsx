@@ -97,7 +97,7 @@ export default function TeacherDashboardPage() {
         <section aria-label="Teacher actions" className="fellow-panel p-5">
           <h2 className="fellow-section-title">Your next actions</h2><p className="fellow-description mt-1">Review recorded activity and manage students you have permission to support.</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button asChild><Link href="/school-classroom"><BookOpenCheck/>Student classroom</Link></Button>
+            <Button asChild><Link href="#teacher-roster"><BookOpenCheck/>Linked student progress</Link></Button>
             <Button asChild variant="outline"><Link href="/school-seats"><Users/>School access</Link></Button>
             {data.organization.role!=="teacher"&&<><Button asChild variant="outline"><Link href="/school-dashboard">Cohorts & assignments</Link></Button><Button asChild variant="outline"><Link href="/school-insights">Cohort insights</Link></Button><Button asChild variant="outline"><Link href="/school-reports">School reports</Link></Button></>}
           </div>
@@ -106,7 +106,7 @@ export default function TeacherDashboardPage() {
           </div>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[1.45fr_.9fr]">
+        <section id="teacher-roster" className="grid scroll-mt-24 gap-5 xl:grid-cols-[1.45fr_.9fr]">
           <Card className="fellow-panel"><CardHeader><div className="flex flex-wrap justify-between gap-3"><div><CardTitle className="font-serif text-2xl">School learner accounts</CardTitle><CardDescription>{data.organization.role==="teacher"?"Only students explicitly linked to this teacher account.":"School owner and administrator: students with active school seats."}</CardDescription></div><Button variant="outline" disabled={!students.length} onClick={exportCsv}>Export summary CSV</Button></div></CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2" role="group" aria-label="Filter linked student list">{teacherViews.map(item=><button key={item.id} type="button" aria-pressed={view===item.id} onClick={()=>{setView(item.id);setSelectedId("")}} className={"rounded-lg border px-3 py-2 text-xs font-semibold "+(view===item.id?"border-[#397c80] bg-[#e9f1ee] text-[#142d3e]":"bg-white text-slate-600")}>{item.label}</button>)}</div>
