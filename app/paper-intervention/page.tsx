@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import {selectedTest,type AdmissionsTest} from "@/lib/admissions-centre"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, ArrowRight, CheckCircle2, RefreshCw, Target, TrendingUp, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -34,6 +35,8 @@ function shortDate(value?: string) {
 
 export default function PaperInterventionPage() {
   const [progress, setProgress] = useState<SavedProgress>({})
+  const [requestedTest,setRequestedTest] = useState<AdmissionsTest|null>(null)
+  const [loaded,setLoaded] = useState(false)
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const [checked, setChecked] = useState(false)
   const [retakeVersion, setRetakeVersion] = useState(0)
@@ -42,9 +45,11 @@ export default function PaperInterventionPage() {
 
   useEffect(() => {
     try { setProgress(JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}") as SavedProgress) } catch { setProgress({}) }
+    setRequestedTest(selectedTest(window.location.search))
+    setLoaded(true)
   }, [])
 
-  const latest = Array.isArray(progress.fullPaperResults) ? progress.fullPaperResults[0] : undefined
+  const latest = Array.isArray(progress.fullPaperResults) ? progress.fullPaperResults.find(p=>!requestedTest||p.test===requestedTest) : undefined
   const history = Array.isArray(progress.interventionResults) && latest ? progress.interventionResults.filter(item => item.sourcePaperId === latest.id) : []
   const targets = useMemo(() => latest ? buildInterventionTargets(latest.sections ?? []) : [], [latest])
   const retest = useMemo(() => {
@@ -105,7 +110,9 @@ export default function PaperInterventionPage() {
     setChecked(false)
   }
 
-  if (!latest) return <main className="min-h-screen bg-slate-50 text-slate-950"><div className="mx-auto max-w-5xl px-4 py-10"><Button asChild variant="ghost"><Link href="/student-home"><ArrowLeft />Student Home</Link></Button><Card className="mt-6 shadow-none"><CardHeader><CardTitle className="font-serif text-3xl">Targeted intervention starts after a full paper.</CardTitle><CardDescription>Sit a full admissions-test paper first. The app will identify the weakest sections automatically and turn them into a mini-lesson plus retest loop.</CardDescription></CardHeader><CardContent><Button asChild><Link href="/full-papers">Open Full Papers <ArrowRight /></Link></Button></CardContent></Card></div></main>
+  if (!loaded) return <main className="mx-auto max-w-4xl p-8 text-sm text-slate-600" role="status">Checking your saved paper results…</main>
+
+  if (!latest) return <main className="min-h-screen bg-slate-50 text-slate-950"><div className="mx-auto max-w-5xl px-4 py-10"><Button asChild variant="ghost"><Link href="/student-home"><ArrowLeft />Student Home</Link></Button><Card className="mt-6 shadow-none"><CardHeader><CardTitle className="font-serif text-3xl">{requestedTest?`No saved ${requestedTest} mock found yet.`:"Targeted intervention starts after a full paper."}</CardTitle><CardDescription>Complete a full {requestedTest??"admissions-test"} practice paper first. Your most recent saved paper in this test becomes the basis for a targeted lesson and retest.</CardDescription></CardHeader><CardContent><Button asChild><Link href={requestedTest?"/full-papers?test="+requestedTest:"/study/tests"}>Start a full practice paper <ArrowRight /></Link></Button></CardContent></Card></div></main>
 
   return <main className="min-h-screen bg-[#f5f7f7] text-[#172b3a]">
     <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4"><Button asChild variant="ghost"><Link href="/full-papers"><ArrowLeft />Full Papers</Link></Button><Badge variant="outline"><TrendingUp className="size-3.5" />Weakness → intervention → retest → retention</Badge></div></header>
