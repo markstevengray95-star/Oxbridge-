@@ -25,7 +25,7 @@ test("writing excerpts, feedback and chronological order are preserved",()=>{
  const rows=buildProgressRecords([interview],[paper],progress)
  const writing=rows.find(r=>r.kind==="writing")
  assert.ok(writing)
- assert.match(writing.summary,/funding/i)
+ assert.match(writing.summary,/counterargument/i)
  assert.match(writing.original??"",/requires funding/)
  assert.ok(writing.feedback.some(x=>/funding objection/.test(x)))
  const dated=rows.filter(r=>r.date).map(r=>r.date)
