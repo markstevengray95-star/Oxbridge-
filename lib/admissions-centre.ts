@@ -23,7 +23,7 @@ export function centreDestination(mode:PracticeMode,test:AdmissionsTest){
 }
 export function nextUnansweredIndex(answered:boolean[],index:number):number|null{
  if(!answered.length||index<0||index>=answered.length)return null
- for(let offset=1;offset<=answered.length;offset++){
+ for(let offset=1;offset<answered.length;offset++){
   const next=(index+offset)%answered.length
   if(!answered[next])return next
  }
