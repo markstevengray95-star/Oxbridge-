@@ -1,4 +1,5 @@
 import Link from "next/link"
+import {AdminActionCentre} from "@/components/admin-action-centre"
 import { redirect } from "next/navigation"
 import { Activity, BarChart3, Brain, ClipboardCheck, FileLock2, Gauge, GraduationCap, KeyRound, Mic2, ShieldAlert, ShieldCheck, Sparkles, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -9,10 +10,10 @@ import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
 export const dynamic = "force-dynamic"
-type AdminStats = { users: number; activeSubscriptions: number; cohorts: number; tutorPlans: number }
+type AdminStats = { users: number|null; activeSubscriptions: number|null; cohorts: number|null; tutorPlans: number|null }
 
 async function loadStats(): Promise<AdminStats> {
-  if (!hasSupabaseAdminConfig()) return { users: 0, activeSubscriptions: 0, cohorts: 0, tutorPlans: 0 }
+  if (!hasSupabaseAdminConfig()) return { users: null, activeSubscriptions: null, cohorts: null, tutorPlans: null }
   const admin = createAdminClient()
   const [users, subscriptions, cohorts, tutorPlans] = await Promise.all([
     admin.from("profiles").select("id", { count: "exact", head: true }),
@@ -20,13 +21,13 @@ async function loadStats(): Promise<AdminStats> {
     admin.from("school_cohorts").select("id", { count: "exact", head: true }),
     admin.from("tutor_plans").select("id", { count: "exact", head: true }),
   ])
-  return { users: users.count ?? 0, activeSubscriptions: subscriptions.count ?? 0, cohorts: cohorts.count ?? 0, tutorPlans: tutorPlans.count ?? 0 }
+  return { users: users.error ? null : users.count ?? null, activeSubscriptions: subscriptions.error ? null : subscriptions.count ?? null, cohorts: cohorts.error ? null : cohorts.count ?? null, tutorPlans: tutorPlans.error ? null : tutorPlans.count ?? null }
 }
 
 type PracticeLoginRow = { user_id: string; username: string; display_name: string | null; active: boolean; unlimited_usage: boolean }
 
-async function loadPracticeLogins(): Promise<PracticeLoginRow[]> {
-  if (!hasSupabaseAdminConfig()) return []
+async function loadPracticeLogins(): Promise<{accounts:PracticeLoginRow[];error:string|null}> {
+  if (!hasSupabaseAdminConfig()) return {accounts:[],error:"The admin data source is not configured."}
   const admin = createAdminClient()
   const { data, error } = await admin.from("practice_access_accounts")
     .select("user_id,username,display_name,active,unlimited_usage")
@@ -35,9 +36,9 @@ async function loadPracticeLogins(): Promise<PracticeLoginRow[]> {
     .limit(200)
   if (error) {
     console.error("Could not load practice account roster", error.message)
-    return []
+    return {accounts:[],error:"Could not load managed practice accounts."}
   }
-  return data ?? []
+  return {accounts:data ?? [],error:null}
 }
 
 export default async function AdminPage() {
@@ -49,24 +50,29 @@ export default async function AdminPage() {
   if (!userId) redirect("/admin/login")
   const access = await getAppAdminAccess(userId, email)
   if (!access.isAdmin) redirect("/admin/login?error=not-authorized")
-  const [stats, practiceLogins] = await Promise.all([loadStats(), loadPracticeLogins()])
+  const [stats, practiceRoster] = await Promise.all([loadStats(), loadPracticeLogins()])
+  const practiceLogins=practiceRoster.accounts
+  const metricsAvailable=Object.values(stats).every(v=>v!==null)
 
-  return <main className="min-h-screen bg-[#eef3f4] px-4 py-7 text-[#172b3a] sm:px-6 lg:px-8 lg:py-10"><div className="mx-auto max-w-7xl space-y-6">
-    <div className="flex flex-wrap items-center justify-between gap-4"><div><div className="flex items-center gap-2"><Badge className="bg-[#102a43] text-white"><ShieldCheck className="size-3.5" />Administrator</Badge><Badge variant="outline">Unrestricted access</Badge></div><h1 className="mt-3 font-serif text-4xl font-bold">Fellow Admin Console</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[#667984]">Server-verified access across subscriptions, AI, school tools, quality control and human privacy/safeguarding operations.</p></div><div className="flex gap-2"><Button asChild variant="outline"><Link href="/account">Account</Link></Button><Button asChild><Link href="/tutor"><Brain />Open Tutor</Link></Button></div></div>
+  return <main className="fellow-ui min-h-screen px-4 py-7 sm:px-6 lg:px-8 lg:py-10"><div className="mx-auto max-w-7xl space-y-6">
+    <div className="flex flex-wrap items-center justify-between gap-4"><div><div className="flex items-center gap-2"><Badge className="bg-[#102a43] text-white"><ShieldCheck className="size-3.5" />Administrator</Badge><Badge variant="outline">Server verified</Badge></div><h1 className="fellow-page-title mt-3">Fellow Admin Console</h1><p className="fellow-description mt-2">Server-verified access across subscriptions, AI, school tools, quality control and human privacy/safeguarding operations.</p></div><div className="flex gap-2"><Button asChild variant="outline"><Link href="/account">Account</Link></Button><Button asChild><Link href="/tutor"><Brain />Open Tutor</Link></Button></div></div>
 
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Card><CardHeader><Users className="size-5 text-[#147d91]" /><CardDescription>Accounts</CardDescription><CardTitle className="font-serif text-3xl">{stats.users}</CardTitle></CardHeader><CardContent><p className="text-sm text-[#667984]">Profiles currently attached to the platform.</p></CardContent></Card><Card><CardHeader><Sparkles className="size-5 text-[#147d91]" /><CardDescription>Active paid access</CardDescription><CardTitle className="font-serif text-3xl">{stats.activeSubscriptions}</CardTitle></CardHeader><CardContent><p className="text-sm text-[#667984]">Active or trialling Pro/School subscriptions.</p></CardContent></Card><Card><CardHeader><GraduationCap className="size-5 text-[#147d91]" /><CardDescription>School cohorts</CardDescription><CardTitle className="font-serif text-3xl">{stats.cohorts}</CardTitle></CardHeader><CardContent><p className="text-sm text-[#667984]">Cloud-linked teaching cohorts.</p></CardContent></Card><Card><CardHeader><BarChart3 className="size-5 text-[#147d91]" /><CardDescription>Tutor plans generated</CardDescription><CardTitle className="font-serif text-3xl">{stats.tutorPlans}</CardTitle></CardHeader><CardContent><p className="text-sm text-[#667984]">Saved personalised preparation plans.</p></CardContent></Card></section>
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Card><CardHeader><Users className="size-5 text-[#326d71]" /><CardDescription>Accounts</CardDescription><CardTitle className="font-serif text-3xl">{stats.users??"—"}</CardTitle></CardHeader><CardContent><p className="text-sm text-[#667984]">Profiles currently attached to the platform.</p></CardContent></Card><Card><CardHeader><Sparkles className="size-5 text-[#326d71]" /><CardDescription>Active subscription records</CardDescription><CardTitle className="font-serif text-3xl">{stats.activeSubscriptions??"—"}</CardTitle></CardHeader><CardContent><p className="text-sm text-[#667984]">Stored active or trialling subscription records; temporary free access is not counted.</p></CardContent></Card><Card><CardHeader><GraduationCap className="size-5 text-[#326d71]" /><CardDescription>School cohorts</CardDescription><CardTitle className="font-serif text-3xl">{stats.cohorts??"—"}</CardTitle></CardHeader><CardContent><p className="text-sm text-[#667984]">Cloud-linked teaching cohorts.</p></CardContent></Card><Card><CardHeader><BarChart3 className="size-5 text-[#326d71]" /><CardDescription>Tutor plans generated</CardDescription><CardTitle className="font-serif text-3xl">{stats.tutorPlans??"—"}</CardTitle></CardHeader><CardContent><p className="text-sm text-[#667984]">Saved personalised preparation plans.</p></CardContent></Card></section>
 
-    <section className="grid gap-5 lg:grid-cols-[1.05fr_.95fr]"><Card className="border-emerald-200 bg-emerald-50"><CardHeader><CardTitle className="flex items-center gap-2 font-serif text-2xl"><ShieldCheck className="size-5 text-emerald-700" />Unrestricted admin entitlement is active</CardTitle><CardDescription>Your administrator role is verified on the server.</CardDescription></CardHeader><CardContent className="space-y-3 text-sm leading-6 text-emerald-950"><p>All Pro and School route gates are bypassed.</p><p>Gemini Live and AI voice usage are not subject to normal monthly user quotas for this account.</p><p>Password management remains secure: administrators can send reset links but can never view existing passwords.</p><div className="flex flex-wrap gap-2 pt-1">{access.capabilities.map(capability => <Badge key={capability} variant="outline" className="border-emerald-300 bg-white/60 text-emerald-900">{capability.replaceAll("_", " ")}</Badge>)}</div><p className="text-xs text-emerald-800">Role source: server environment allowlist.</p></CardContent></Card>
-
-      <Card><CardHeader><CardTitle className="font-serif text-2xl">Admin shortcuts</CardTitle><CardDescription>Manage the platform, human review queues and premium experiences.</CardDescription></CardHeader><CardContent className="grid gap-2 sm:grid-cols-2"><Button asChild className="bg-teal-700 hover:bg-teal-800"><Link href="/admin/launch-readiness"><ClipboardCheck />Launch readiness</Link></Button><Button asChild><Link href="/admin/users"><KeyRound />Users & passwords</Link></Button><Button asChild className="bg-[#147d91] hover:bg-[#106979]"><Link href="/admin/practice-access"><KeyRound />Practice access</Link></Button><Button asChild className="bg-[#147d91] hover:bg-[#106979]"><Link href="/admin/managed-school-logins"><GraduationCap />Teacher & student logins</Link></Button><Button asChild className="bg-[#102a43] hover:bg-[#193b57]"><Link href="/admin/practice-tracking"><Activity />Practice tracking</Link></Button><Button asChild variant="outline"><Link href="/admin/quality"><Gauge />Quality console</Link></Button><Button asChild className="bg-amber-700 hover:bg-amber-800"><Link href="/admin/safeguarding"><ShieldAlert />Safeguarding queue</Link></Button><Button asChild variant="outline"><Link href="/admin/privacy-requests"><FileLock2 />Privacy requests</Link></Button><Button asChild variant="outline"><Link href="/gemini-live-interview"><Mic2 />Gemini Live</Link></Button><Button asChild variant="outline"><Link href="/panel-interview">Two-voice panel</Link></Button><Button asChild variant="outline"><Link href="/school-dashboard">School dashboard</Link></Button><Button asChild variant="outline"><Link href="/school/teachers"><Users />Teacher accounts & links</Link></Button><Button asChild variant="outline"><Link href="/tutor-autopilot">Tutor Autopilot</Link></Button></CardContent></Card></section>
+    {!metricsAvailable&&<p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">Some platform counts could not be verified. A dash means unavailable, not zero.</p>}
+    <AdminActionCentre />
+    <details className="fellow-panel p-5"><summary className="cursor-pointer font-semibold">Administrator permissions and safety</summary>
+      <p className="mt-3 text-sm text-slate-600">Administrator access was verified on the server. Permissions protect management routes, and password resets never reveal existing passwords.</p>
+      <div className="mt-3 flex flex-wrap gap-2">{access.capabilities.map(capability=><Badge key={capability} variant="outline">{capability.replaceAll("_"," ")}</Badge>)}</div>
+    </details>
 
     <section>
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle className="flex items-center gap-2 font-serif text-2xl"><KeyRound className="size-5 text-[#147d91]" />Existing practice usernames</CardTitle>
-              <CardDescription>{practiceLogins.length} managed login{practiceLogins.length === 1 ? "" : "s"} found in the database. These accounts keep their original passwords and saved work.</CardDescription>
+              <CardTitle className="flex items-center gap-2 font-serif text-2xl"><KeyRound className="size-5 text-[#326d71]" />Recent practice usernames</CardTitle>
+              <CardDescription>{practiceLogins.length} managed login{practiceLogins.length === 1 ? "" : "s"} in the recent account roster (maximum 200 loaded). Existing passwords and work are unchanged.</CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="outline"><Link href="/admin/practice-access">Manage logins</Link></Button>
@@ -75,9 +81,11 @@ export default async function AdminPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {practiceRoster.error&&<p role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{practiceRoster.error}</p>}
+          {!practiceRoster.error&&<div className="mb-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600"><span>{practiceLogins.filter(a=>a.active).length} active</span><span>·</span><span>{practiceLogins.filter(a=>!a.active).length} disabled</span></div>}
           {practiceLogins.length ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {practiceLogins.map(account => (
+              {practiceLogins.slice(0,8).map(account => (
                 <div key={account.user_id} className="rounded-xl border bg-white p-4">
                   <p className="font-semibold">{account.display_name || account.username}</p>
                   <p className="mt-1 font-mono text-sm text-[#526a75]">{account.username}</p>
@@ -88,7 +96,8 @@ export default async function AdminPage() {
                 </div>
               ))}
             </div>
-          ) : <p className="text-sm text-slate-500">No practice accounts could be loaded. Check Practice access for any database error before creating replacements.</p>}
+          ) : <p className="text-sm text-slate-500">{practiceRoster.error?"The roster is unavailable. No account changes have been made.":"No managed student practice accounts were found."}</p>}
+          {practiceLogins.length>8&&<p className="mt-4 text-sm text-slate-600">Showing 8 of {practiceLogins.length} recent accounts. <Link className="fellow-link" href="/admin/practice-access">Manage all practice accounts</Link>.</p>}
         </CardContent>
       </Card>
     </section>
