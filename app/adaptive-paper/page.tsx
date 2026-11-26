@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import {selectedTest} from "@/lib/admissions-centre"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, ArrowRight, Check, FileText, RefreshCw, Target } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +26,7 @@ function questionSignature(prompt:string){return prompt.toLowerCase().replace(/\
 
 export default function AdaptivePaperPage(){
   const [test,setTest]=useState<TestName>("TMUA")
+  useEffect(()=>{const requested=selectedTest(window.location.search);if(requested)setTest(requested)},[])
   const [course,setCourse]=useState("Physics")
   const [length,setLength]=useState(20)
   const [seed,setSeed]=useState(1)

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import {selectedTest} from "@/lib/admissions-centre"
 import { ArrowLeft, ArrowRight, Brain, CheckCircle2, Flag, Loader2, RefreshCw, Sparkles, Target, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -67,6 +68,7 @@ function saveAttempt(question: TestQuestion, selected: number, correct: boolean)
 
 export default function AdvancedPracticePage() {
   const [test, setTest] = useState<TestName>("TMUA")
+  useEffect(()=>{const requested=selectedTest(window.location.search);if(requested)setTest(requested)},[])
   const [course, setCourse] = useState("Physics")
   useEffect(() => {
     try {
