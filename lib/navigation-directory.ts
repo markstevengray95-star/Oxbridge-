@@ -14,9 +14,9 @@ export const tools:Tool[]=[
   },
   {
     "href": "/live-interview",
-    "label": "Gemini Live Voice",
+    "label": "Live voice interview",
     "description": "Realtime voice interview",
-    "keywords": "voice realtime interview microphone openai",
+    "keywords": "Gemini audio microphone speaking",
     "area": "interviews",
     "featured": true
   },
@@ -132,7 +132,7 @@ export const tools:Tool[]=[
     "label": "Essay Tutor",
     "description": "LNAT/TARA argument analysis",
     "keywords": "lnat tara essay writing argument",
-    "area": "tests",
+    "area": "application",
     "featured": false
   },
   {
@@ -145,7 +145,7 @@ export const tools:Tool[]=[
   },
   {
     "href": "/application-profile",
-    "label": "Application Digital Twin",
+    "label": "Application profile",
     "description": "Connect course, reading, projects and written work",
     "area": "application",
     "featured": true
@@ -175,7 +175,7 @@ export const tools:Tool[]=[
   },
   {
     "href": "/personal-statement-map",
-    "label": "Personal Statement Defence",
+    "label": "Personal statement analysis",
     "description": "Defend every academic claim",
     "keywords": "personal statement defence claims reading motivation",
     "area": "application",
@@ -279,7 +279,7 @@ export const tools:Tool[]=[
     "label": "Unseen Material Lab",
     "description": "Graphs, sources and unfamiliar data",
     "keywords": "unseen graph data source interview stimulus",
-    "area": "tutor",
+    "area": "interviews",
     "featured": false
   },
   {
@@ -532,6 +532,90 @@ export const tools:Tool[]=[
     "description": "Safety and reporting",
     "area": "account",
     "featured": false
+  },
+  {
+    "href": "/digital-twin",
+    "label": "Academic development profile",
+    "description": "Connect independence, retention and transfer",
+    "area": "tutor",
+    "featured": false
+  },
+  {
+    "href": "/tutor-autopilot",
+    "label": "Guided preparation",
+    "description": "Adaptive tutor-led practice",
+    "area": "tutor",
+    "featured": false
+  },
+  {
+    "href": "/prep-week",
+    "label": "Preparation week",
+    "description": "Seven-day study programme",
+    "area": "tutor",
+    "featured": false
+  },
+  {
+    "href": "/interview-academy",
+    "label": "Interview preparation programme",
+    "description": "Full guided preparation pathway",
+    "area": "interviews",
+    "featured": false
+  },
+  {
+    "href": "/socratic-whiteboard",
+    "label": "Whiteboard practice",
+    "description": "Visual problem solving",
+    "area": "interviews",
+    "featured": false
+  },
+  {
+    "href": "/reasoning-replay",
+    "label": "Reasoning replay",
+    "description": "Review reasoning and delayed retests",
+    "area": "progress",
+    "featured": false
+  },
+  {
+    "href": "/evidence-locker",
+    "label": "Academic portfolio",
+    "description": "Save reading, work and reflections",
+    "area": "application",
+    "featured": false
+  },
+  {
+    "href": "/reading-curriculum",
+    "label": "Reading programme",
+    "description": "Structured academic reading",
+    "area": "application",
+    "featured": false
+  },
+  {
+    "href": "/written-work-defence",
+    "label": "Written work defence",
+    "description": "Defend reasoning and assumptions",
+    "area": "application",
+    "featured": false
+  },
+  {
+    "href": "/essay-comparison",
+    "label": "Compare essay drafts",
+    "description": "Evaluate revisions",
+    "area": "application",
+    "featured": false
+  },
+  {
+    "href": "/test-player",
+    "label": "Timed question practice",
+    "description": "Individual questions and timing",
+    "area": "tests",
+    "featured": false
+  },
+  {
+    "href": "/retry-moment",
+    "label": "Retry a reasoning moment",
+    "description": "Fresh response to a previous difficulty",
+    "area": "progress",
+    "featured": false
   }
 ]
 export function visibleTools(access:NavigationAccess){return access.signedIn?tools.filter(t=>!t.access||access[t.access]):[]}
@@ -542,3 +626,19 @@ export function routeArea(pathname:string):Area|null {
  return match?.area??null
 }
 export function searchTools(access:NavigationAccess,query:string){const terms=query.trim().toLowerCase().split(/\s+/).filter(Boolean);return visibleTools(access).filter(t=>terms.every(term=>(t.label+" "+t.description+" "+(t.keywords??"")+" "+t.area).toLowerCase().includes(term)))}
+
+/** Task-focused workspaces. Old URLs remain direct entry points. */
+export type WorkspaceGroup={title:string;description:string;hrefs:string[]}
+export const workspaceGroups:Partial<Record<Area,WorkspaceGroup[]>>={
+ interviews:[{title:"Practise an interview",description:"Choose voice, written or a timed simulation.",hrefs:["/reasoning-interview","/live-interview","/full-mock-interview","/interview-room","/panel-interview","/ai-interview","/natural-ai-interview","/elevenlabs-interview"]},{title:"Build interview skills",description:"Unseen material, visual reasoning and structured preparation.",hrefs:["/interview-academy","/unseen-lab","/socratic-whiteboard","/technology-rehearsal","/cambridge-interview-day","/mock-day","/mock-week","/interviews"]}],
+ tests:[{title:"Sit a practice test",description:"Full timed papers and shorter practice.",hrefs:["/full-papers","/test-player","/admissions-challenges","/advanced-practice","/adaptive-paper","/timing-trainer"]},{title:"Improve your results",description:"Target missed questions and check question quality.",hrefs:["/paper-intervention","/question-quality"]}],
+ application:[{title:"Plan your application",description:"Course requirements, profile and deadlines.",hrefs:["/requirements","/application-profile","/timeline","/cambridge-assessments","/source-health"]},{title:"Writing and defence",description:"Personal statement, essays and defending your claims.",hrefs:["/personal-statement-map","/essay-tutor","/written-work-vault","/written-work-defence","/essay-comparison","/application-defence"]},{title:"Academic portfolio",description:"Reading, projects and evidence of intellectual interests.",hrefs:["/supercurricular-coach","/evidence-locker","/reading-curriculum","/reading-room","/knowledge-graph","/research-project"]}],
+ progress:[{title:"Results and feedback",description:"See saved practice and assess evidence.",hrefs:["/assessment-report","/history","/interview-insights","/interview-feedback","/learning-trajectory","/progress-proof"]},{title:"Improve and revisit",description:"Reasoning replay, missed questions and delayed reviews.",hrefs:["/mistake-dna","/reasoning-replay","/retry-moment"]},{title:"School and support",description:"Assignments, linked teachers and feedback.",hrefs:["/school-classroom","/student/teacher-links","/human-review","/parent-summary"]}],
+ tutor:[{title:"Coaching",description:"Choose a guided learning activity.",hrefs:["/tutor#academic-coach","/tutor-autopilot","/tutorial-lab","/daily-challenge","/course-bank","/reasoning-lab","/working-analysis","/intervention-session"]},{title:"Planning and learning support",description:"Plan your week or work offline.",hrefs:["/preparation-pathway","/prep-week","/digital-twin","/offline-pack","/learning-support"]}]
+}
+export function workspaceTools(area:Area,available:Tool[]){
+ const relevant=available.filter(t=>t.area===area),seen=new Set<string>()
+ const groups=(workspaceGroups[area]??[]).map(g=>({...g,items:g.hrefs.flatMap(href=>{const item=relevant.find(t=>t.href===href);if(!item||seen.has(href))return [];seen.add(href);return [item]})})).filter(g=>g.items.length)
+ const remaining=relevant.filter(t=>!seen.has(t.href))
+ return remaining.length?[...groups,{title:"Other activities",description:"Additional existing tools.",hrefs:remaining.map(t=>t.href),items:remaining}]:groups
+}
