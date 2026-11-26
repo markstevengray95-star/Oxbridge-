@@ -16,7 +16,7 @@ export type ProgressRecord={
  href:string;score:{raw:number;max:number}|null;transcript:ProgressTurn[];questions:ProgressQuestion[];
  feedback:string[];original:string|null;originalTruncated:boolean;truncated:boolean
 }
-export function buildProgressRecords(interviewsValue:unknown,testsValue:unknown,progressValue:unknown){
+export function buildProgressRecords(interviewsValue:unknown,testsValue:unknown,progressValue:unknown,extraValue:unknown={}){
  const progress=obj(progressValue),records:ProgressRecord[]=[]
  const interviewRefs=new Set<string>(),paperRefs=new Set<string>(),ids=new Set<string>()
  const add=(row:ProgressRecord)=>{if(!ids.has(row.id)){ids.add(row.id);records.push(row)}}
@@ -55,6 +55,19 @@ export function buildProgressRecords(interviewsValue:unknown,testsValue:unknown,
   const raw=str(x.essay,10000)
   const priorities=list(report.priorities,5).concat(list(analysis.priorityImprovements,3)).slice(0,6)
   add({id:"writing:"+id,kind:"writing",source:"synced",title:str(x.prompt,160)||str(x.test,80)||"Written-work review",date:date(x.date),summary:str(report.summary,850)||"Saved written-work analysis",href:"/written-work-vault",score:null,transcript:[],questions:[],feedback:priorities,original:raw||null,originalTruncated:typeof x.essay==="string"&&x.essay.trim().length>10000,truncated:false})
+ }
+ const extra=obj(extraValue),statement=obj(extra.statement),analysis=obj(extra.analysis),answers=obj(statement.answers)
+ const sections=[str(answers.motivation,4000),str(answers.preparation,4000),str(answers.outside,4000)].filter(Boolean)
+ if(sections.length){
+  const original=sections.join("\n\n"),course=str(statement.course,90)
+  const savedAt=str(statement.savedAt,60)
+  const strength=str(analysis.evidenceStrength,60)
+  add({id:"writing:personal-statement",kind:"writing",source:"synced",title:"UCAS personal statement"+(course?" · "+course:""),date:date(savedAt||analysis.savedAt),summary:strength?"Saved statement analysis · Evidence strength: "+strength:"Saved statement draft · No analysis is recorded here.",href:"/personal-statement-map",score:null,transcript:[],questions:[],feedback:list(analysis.actions,9),original:original.slice(0,10000),originalTruncated:original.length>10000,truncated:false})
+ }
+ for(const item of arr(extra.writtenWork).slice(0,10)){
+  const x=obj(item),original=str(x.text,10000);if(!original)continue
+  const savedAt=str(x.saved,60),title=str(x.title,140)||"Saved written work"
+  add({id:"writing:vault:"+title+":"+savedAt,kind:"writing",source:"synced",title,date:date(savedAt),summary:"Saved written-work draft. No marking or feedback is implied.",href:"/written-work-vault",score:null,transcript:[],questions:[],feedback:[],original,originalTruncated:typeof x.text==="string"&&x.text.trim().length>10000,truncated:false})
  }
  return records.sort((a,b)=>(b.date?Date.parse(b.date):-Infinity)-(a.date?Date.parse(a.date):-Infinity)||a.id.localeCompare(b.id)).slice(0,150)
 }
