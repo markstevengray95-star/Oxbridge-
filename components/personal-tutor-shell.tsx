@@ -1,4 +1,5 @@
 import Link from "next/link"
+import {TutorDisclosure} from "@/components/tutor-disclosure"
 import { BarChart3, Brain, CalendarCheck2, Compass, History, Lightbulb, TrendingUp, Wrench } from "lucide-react"
 import { PersonalTutorDashboard } from "@/components/personal-tutor-dashboard"
 import { TutorCompletedWork } from "@/components/tutor-completed-work"
@@ -24,7 +25,8 @@ const tutorSections = [
 export function PersonalTutorShell() {
   return (
     <TutorIntelligenceProvider>
-      <div id="tutor-today" className="scroll-mt-24"><PersonalTutorDashboard /></div>
+      <div className="mx-auto max-w-7xl px-4 pt-6"><p className="text-xs font-semibold uppercase tracking-widest text-[#147d91]">My Tutor</p><h1 className="mt-2 font-serif text-3xl font-bold text-[#102a43]">Your academic coaching workspace</h1><p className="mt-2 text-sm text-slate-600">Start with coaching. Open planning, analysis or saved records when you need them.</p></div>
+      <TutorDisclosure title="Today’s plan and tutor conversation" defaultOpen><div id="tutor-today" className="scroll-mt-24"><PersonalTutorDashboard /></div></TutorDisclosure>
 
       <nav className="sticky top-14 z-[70] border-y border-[#dbe5e7] bg-white/95 shadow-sm backdrop-blur" aria-label="Tutor command centre sections">
         <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-3 py-2 sm:px-6">
@@ -38,14 +40,14 @@ export function PersonalTutorShell() {
 
       <section className="mx-auto max-w-7xl px-4 pt-5 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4"><div><p className="font-semibold text-[#102a43]">Academic assessment report</p><p className="mt-1 text-sm text-slate-600">Compare saved reasoning evidence, recurring missed items and delayed coaching checks.</p></div><Link href="/assessment-report" className="rounded-xl bg-[#102a43] px-4 py-2 text-sm font-semibold text-white">View private report</Link></div></section>
       <section className="mx-auto max-w-7xl px-4 pt-4 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4"><div><p className="font-semibold text-[#102a43]">Personal preparation pathway</p><p className="mt-1 text-sm text-slate-600">Plan course-specific academic activities, check official requirements and develop supercurricular evidence.</p></div><Link href="/preparation-pathway" className="rounded-xl bg-[#102a43] px-4 py-2 text-sm font-semibold text-white">Build your pathway</Link></div></section>
-      <AcademicCoach />
-      <TutorEvidenceQuality />
-      <div id="tutor-insight" className="scroll-mt-28"><TutorDeepInsightLoader /></div>
-      <div id="tutor-week" className="scroll-mt-28"><TutorExecutionLoopLoader /></div>
-      <TutorProgressRecordsHub />
-      <TutorCompletedWork />
-      <div id="tutor-strategy" className="scroll-mt-28"><TutorStrategicBrief /></div>
-      <div id="tutor-tools" className="scroll-mt-28"><NextgenTutorPanel /></div>
+      <TutorDisclosure title="Academic coach" defaultOpen><AcademicCoach /></TutorDisclosure>
+      <TutorDisclosure title="Detailed academic analysis"><TutorEvidenceQuality />
+      <div id="tutor-insight" className="scroll-mt-28"><TutorDeepInsightLoader /></div></TutorDisclosure>
+      <TutorDisclosure title="Weekly preparation programme"><div id="tutor-week" className="scroll-mt-28"><TutorExecutionLoopLoader /></div></TutorDisclosure>
+      <TutorDisclosure title="Saved progress and completed work"><TutorProgressRecordsHub />
+      <TutorCompletedWork /></TutorDisclosure>
+      <TutorDisclosure title="Preparation strategy"><div id="tutor-strategy" className="scroll-mt-28"><TutorStrategicBrief /></div></TutorDisclosure>
+      <TutorDisclosure title="Advanced coaching tools"><div id="tutor-tools" className="scroll-mt-28"><NextgenTutorPanel /></div></TutorDisclosure>
 
     </TutorIntelligenceProvider>
   )
