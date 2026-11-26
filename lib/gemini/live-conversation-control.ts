@@ -51,11 +51,12 @@ export function newVoiceBargeInState(): VoiceBargeInState {
 /** Require sustained local speech before interrupting audible model playback. */
 export function detectVoiceBargeIn(
   previous: VoiceBargeInState,
-  input: { rms: number; nowMs: number; modelAudible: boolean; enabled: boolean },
+  input: { rms: number; nowMs: number; modelAudible: boolean; enabled: boolean; noiseFloor?: number },
 ): { state: VoiceBargeInState; interrupt: boolean } {
   if (!input.enabled || !input.modelAudible) return { state: newVoiceBargeInState(), interrupt: false }
   if (previous.triggered) return { state: previous, interrupt: false }
-  const speaking = Number.isFinite(input.rms) && input.rms >= 0.075
+  const threshold = input.noiseFloor === undefined ? 0.075 : Math.max(0.05, Math.min(0.12, input.noiseFloor * 3 + 0.025))
+  const speaking = Number.isFinite(input.rms) && input.rms >= threshold
   if (!speaking) {
     if (previous.lastVoiceMs !== null && input.nowMs - previous.lastVoiceMs <= 75) return { state: previous, interrupt: false }
     return { state: newVoiceBargeInState(), interrupt: false }
@@ -107,3 +108,30 @@ export function liveSocketErrorMessage(code: number, reason: string, duringSetup
     ? "Gemini Live disconnected: " + safeReason + ". Your recorded interview can be resumed."
     : "The live voice connection closed unexpectedly. Your recorded interview can be resumed."
 }
+
+/** Learn only from quiet microphone frames while the interviewer is not playing.
+ * Bounded so a loud environment cannot permanently disable barge-in.
+ */
+export function updateLiveNoiseFloor(previous: number, rms: number, modelAudible: boolean) {
+  const floor = Number.isFinite(previous) ? Math.max(0.005, Math.min(0.035, previous)) : 0.015
+  if (modelAudible || !Number.isFinite(rms) || rms < 0 || rms > 0.04) return floor
+  return Math.max(0.005, Math.min(0.035, floor * 0.96 + rms * 0.04))
+}
+
+/** Do not replay stale model chunks, or commit the candidate's new answer
+ * at the completion boundary of an interrupted model turn.
+ */
+export function interruptedLiveTurn(suppressing: boolean, content: { interrupted?: boolean; turnComplete?: boolean }) {
+  const discardOutput = suppressing || content.interrupted === true
+  return { discardOutput, suppressing: discardOutput && content.turnComplete !== true }
+}
+
+/** Conversation behavior applies independently of academic mode and voice. */
+export const liveConversationInstructions = [
+  "Treat explicit requests for time to think as turn-management, not a failed answer. Briefly acknowledge once if a response is necessary, then leave the same question open; do not add a hint, new question or evaluation unless requested or required by the selected mode.",
+  "Distinguish a request to repeat, define a term, clarify the question or check what you meant from a substantive academic answer. Address that request directly and briefly, then return to the same problem; do not escalate difficulty or award credit for a clarification request alone.",
+  "When interrupted, abandon the unfinished phrasing. Respond to the student's interruption rather than resuming a memorised script. If they are correcting their own earlier statement, consider the corrected claim and its reasoning.",
+  "When the candidate pauses or uses a filler such as 'um', 'let me think' or 'I'm not finished', do not guess the rest of the answer or infer emotion. Wait for a substantive contribution. If a genuinely ambiguous fragment needs clarification, ask neutrally.",
+  "Use concise conversational acknowledgements only when they add meaning. Sometimes respond with a direct follow-up, sometimes refer to a specific claim, and sometimes ask for clarification. Do not begin every response with praise or the same stock phrase.",
+  "Maintain the active academic problem and the candidate's claims across turns. Refer back to specific earlier reasoning only when relevant, distinguish an abandoned claim from a current one, and never invent a previous statement.",
+] as const
