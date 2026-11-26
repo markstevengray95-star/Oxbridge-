@@ -2,44 +2,44 @@
 @import "tw-animate-css";
 
 :root {
-  --navy: #102a43;
-  --ink: #172b3a;
-  --blue: #147d91;
-  --aqua: #68c6d0;
-  --ice: #edf7f8;
+  --navy: #142d3e;
+  --ink: #203340;
+  --blue: #397c80;
+  --aqua: #76adb0;
+  --ice: #e9f1ee;
   --coral: #f47b5f;
-  --background: #f6f8f8;
-  --foreground: #172b3a;
+  --background: #f3f1eb;
+  --foreground: #203340;
   --card: #ffffff;
-  --card-foreground: #172b3a;
+  --card-foreground: #203340;
   --popover: #ffffff;
-  --popover-foreground: #172b3a;
-  --primary: #147d91;
+  --popover-foreground: #203340;
+  --primary: #397c80;
   --primary-foreground: #ffffff;
-  --secondary: #e7f2f4;
-  --secondary-foreground: #102a43;
-  --muted: #eef2f3;
-  --muted-foreground: #657582;
-  --accent: #e3f1f3;
-  --accent-foreground: #102a43;
+  --secondary: #e9f1ee;
+  --secondary-foreground: #142d3e;
+  --muted: #eeefeb;
+  --muted-foreground: #576875;
+  --accent: #e9f1ee;
+  --accent-foreground: #142d3e;
   --destructive: #c63e3e;
-  --border: #dce5e7;
-  --input: #cfdbde;
-  --ring: #68c6d0;
-  --chart-1: #147d91;
-  --chart-2: #68c6d0;
+  --border: #dbe4e1;
+  --input: #c7d6d2;
+  --ring: #397c80;
+  --chart-1: #397c80;
+  --chart-2: #76adb0;
   --chart-3: #f47b5f;
   --chart-4: #416b86;
   --chart-5: #e3a84b;
   --radius: 0.8rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #172b3a;
-  --sidebar-primary: #102a43;
+  --sidebar-foreground: #203340;
+  --sidebar-primary: #142d3e;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #edf7f8;
-  --sidebar-accent-foreground: #102a43;
-  --sidebar-border: #dce5e7;
-  --sidebar-ring: #68c6d0;
+  --sidebar-accent: #e9f1ee;
+  --sidebar-accent-foreground: #142d3e;
+  --sidebar-border: #dbe4e1;
+  --sidebar-ring: #397c80;
 }
 
 @theme inline {
@@ -60,7 +60,7 @@
 }
 
 * { box-sizing: border-box; }
-html { background: var(--background); scroll-behavior: smooth; }
+html { background: var(--background); scroll-behavior: smooth; color-scheme: light; }
 body { margin: 0; background: var(--background); color: var(--foreground); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 button, select, textarea, input { font: inherit; }
 button { cursor: pointer; }

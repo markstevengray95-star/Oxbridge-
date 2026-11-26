@@ -16,5 +16,5 @@ export function TutorDisclosure({title,children,defaultOpen=false}:{title:string
   window.addEventListener("hashchange",reveal)
   return()=>window.removeEventListener("hashchange",reveal)
  },[])
- return <details ref={ref} open={defaultOpen} className="mx-auto my-4 max-w-7xl rounded-xl border bg-white"><summary className="cursor-pointer rounded-xl px-5 py-4 font-semibold text-[#102a43]">{title}</summary>{children}</details>
+ return <details ref={ref} open={defaultOpen} className="fellow-panel mx-auto my-4 max-w-7xl"><summary className="cursor-pointer rounded-xl px-5 py-4 font-semibold text-[#142d3e]">{title}</summary>{children}</details>
 }
