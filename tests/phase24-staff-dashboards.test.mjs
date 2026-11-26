@@ -43,7 +43,7 @@ test("Teacher dashboard keeps role-scoped API, student-specific detail links and
 })
 test("Detailed student evidence remains protected by server authorisation",()=>{
  const policy=read("lib/school/student-tracking-access.ts")
- const detail=read("app/api/teacher/student-progress/route.ts")
+ const detail=read("app/api/teacher/student-detail/route.ts")
  assert.match(policy,/authorizeSchoolStudentDetail\(/)
  assert.match(policy,/school_teacher_student_links/)
  assert.ok(detail.includes("authorizeSchoolStudentDetail"),"Detail endpoint must verify link before service-role reads")
