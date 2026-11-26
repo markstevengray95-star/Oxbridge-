@@ -26,16 +26,16 @@ export function PersonalTutorShell() {
   return (
     <TutorIntelligenceProvider>
       <div className="fellow-ui min-h-screen pb-12">
-      <div className="fellow-page-header mx-auto max-w-7xl px-4 pt-6"><p className="text-xs font-semibold uppercase tracking-widest text-[#397c80]">My Tutor</p><h1 className="fellow-page-title mt-2">Your academic coaching workspace</h1><p className="mt-2 text-sm text-slate-600">Start with coaching. Open planning, analysis or saved records when you need them.</p></div>
+      <div className="fellow-page-header mx-auto max-w-7xl px-4 pt-6"><p className="fellow-eyebrow">My Tutor</p><h1 className="fellow-page-title mt-2">Your academic coaching workspace</h1><p className="fellow-description mt-2">Start with coaching. Open planning, analysis or saved records when you need them.</p></div>
       <TutorDisclosure title="Today’s plan and tutor conversation" defaultOpen><div id="tutor-today" className="scroll-mt-24"><PersonalTutorDashboard /></div></TutorDisclosure>
 
       <nav className="fellow-tutor-subnav sticky top-14 z-[70] border-y bg-white/95 backdrop-blur" aria-label="Tutor command centre sections">
         <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-3 py-2 sm:px-6">
           {tutorSections.map(item => {
             const Icon = item.icon
-            return <a key={item.href} href={item.href} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-slate-600 transition hover:bg-[#e9f1ee] hover:text-[#142d3e] sm:text-sm"><Icon className="size-4 text-[#397c80]" />{item.label}</a>
+            return <a key={item.href} href={item.href} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-slate-600 transition hover:bg-[#e9f1ee] hover:text-[#142d3e] sm:text-sm"><Icon className="size-4 text-[#326d71]" />{item.label}</a>
           })}
-          <Link href="/learning-trajectory" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#e9f1ee] px-3 text-xs font-semibold text-[#142d3e] transition hover:bg-[#dff1f3] sm:text-sm"><TrendingUp className="size-4 text-[#397c80]"/>Trajectory</Link>
+          <Link href="/learning-trajectory" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#e9f1ee] px-3 text-xs font-semibold text-[#142d3e] transition hover:bg-[#dff1f3] sm:text-sm"><TrendingUp className="size-4 text-[#326d71]"/>Trajectory</Link>
         </div>
       </nav>
 
