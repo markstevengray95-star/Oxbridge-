@@ -1,7 +1,7 @@
 "use client"
 import Link from "next/link"
 import {useEffect,useMemo,useRef,useState} from "react"
-import {ArrowRight,BarChart3,BookOpenCheck,FileText,MessageSquareText,RefreshCw,Search,School} from "lucide-react"
+import {ArrowRight,BarChart3,FileText,MessageSquareText,RefreshCw,Search,School} from "lucide-react"
 import {createClient} from "@/lib/supabase/client"
 import {pendingAssignments} from "@/lib/student-home"
 import type {ProgressKind,ProgressRecord} from "@/lib/progress-hub"
