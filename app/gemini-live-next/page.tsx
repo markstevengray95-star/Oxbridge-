@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import {readInterviewLaunch} from "@/lib/interview-launch"
 import { useEffect, useRef, useState } from "react"
 import {
   ArrowLeft,
@@ -264,8 +265,10 @@ export default function GeminiLiveNextPage() {
   useEffect(() => {
     try {
       const profile = JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}") as { track?: TrackId; course?: string }
-      const nextTrack = profile.track ?? "physical"
-      const nextCourse = profile.course ?? "Physics"
+      const launch=readInterviewLaunch(window.location.search,tracks)
+      const matched=tracks.find(t=>t.courses.includes(profile.course??""))
+      const nextTrack = (launch.track as TrackId|null) ?? matched?.id ?? "physical"
+      const nextCourse = launch.course ?? (matched?profile.course:undefined) ?? "Physics"
       setTrack(nextTrack)
       setCourse(nextCourse)
       setRetestFocus(readDueOralRetest(nextCourse)?.focus ?? "")
