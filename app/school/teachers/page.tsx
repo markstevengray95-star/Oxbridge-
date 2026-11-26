@@ -71,17 +71,17 @@ export default function SchoolTeachersPage() {
   const teacher=data?.members.find(m=>m.userId===teacherId)
   const linksForTeacher=(data?.links??[]).filter(x=>x.teacher_user_id===teacherId)
 
-  return <main className="min-h-screen bg-[#f5f7f7] text-[#172b3a]">
+  return <main className="fellow-ui min-h-screen text-[#172b3a]">
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <Button asChild variant="ghost"><Link href="/school-seats"><ArrowLeft/>School workspace</Link></Button>
         <div className="flex gap-2"><Button asChild variant="outline"><Link href="/teacher-dashboard"><GraduationCap/>Teacher dashboard</Link></Button><Button variant="outline" onClick={()=>void load()} disabled={loading}><RefreshCw/>Refresh</Button></div>
       </header>
 
-      <section><Badge variant="outline"><ShieldCheck className="size-3.5"/>School staff permissions</Badge>
-        <h1 className="mt-3 font-serif text-4xl font-bold">Teachers and assigned students</h1>
+      <section className="fellow-page-header"><Badge variant="outline"><ShieldCheck className="size-3.5"/>School staff permissions</Badge>
+        <h1 className="fellow-page-title mt-3">Teachers and assigned students</h1>
         <p className="mt-3 max-w-3xl text-slate-600">Give teachers their own staff access and link the students they are responsible for. Teachers see progress summaries for their linked students, not private tutor conversations or interview transcripts.</p>
-        {data&&<p className="mt-2 text-sm font-semibold text-[#147d91]">{data.organization.name} · Signed in as {data.permission.role.replace("_"," ")}</p>}
+        {data&&<p className="mt-2 text-sm font-semibold text-[#326d71]">{data.organization.name} · Signed in as {data.permission.role.replace("_"," ")}</p>}
       </section>
       {error&&<div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">{error}</div>}
       {message&&<div role="status" className="rounded-xl border border-[#b9d8dd] bg-[#edf7f8] p-4 text-sm text-[#234754]">{message}</div>}
@@ -93,14 +93,14 @@ export default function SchoolTeachersPage() {
               <span className="font-mono text-xl font-bold tracking-wider">{data.organization.joinCode}</span>
               <Button variant="outline" size="sm" onClick={()=>void navigator.clipboard.writeText(data.organization.joinCode||"")}><ClipboardCopy/>Copy school join code</Button>
             </div>:<p className="text-sm text-slate-600">Ask the school owner for the join code. School administrators cannot reveal or regenerate it.</p>}
-            <p className="text-sm text-slate-600">Share the <Link href="/login" className="font-semibold text-[#147d91] underline">account registration page</Link> and the code with trusted teachers. Students must join the same school workspace before you can assign them to staff. Joining a school allows authorised staff to see learning progress summaries.</p>
+            <p className="text-sm text-slate-600">Share the <Link href="/login" className="font-semibold text-[#326d71] underline">account registration page</Link> and the code with trusted teachers. Students must join the same school workspace before you can assign them to staff. Joining a school allows authorised staff to see learning progress summaries.</p>
           </CardContent>
         </Card>
 
         <section className="grid gap-4 md:grid-cols-3">
-          <Card><CardHeader><Users className="size-5 text-[#147d91]"/><CardDescription>Staff accounts</CardDescription><CardTitle className="font-serif text-4xl">{staff.length}</CardTitle></CardHeader></Card>
-          <Card><CardHeader><GraduationCap className="size-5 text-[#147d91]"/><CardDescription>Students in school</CardDescription><CardTitle className="font-serif text-4xl">{students.length}</CardTitle></CardHeader></Card>
-          <Card><CardHeader><ShieldCheck className="size-5 text-[#147d91]"/><CardDescription>Teacher–student links</CardDescription><CardTitle className="font-serif text-4xl">{data.links.length}</CardTitle></CardHeader></Card>
+          <Card><CardHeader><Users className="size-5 text-[#326d71]"/><CardDescription>Staff accounts</CardDescription><CardTitle className="font-serif text-4xl">{staff.length}</CardTitle></CardHeader></Card>
+          <Card><CardHeader><GraduationCap className="size-5 text-[#326d71]"/><CardDescription>Students in school</CardDescription><CardTitle className="font-serif text-4xl">{students.length}</CardTitle></CardHeader></Card>
+          <Card><CardHeader><ShieldCheck className="size-5 text-[#326d71]"/><CardDescription>Teacher–student links</CardDescription><CardTitle className="font-serif text-4xl">{data.links.length}</CardTitle></CardHeader></Card>
         </section>
 
         <Card><CardHeader><CardTitle className="font-serif text-2xl">2. Set staff permissions</CardTitle><CardDescription>Teacher: sees only their assigned students. School Admin: also manages teacher–student links. Neither role can access platform-wide administration or safeguarding records.</CardDescription></CardHeader>
