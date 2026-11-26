@@ -626,3 +626,19 @@ export function routeArea(pathname:string):Area|null {
  return match?.area??null
 }
 export function searchTools(access:NavigationAccess,query:string){const terms=query.trim().toLowerCase().split(/\s+/).filter(Boolean);return visibleTools(access).filter(t=>terms.every(term=>(t.label+" "+t.description+" "+(t.keywords??"")+" "+t.area).toLowerCase().includes(term)))}
+
+/** Task-focused workspaces. Old URLs remain direct entry points. */
+export type WorkspaceGroup={title:string;description:string;hrefs:string[]}
+export const workspaceGroups:Partial<Record<Area,WorkspaceGroup[]>>={
+ interviews:[{title:"Practise an interview",description:"Choose voice, written or a timed simulation.",hrefs:["/reasoning-interview","/live-interview","/full-mock-interview","/interview-room","/panel-interview","/ai-interview","/natural-ai-interview","/elevenlabs-interview"]},{title:"Build interview skills",description:"Unseen material, visual reasoning and structured preparation.",hrefs:["/interview-academy","/unseen-lab","/socratic-whiteboard","/technology-rehearsal","/cambridge-interview-day","/mock-day","/mock-week","/interviews"]}],
+ tests:[{title:"Sit a practice test",description:"Full timed papers and shorter practice.",hrefs:["/full-papers","/test-player","/admissions-challenges","/advanced-practice","/adaptive-paper","/timing-trainer"]},{title:"Improve your results",description:"Target missed questions and check question quality.",hrefs:["/paper-intervention","/question-quality"]}],
+ application:[{title:"Plan your application",description:"Course requirements, profile and deadlines.",hrefs:["/requirements","/application-profile","/timeline","/cambridge-assessments","/source-health"]},{title:"Writing and defence",description:"Personal statement, essays and defending your claims.",hrefs:["/personal-statement-map","/essay-tutor","/written-work-vault","/written-work-defence","/essay-comparison","/application-defence"]},{title:"Academic portfolio",description:"Reading, projects and evidence of intellectual interests.",hrefs:["/supercurricular-coach","/evidence-locker","/reading-curriculum","/reading-room","/knowledge-graph","/research-project"]}],
+ progress:[{title:"Results and feedback",description:"See saved practice and assess evidence.",hrefs:["/assessment-report","/history","/interview-insights","/interview-feedback","/learning-trajectory","/progress-proof"]},{title:"Improve and revisit",description:"Reasoning replay, missed questions and delayed reviews.",hrefs:["/mistake-dna","/reasoning-replay","/retry-moment"]},{title:"School and support",description:"Assignments, linked teachers and feedback.",hrefs:["/school-classroom","/student/teacher-links","/human-review","/parent-summary"]}],
+ tutor:[{title:"Coaching",description:"Choose a guided learning activity.",hrefs:["/tutor#academic-coach","/tutor-autopilot","/tutorial-lab","/daily-challenge","/course-bank","/reasoning-lab","/working-analysis","/intervention-session"]},{title:"Planning and learning support",description:"Plan your week or work offline.",hrefs:["/preparation-pathway","/prep-week","/digital-twin","/offline-pack","/learning-support"]}]
+}
+export function workspaceTools(area:Area,available:Tool[]){
+ const relevant=available.filter(t=>t.area===area),seen=new Set<string>()
+ const groups=(workspaceGroups[area]??[]).map(g=>({...g,items:g.hrefs.flatMap(href=>{const item=relevant.find(t=>t.href===href);if(!item||seen.has(href))return [];seen.add(href);return [item]})})).filter(g=>g.items.length)
+ const remaining=relevant.filter(t=>!seen.has(t.href))
+ return remaining.length?[...groups,{title:"Other activities",description:"Additional existing tools.",hrefs:remaining.map(t=>t.href),items:remaining}]:groups
+}
