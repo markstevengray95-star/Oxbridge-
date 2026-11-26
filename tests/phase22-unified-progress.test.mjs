@@ -23,10 +23,13 @@ test("events and exam questions remain accessible without inventing a common abi
 })
 test("writing excerpts, feedback and chronological order are preserved",()=>{
  const rows=buildProgressRecords([interview],[paper],progress)
- assert.equal(rows[0].kind,"writing")
- assert.match(rows[0].summary,/funding/i)
- assert.match(rows[0].original??"",/requires funding/)
- assert.ok(rows[0].feedback.some(x=>/funding objection/.test(x)))
+ const writing=rows.find(r=>r.kind==="writing")
+ assert.ok(writing)
+ assert.match(writing.summary,/funding/i)
+ assert.match(writing.original??"",/requires funding/)
+ assert.ok(writing.feedback.some(x=>/funding objection/.test(x)))
+ const dated=rows.filter(r=>r.date).map(r=>r.date)
+ assert.deepEqual(dated,[...dated].sort().reverse())
 })
 test("unavailable record sources do not display fabricated zero counts",()=>{
  const rows=buildProgressRecords([interview],[paper],progress)
