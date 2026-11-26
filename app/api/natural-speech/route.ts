@@ -1,3 +1,4 @@
+import { interviewVoices, interviewVoiceInstructions } from "@/lib/gemini/interview-voice-profiles"
 import { NextResponse } from "next/server"
 import { getGeminiApiKeyCandidates, hasGeminiApiKey } from "@/lib/gemini/api-key"
 
@@ -57,6 +58,7 @@ function styleFor(voice: GeminiVoice, delivery: DeliveryPreset, interviewer: "A"
     `British university academic; ${role}`,
     `${voiceCharacter(voice)} voice`,
     deliveryStyle(delivery),
+    ...(interviewVoices.some(item => item === voice) ? interviewVoiceInstructions(voice) : []),
     "sound like a real person speaking across a small interview room, not a narrator or synthetic assistant",
     "use natural micro-pauses around clauses and slight changes in emphasis where a human interviewer would",
     "avoid exaggerated acting, sing-song intonation, sales voice, motivational tone, or robotic sentence-final cadence",

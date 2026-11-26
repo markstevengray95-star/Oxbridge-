@@ -1,5 +1,6 @@
 "use client"
 
+import { interviewVoices, interviewVoiceProfiles, preferredBritishVoices, resolveInterviewVoice, type InterviewVoice } from "@/lib/gemini/interview-voice-profiles"
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, AudioLines, Headphones, Loader2, Mic, MicOff, Save, Sparkles, Volume2 } from "lucide-react"
@@ -11,17 +12,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { interviewQuestions, tracks, type TrackId } from "@/lib/oxbridge-data"
 
 type Turn = { role: "interviewer" | "candidate"; text: string }
-type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
+type GeminiVoice = InterviewVoice
 type Capabilities = { gemini?: boolean; voices?: GeminiVoice[]; defaultVoice?: GeminiVoice }
 type AiReply = { reply?: string; provider?: string; configured?: boolean; degraded?: boolean }
 
 const progressKey = "oxbridge-tutor-progress-v2"
-const voiceLabels: Record<GeminiVoice, string> = {
-  Gacrux: "Gacrux · mature and academic",
-  Sulafat: "Sulafat · warm and conversational",
-  Sadaltager: "Sadaltager · knowledgeable and measured",
-  Kore: "Kore · firm and probing",
-}
+
 
 export default function NaturalAiInterviewPage() {
   const [track, setTrack] = useState<TrackId>("physical")
@@ -50,7 +46,7 @@ export default function NaturalAiInterviewPage() {
       .then(data => {
         const next = data as Capabilities
         setCaps(next)
-        if (next.defaultVoice) setVoice(next.defaultVoice)
+        if (next.defaultVoice) setVoice(resolveInterviewVoice(next.defaultVoice))
       })
       .catch(() => setCaps({}))
     return () => {
@@ -86,7 +82,9 @@ export default function NaturalAiInterviewPage() {
       if ("speechSynthesis" in window) {
         const utterance = new SpeechSynthesisUtterance(text)
         utterance.lang = "en-GB"
-        utterance.rate = 0.94
+        utterance.rate = interviewVoiceProfiles[voice].rate
+        const preferred = preferredBritishVoices(window.speechSynthesis.getVoices())
+        if (preferred[0]) utterance.voice = preferred[0]
         window.speechSynthesis.speak(utterance)
       }
     }
@@ -215,7 +213,7 @@ export default function NaturalAiInterviewPage() {
           <CardContent className="space-y-5">
             <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Subject family</span><NativeSelect value={track} onChange={e => { const next=e.target.value as TrackId; setTrack(next); const t=tracks.find(x=>x.id===next); if(t) setCourse(t.courses[0]) }}>{tracks.map(t => <NativeSelectOption key={t.id} value={t.id}>{t.short}</NativeSelectOption>)}</NativeSelect></label>
             <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Course</span><NativeSelect value={course} onChange={e => setCourse(e.target.value)}>{subjectCourses.map(c => <NativeSelectOption key={c}>{c}</NativeSelectOption>)}</NativeSelect></label>
-            <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Gemini interviewer voice</span><NativeSelect value={voice} onChange={e => setVoice(e.target.value as GeminiVoice)}>{(caps.voices ?? ["Gacrux", "Sulafat", "Sadaltager", "Kore"]).map(v => <NativeSelectOption key={v} value={v}>{voiceLabels[v]}</NativeSelectOption>)}</NativeSelect></label>
+            <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Gemini interviewer voice</span><NativeSelect value={voice} onChange={e => setVoice(e.target.value as GeminiVoice)}>{interviewVoices.filter(v => !caps.voices || caps.voices.includes(v)).map(v => <NativeSelectOption key={v} value={v}>{interviewVoiceProfiles[v].label}</NativeSelectOption>)}</NativeSelect></label>
             <div className="rounded-2xl bg-[#edf7f8] p-4 text-sm leading-6 text-[#526a75]"><Headphones className="mb-2 size-5 text-[#147d91]" /><strong>Natural delivery:</strong> Gemini is directed to sound like a British university academic rather than an assistant or announcer, with restrained intonation and realistic pauses.</div>
             {!caps.gemini && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Gemini is not configured on this deployment yet. Add <code>GEMINI_API_KEY</code> on the server and redeploy.</div>}
             {!started && <Button className="w-full" onClick={startInterview}><Volume2 />Start Gemini interview</Button>}

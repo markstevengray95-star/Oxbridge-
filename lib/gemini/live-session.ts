@@ -1,7 +1,8 @@
+import { interviewVoices, resolveInterviewVoice, interviewVoiceInstructions, type InterviewVoice } from "@/lib/gemini/interview-voice-profiles"
 import { GoogleGenAI } from "@google/genai"
 import { NextResponse } from "next/server"
 
-type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
+type GeminiVoice = InterviewVoice
 type SessionRequest = {
   course?: string
   track?: string
@@ -15,7 +16,7 @@ type GoogleTokenResponse = {
   authToken?: { name?: unknown }
 }
 
-const VOICES: GeminiVoice[] = ["Gacrux", "Sulafat", "Sadaltager", "Kore"]
+const VOICES = interviewVoices
 const DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.8-live"
 export const GEMINI_LIVE_REVISION = "gemini-live-2026-09-23-r6-model-normalization"
 
@@ -103,10 +104,11 @@ function subjectInstructions(course: string, track: string) {
   return ["Choose academically demanding questions that are answerable through reasoning from accessible foundations, then adapt the difficulty to the candidate's response."]
 }
 
-function interviewInstructions(course: string, track: string, persona: string, mode: string) {
+function interviewInstructions(course: string, track: string, persona: string, mode: string, voice: GeminiVoice) {
   return [
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     `Course: ${course}. Subject family: ${track}. Interviewer style: ${persona}. Session mode: ${mode}.`,
+    ...interviewVoiceInstructions(voice),
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
     "Sound like a real university academic in a tutorial or admissions interview: calm, curious, understated, precise, and conversational; never like a customer-service assistant, motivational coach, quiz host, or announcer.",
     "Allow the candidate time to think aloud. Never answer on their behalf or treat a brief hesitation as a completed answer. If interrupted, stop and address what they say before continuing.",
@@ -226,7 +228,7 @@ export async function createLiveSession(request: Request) {
   const track = safeText(body.track, "the selected subject family", 80)
   const persona = safeText(body.persona, "Socratic academic", 80)
   const mode = safeText(body.mode, "Realistic", 40)
-  const voice: GeminiVoice = VOICES.includes(body.voice as GeminiVoice) ? body.voice as GeminiVoice : "Gacrux"
+  const voice = resolveInterviewVoice(body.voice)
   const model = normalizeLiveModelName(process.env.GEMINI_LIVE_MODEL)
 
   try {
@@ -235,7 +237,7 @@ export async function createLiveSession(request: Request) {
       token,
       model,
       voice,
-      instructions: interviewInstructions(course, track, persona, mode),
+      instructions: interviewInstructions(course, track, persona, mode, voice),
       expiresInSeconds: 1800,
       revision: GEMINI_LIVE_REVISION,
       tokenRequestShape: requestShape,

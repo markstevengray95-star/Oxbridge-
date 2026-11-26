@@ -1,5 +1,6 @@
 "use client"
 
+import { interviewVoices, interviewVoiceProfiles, preferredBritishVoices, type InterviewVoice } from "@/lib/gemini/interview-voice-profiles"
 import Link from "next/link"
 import {InterviewNextSteps} from "@/components/interview-next-steps"
 import {readInterviewLaunch} from "@/lib/interview-launch"
@@ -58,7 +59,7 @@ import {
 
 type Phase = "lobby" | "connecting" | "live" | "reconnect" | "ended"
 type LiveState = "idle" | "connecting" | "connected" | "speaking" | "thinking" | "interviewer" | "error"
-type GeminiVoice = "Gacrux" | "Sulafat" | "Sadaltager" | "Kore"
+type GeminiVoice = InterviewVoice
 type Turn = LiveTurnRecord
 
 type TokenResponse = {
@@ -98,12 +99,7 @@ type InterviewContext = {
   course?: string
 }
 
-const voiceLabels: Record<GeminiVoice, string> = {
-  Gacrux: "Gacrux · mature academic",
-  Sulafat: "Sulafat · warm conversational",
-  Sadaltager: "Sadaltager · measured academic",
-  Kore: "Kore · firm probing",
-}
+
 
 function formatTime(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
@@ -398,7 +394,7 @@ export default function GeminiLiveNextPage() {
     if (!panelMode || typeof window === "undefined" || !window.speechSynthesis) return
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = "en-GB"
-    const available = window.speechSynthesis.getVoices().filter(item => item.lang.toLowerCase().startsWith("en"))
+    const available = preferredBritishVoices(window.speechSynthesis.getVoices())
     if (available.length) {
       utterance.voice = interviewer === "B"
         ? available[Math.min(1, available.length - 1)]
@@ -1090,7 +1086,7 @@ export default function GeminiLiveNextPage() {
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Course</span><NativeSelect value={course} onChange={event => setCourse(event.target.value)}>{courses.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Interviewer style</span><NativeSelect value={personaKey} onChange={event => setPersonaKey(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Session style</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Tutor", "Realistic", "No-hint", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
-              <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as GeminiVoice)}>{(Object.keys(voiceLabels) as GeminiVoice[]).map(item => <NativeSelectOption key={item} value={item}>{voiceLabels[item]}</NativeSelectOption>)}</NativeSelect></label>
+              <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">AI interviewer voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as GeminiVoice)}>{interviewVoices.map(item => <NativeSelectOption key={item} value={item}>{interviewVoiceProfiles[item].label}</NativeSelectOption>)}</NativeSelect></label>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Full-length mock session</span><NativeSelect value={mockDuration??"standard"} onChange={event=>setMockDuration(event.target.value==="standard"?null:Number(event.target.value) as MockDuration)}><NativeSelectOption value="standard">Standard voice interview</NativeSelectOption>{mockDurations.map(minutes=><NativeSelectOption key={minutes} value={String(minutes)}>{minutes}-minute academic mock</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">A planned academic pace, never an interruption. Longer voice mocks need a controlled secure reconnect.</span></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Time to think</span><NativeSelect value={voicePace} onChange={event => setVoicePace(event.target.value as InterviewVoicePace)}><NativeSelectOption value="thoughtful">Thoughtful · longer pauses</NativeSelectOption><NativeSelectOption value="balanced">Natural conversation</NativeSelectOption><NativeSelectOption value="quick">Quick responses</NativeSelectOption></NativeSelect></label>
               <button type="button" onClick={() => setAllowBargeIn(value => !value)} className="rounded-xl border bg-white p-3 text-left"><strong>{allowBargeIn ? "Interruptions allowed" : "Interruptions disabled"}</strong><p className="mt-1 text-xs text-slate-500">Let the student speak over the interviewer naturally. Headphones recommended.</p></button>
