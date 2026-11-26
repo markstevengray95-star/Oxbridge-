@@ -17,7 +17,7 @@ export function selectedTest(search:string):AdmissionsTest|null{
  return validAdmissionsTest(new URLSearchParams(search).get("test"))
 }
 export function centreDestination(mode:PracticeMode,test:AdmissionsTest){
- if(mode==="review")return "/paper-intervention"
+ if(mode==="review")return "/paper-intervention?"+new URLSearchParams({test}).toString()
  const route:Record<Exclude<PracticeMode,"review">,string>={mock:"/full-papers",topic:"/admissions-challenges",adaptive:"/adaptive-paper"}
  return route[mode]+"?"+new URLSearchParams({test}).toString()
 }
