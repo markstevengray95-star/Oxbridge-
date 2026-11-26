@@ -115,12 +115,12 @@ export default function PracticeAccessAdminPage() {
   const removedAccounts = accounts.filter(a => !a.active)
   const visibleAccounts = showRemoved ? removedAccounts : activeAccounts
 
-  return <main className="min-h-screen bg-[#f2f5f5] px-4 py-8 text-[#172b3a] sm:px-6">
+  return <main className="fellow-ui min-h-screen px-4 py-8 text-[#172b3a] sm:px-6">
     <div className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header className="fellow-page-header flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Admin</p>
-          <h1 className="mt-1 font-serif text-3xl font-bold text-[#102a43]">Practice access</h1>
+          <p className="fellow-eyebrow">Admin</p>
+          <h1 className="fellow-page-title mt-1">Practice access</h1>
           <p className="mt-2 max-w-2xl text-sm text-[#526a75]">Create practice usernames, choose when access expires, and remove or restore logins without deleting saved student progress.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -132,7 +132,7 @@ export default function PracticeAccessAdminPage() {
       <div className="grid gap-6 lg:grid-cols-[.85fr_1.15fr]">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><UserPlus className="size-5 text-[#147d91]"/>Create practice login</CardTitle>
+            <CardTitle className="flex items-center gap-2"><UserPlus className="size-5 text-[#326d71]"/>Create practice login</CardTitle>
             <CardDescription>Issue a username and password. Optional expiry is inclusive of the chosen date (23:59 UTC).</CardDescription>
           </CardHeader>
           <CardContent>

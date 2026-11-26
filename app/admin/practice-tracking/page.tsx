@@ -156,7 +156,7 @@ function scoreDenominator(test: TestAttempt) {
 }
 
 function StatCard({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: string | number; detail: string }) {
-  return <Card><CardHeader className="pb-2"><div className="text-[#147d91]">{icon}</div><CardDescription>{label}</CardDescription><CardTitle className="font-serif text-3xl">{value}</CardTitle></CardHeader><CardContent><p className="text-xs leading-5 text-[#667984]">{detail}</p></CardContent></Card>
+  return <Card><CardHeader className="pb-2"><div className="text-[#326d71]">{icon}</div><CardDescription>{label}</CardDescription><CardTitle className="font-serif text-3xl">{value}</CardTitle></CardHeader><CardContent><p className="text-xs leading-5 text-[#667984]">{detail}</p></CardContent></Card>
 }
 
 export default function PracticeTrackingPage() {
@@ -218,12 +218,12 @@ export default function PracticeTrackingPage() {
     if (selectedUserId) await loadDetail(selectedUserId)
   }
 
-  return <main className="min-h-screen bg-[#eef3f4] px-4 py-7 text-[#172b3a] sm:px-6 lg:px-8 lg:py-10">
+  return <main className="fellow-ui min-h-screen px-4 py-7 text-[#172b3a] sm:px-6 lg:px-8 lg:py-10">
     <div className="mx-auto max-w-7xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header className="fellow-page-header flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2"><Badge className="bg-[#102a43] text-white">Admin</Badge><Badge variant="outline">Managed practice accounts only</Badge></div>
-          <h1 className="mt-3 font-serif text-4xl font-bold">Practice tracking</h1>
+          <h1 className="fellow-page-title mt-3">Practice tracking</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5b707a]">See what your issued practice logins have completed inside Fellow: full-paper answers, essay responses, marks, timing, AI interview transcripts and feedback.</p>
         </div>
         <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/admin"><ArrowLeft />Admin</Link></Button><Button asChild variant="outline"><Link href="/admin/practice-access"><UserRound />Practice logins</Link></Button><Button onClick={() => void refreshAll()} disabled={loadingAccounts || loadingDetail}><RefreshCw className={loadingAccounts || loadingDetail ? "animate-spin" : ""} />Refresh</Button></div>
@@ -244,7 +244,7 @@ export default function PracticeTrackingPage() {
 
         <section className="min-w-0 space-y-5">
           {loadingDetail ? <Card><CardContent className="flex items-center gap-2 p-8 text-sm text-[#667984]"><Loader2 className="animate-spin" />Loading {selectedSummary?.displayName || "learner"}…</CardContent></Card> : detail ? <>
-            <Card><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#147d91]">Managed learner</p><CardTitle className="mt-2 font-serif text-3xl">{detail.account.displayName}</CardTitle><CardDescription className="mt-1">@{detail.account.username} · last sign-in {formatDate(detail.account.lastSignInAt)}</CardDescription></div><div className="flex gap-2">{detail.account.unlimitedUsage ? <Badge className="bg-emerald-100 text-emerald-800">Unlimited practice</Badge> : null}<Badge variant="outline">Latest activity {formatDate(detail.summary.latestActivityAt)}</Badge></div></div></CardHeader></Card>
+            <Card><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#326d71]">Managed learner</p><CardTitle className="mt-2 font-serif text-3xl">{detail.account.displayName}</CardTitle><CardDescription className="mt-1">@{detail.account.username} · last sign-in {formatDate(detail.account.lastSignInAt)}</CardDescription></div><div className="flex gap-2">{detail.account.unlimitedUsage ? <Badge className="bg-emerald-100 text-emerald-800">Unlimited practice</Badge> : null}<Badge variant="outline">Latest activity {formatDate(detail.summary.latestActivityAt)}</Badge></div></div></CardHeader></Card>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard icon={<Target className="size-5" />} label="Tests completed" value={detail.summary.testsCompleted} detail={`${detail.summary.answersRecorded} recorded question responses · ${detail.summary.essaysRecorded} essays`} />
@@ -278,7 +278,7 @@ export default function PracticeTrackingPage() {
                 const essayPrompts = stringMap(test.payload.essayPrompts)
                 const answered = reviews.filter(item => answerText(item) !== "Unanswered").length
                 return <Card key={test.id} className={open ? "border-[#147d91]" : ""}>
-                  <CardHeader className="cursor-pointer" onClick={() => setOpenTestId(open ? "" : test.id)}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap gap-2"><Badge variant="outline">{test.test}</Badge>{test.payload.recoveredFromState ? <Badge className="bg-amber-100 text-amber-900">Recovered saved result</Badge> : null}{test.form ? <Badge variant="outline">Form {test.form}</Badge> : null}<Badge variant="outline">{reviews.length ? `${reviews.length} saved responses` : "Summary only"}</Badge></div><CardTitle className="mt-2 font-serif text-2xl">{test.title || `${test.test} practice`}</CardTitle><CardDescription>{formatDate(test.completedAt)} · {formatDuration(test.durationSeconds)}</CardDescription></div><div className="text-right"><p className="text-2xl font-bold">{test.rawScore}/{scoreDenominator(test)}</p><p className="text-sm font-semibold text-[#147d91]">{test.accuracy}% accuracy</p></div></div></CardHeader>
+                  <CardHeader className="cursor-pointer" onClick={() => setOpenTestId(open ? "" : test.id)}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap gap-2"><Badge variant="outline">{test.test}</Badge>{test.payload.recoveredFromState ? <Badge className="bg-amber-100 text-amber-900">Recovered saved result</Badge> : null}{test.form ? <Badge variant="outline">Form {test.form}</Badge> : null}<Badge variant="outline">{reviews.length ? `${reviews.length} saved responses` : "Summary only"}</Badge></div><CardTitle className="mt-2 font-serif text-2xl">{test.title || `${test.test} practice`}</CardTitle><CardDescription>{formatDate(test.completedAt)} · {formatDuration(test.durationSeconds)}</CardDescription></div><div className="text-right"><p className="text-2xl font-bold">{test.rawScore}/{scoreDenominator(test)}</p><p className="text-sm font-semibold text-[#326d71]">{test.accuracy}% accuracy</p></div></div></CardHeader>
                   {open ? <CardContent className="space-y-5 border-t pt-5">
                     <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-slate-100 p-3"><p className="text-xs text-slate-500">Questions</p><p className="text-xl font-bold">{test.totalQuestions}</p></div><div className="rounded-xl bg-slate-100 p-3"><p className="text-xs text-slate-500">Recorded answers</p><p className="text-xl font-bold">{reviews.length ? answered : "—"}</p></div><div className="rounded-xl bg-slate-100 p-3"><p className="text-xs text-slate-500">Writing responses</p><p className="text-xl font-bold">{Object.keys(essayResponses).length}</p></div></div>
 

@@ -126,7 +126,7 @@ export default function AdminManagedSchoolLoginsPage(){
     await doAction({action:"setTeacherRole",schoolId,teacherUserId:t.userId,role:next},"Teacher permissions updated.")
   }
 
-  return <main className="min-h-screen bg-[#f5f7f7] px-4 py-8 text-[#172b3a] sm:px-6">
+  return <main className="fellow-ui min-h-screen px-4 py-8 text-[#172b3a] sm:px-6">
     <div className="mx-auto max-w-6xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <Button asChild variant="ghost"><Link href="/admin"><ArrowLeft/>Admin dashboard</Link></Button>
@@ -136,9 +136,9 @@ export default function AdminManagedSchoolLoginsPage(){
           <Button variant="outline" onClick={()=>void load()} disabled={loading||busy}>Refresh</Button>
         </div>
       </header>
-      <section>
+      <section className="fellow-page-header">
         <Badge variant="outline"><ShieldCheck className="size-3.5"/>Platform administrator</Badge>
-        <h1 className="mt-3 font-serif text-4xl font-bold">Teacher and student logins</h1>
+        <h1 className="fellow-page-title mt-3">Teacher and student logins</h1>
         <p className="mt-3 max-w-3xl text-slate-600">Create teacher usernames and passwords as easily as practice accounts. Link them to a school and attach existing practice students without changing those students' logins or saved progress.</p>
       </section>
 
