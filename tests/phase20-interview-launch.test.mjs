@@ -1,0 +1,16 @@
+import test from "node:test"
+import assert from "node:assert/strict"
+import {readFileSync} from "node:fs"
+import {interviewLaunchUrl,readInterviewLaunch,launchDurations} from "../lib/interview-launch.ts"
+const base={mode:"written",engine:"written",course:"Physics",duration:25,difficulty:"Challenge",style:"quiet"}
+const tracks=[{id:"physical",courses:["Physics","Engineering"]},{id:"law",courses:["Law"]}]
+const read=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8")
+test("Written choices carry through",()=>{const url=new URL(interviewLaunchUrl(base),"https://example.test");assert.equal(url.pathname,"/reasoning-interview");const config=readInterviewLaunch(url.search,tracks);assert.equal(config.course,"Physics");assert.equal(config.track,"physical");assert.equal(config.difficulty,"Challenge");assert.equal(config.style,"quiet");assert.equal(config.panel,false)})
+test("Panel uses existing alternating academic engine",()=>{const url=new URL(interviewLaunchUrl({...base,mode:"panel",course:"Law"}),"https://example.test");assert.equal(url.pathname,"/reasoning-interview");assert.equal(readInterviewLaunch(url.search,tracks).panel,true)})
+test("Voice opens direct room and does not pretend to apply written settings",()=>{const url=new URL(interviewLaunchUrl({...base,mode:"voice"}),"https://example.test");assert.equal(url.pathname,"/gemini-live-next");assert.equal(url.searchParams.has("difficulty"),false);assert.equal(url.searchParams.has("style"),false)})
+test("All supported mock durations and engines round trip",()=>{for(const engine of ["written","formal","voice"])for(const duration of launchDurations){const url=new URL(interviewLaunchUrl({...base,mode:"mock",engine,duration}),"https://example.test");assert.equal(url.pathname,({written:"/reasoning-interview",formal:"/interview-room",voice:"/gemini-live-next"})[engine]);assert.equal(readInterviewLaunch(url.search,tracks).mock,duration)}})
+test("Invalid query values are not applied",()=>{const v=readInterviewLaunch("?course=bad&mock=20&style=bad&difficulty=bad&panel=yes",tracks);assert.equal(v.course,null);assert.equal(v.track,null);assert.equal(v.mock,undefined);assert.equal(v.style,undefined);assert.equal(v.difficulty,undefined);assert.equal(v.panel,false)})
+test("Unsupported mock duration does not enter URL",()=>assert.equal(new URL(interviewLaunchUrl({...base,mode:"mock",duration:999}),"https://example.test").searchParams.has("mock"),false))
+test("Both hub URLs and mock entry mount shared launcher",()=>{assert.match(read("app/interviews/page.tsx"),/InterviewLauncher/);assert.match(read("app/study/[area]/page.tsx"),/InterviewLauncher/);assert.match(read("app/full-mock-interview/page.tsx"),/initialMode="mock"/)})
+test("Existing typed and voice engines receive selected course",()=>{for(const p of ["components/reasoning-interview-experience-v2.tsx","components/advanced-interview-experience.tsx","app/gemini-live-next/page.tsx"])assert.match(read(p),/readInterviewLaunch\(window.location.search,tracks\)/)})
+test("Written room keeps optional evidence and transcript available",()=>{const s=read("components/reasoning-interview-experience-v2.tsx");assert.match(s,/Conversation transcript/);assert.match(s,/Interviewer support details/);assert.match(s,/<InterviewWhiteboard/);assert.match(s,/<InterviewEvidencePanel/);assert.match(s,/aria-label="Your academic reasoning"/)})

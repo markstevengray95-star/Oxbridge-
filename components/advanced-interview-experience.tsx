@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import {readInterviewLaunch} from "@/lib/interview-launch"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, Brain, CheckCircle2, Clock3, GraduationCap, Loader2, Mic, MicOff, RefreshCw, Sparkles, Target, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -137,9 +138,11 @@ export function AdvancedInterviewExperience({ variant }: { variant: Variant }) {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}") as { track?: TrackId; course?: string }
-      if (saved.track) setTrack(saved.track)
-      if (saved.course) setCourse(saved.course)
+      const matched=tracks.find(t=>t.courses.includes(saved.course??""))
+      if(matched&&saved.course){setTrack(matched.id);setCourse(saved.course)}
     } catch {}
+    const launch=readInterviewLaunch(window.location.search,tracks)
+    if(launch.track&&launch.course){setTrack(launch.track as TrackId);setCourse(launch.course)}
     try {
       const saved = JSON.parse(localStorage.getItem(APPLICATION_KEY) || "{}") as ApplicationInterviewContext
       if (Object.values(saved).some(value => typeof value === "string" && value.trim())) setApplicationContext(saved)
