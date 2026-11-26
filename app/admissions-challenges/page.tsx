@@ -1,5 +1,6 @@
 "use client"
 import Link from "next/link"
+import {selectedTest} from "@/lib/admissions-centre"
 import {useEffect,useMemo,useState} from "react"
 import {phase12QuestionBank,nextChallengeQuestion,type Phase12Question} from "@/lib/phase12-authored-bank"
 
@@ -8,6 +9,7 @@ const KEY="oxbridge-phase12-challenge-history-v1"
 const tests=["TMUA","ESAT","TARA","LNAT","UCAT"] as const
 export default function AdmissionsChallenges(){
  const [test,setTest]=useState<Phase12Question["test"]>("TMUA")
+ useEffect(()=>{const requested=selectedTest(window.location.search);if(requested)setTest(requested)},[])
  const [section,setSection]=useState("")
  const [attempts,setAttempts]=useState<Attempt[]>([])
  const [selected,setSelected]=useState<number|null>(null)
