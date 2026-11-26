@@ -11,6 +11,7 @@ import { PrivacyConsentBanner } from "@/components/privacy-consent-banner";
 import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 import "./mobile.css";
+import "./fellow-design.css";
 
 export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
@@ -51,7 +52,7 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };
 
-export const viewport: Viewport = { themeColor: "#0f172a" };
+export const viewport: Viewport = { themeColor: "#142d3e" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -67,7 +68,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           {children}
         </NavigationAccessProvider>
         <PrivacyConsentBanner />
-        <footer className="border-t bg-white px-4 py-6 text-sm text-slate-600">
+        <footer className="fellow-footer px-4 py-6 text-sm text-slate-600">
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left">
             <div><span className="font-semibold text-[#102a43]">Fellow by Orbits Education</span><p className="mt-1 max-w-xl text-xs leading-relaxed text-slate-500">Oxford & Cambridge interview preparation, admissions-test practice and application support. Practice feedback is not an official admissions decision. Official university and test-provider guidance remains the source of truth for live requirements.</p></div>
             <nav aria-label="Legal, privacy, support and account links" className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs font-semibold">
