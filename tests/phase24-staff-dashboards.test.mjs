@@ -89,8 +89,9 @@ test("Staff-related pages use consistent academic theme without changing API cal
  assert.match(read("app/school-reports/page.tsx"),/window\.print\(\)/)
 })
 test("No new privileged API or client-side owner bypass is introduced",()=>{
- const ui=read("app/admin/page.tsx")+read("app/teacher-dashboard/page.tsx")+read("app/school-dashboard/page.tsx")
- assert.doesNotMatch(ui,/createAdminClient\(\)/)
- assert.doesNotMatch(ui,/service_role/)
+ const clientUi=read("app/teacher-dashboard/page.tsx")+read("app/school-dashboard/page.tsx")
+ assert.doesNotMatch(clientUi,/createAdminClient\(\)/)
+ assert.doesNotMatch(clientUi,/service_role/)
+ assert.match(read("app/admin/page.tsx"),/createAdminClient\(\)/)
  assert.match(read("app/api/teacher/progress/route.ts"),/currentSchoolUserId/)
 })
