@@ -164,13 +164,11 @@ test("voice tokens, planned reconnect and second problem are hooked to the mock 
  assert.match(live,/Resume interview/)
 })
 
-test("mock landing page and Interview Hub link to direct formal, reasoning and voice interviews",()=>{
- const landing=read("app/full-mock-interview/page.tsx")
- const hub=read("app/interviews/page.tsx")
- assert.match(hub,/href:"\/full-mock-interview"/)
- for(const href of ["/interview-room","/reasoning-interview","/gemini-live-next"])
-  assert.ok(landing.includes(href))
- assert.match(landing,/mockDurations/)
- for(const source of ["components/advanced-interview-experience.tsx","components/reasoning-interview-experience-v2.tsx","app/gemini-live-next/page.tsx"])
-  assert.match(read(source),/URLSearchParams\(window.location.search\)/)
+test("mock landing and Interview Hub use one launcher with all three existing engines",()=>{
+ const landing=read("app/full-mock-interview/page.tsx"),hub=read("app/interviews/page.tsx"),launcher=read("components/interview-launcher.tsx"),config=read("lib/interview-launch.ts")
+ assert.match(hub,/<InterviewLauncher\/>/)
+ assert.match(landing,/initialMode="mock"/)
+ for(const href of ["/interview-room","/reasoning-interview","/gemini-live-next"])assert.ok(config.includes(href))
+ assert.match(launcher,/launchDurations/)
+ for(const source of ["components/advanced-interview-experience.tsx","components/reasoning-interview-experience-v2.tsx","app/gemini-live-next/page.tsx"])assert.match(read(source),/readInterviewLaunch\(window.location.search,tracks\)/)
 })
