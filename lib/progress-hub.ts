@@ -3,6 +3,7 @@ type Row=Record<string,unknown>
 const obj=(v:unknown):Row=>v&&typeof v==="object"&&!Array.isArray(v)?v as Row:{}
 const arr=(v:unknown):unknown[]=>Array.isArray(v)?v:[]
 const str=(v:unknown,max=500)=>typeof v==="string"?v.trim().slice(0,max):""
+const answer=(v:unknown)=>Array.isArray(v)?v.map(x=>typeof x==="string"?x:String(x??"")).join("; ").slice(0,900):v&&typeof v==="object"?Object.entries(v as Row).slice(0,20).map(([key,value])=>key+": "+String(value??"")).join("; ").slice(0,900):str(v,900)
 const finite=(v:unknown)=>typeof v==="number"&&Number.isFinite(v)&&v>=0?v:null
 const date=(v:unknown)=>{const raw=str(v,50),n=Date.parse(raw);return raw&&Number.isFinite(n)&&n<=Date.now()+86400000?new Date(n).toISOString():null}
 const score=(raw:unknown,max:unknown)=>{const a=finite(raw),b=finite(max);return a!==null&&b!==null&&b>0&&a<=b?{raw:a,max:b}:null}
@@ -31,7 +32,7 @@ export function buildProgressRecords(interviewsValue:unknown,testsValue:unknown,
   paperRefs.add(id);const ref=str(x.source_ref,100);if(ref)paperRefs.add(ref)
   const payload=obj(x.payload)
   const rawReviews=arr(payload.questionReview)
-  const questions=rawReviews.slice(0,120).map(item=>{const q=obj(item);return {question:str(q.prompt,1000),answer:str(q.answer??q.selectedAnswer,900)||"Not recorded",expected:str(q.correctAnswer,900),explanation:str(q.explanation,1500),marks:score(q.rawMark,q.maxMarks)}}).filter(q=>q.question)
+  const questions=rawReviews.slice(0,120).map(item=>{const q=obj(item);return {question:str(q.prompt,1000),answer:answer(q.answer??q.selectedAnswer)||"Not recorded",expected:str(q.correctAnswer,900),explanation:str(q.explanation,1500),marks:score(q.rawMark,q.maxMarks)}}).filter(q=>q.question)
   const name=str(x.test,30)
   add({id:"test:"+id,kind:"test",source:"cloud",title:str(x.title,160)||((name||"Admissions test")+" practice"),date:date(x.completed_at),summary:name+(x.form!==null&&x.form!==undefined?" · Form "+str(String(x.form),20):""),href:"/history",score:score(x.raw_score,x.max_raw_marks),transcript:[],questions,feedback:[],original:null,originalTruncated:false,truncated:rawReviews.length>120})
  }
@@ -45,7 +46,7 @@ export function buildProgressRecords(interviewsValue:unknown,testsValue:unknown,
  for(const item of arr(progress.fullPaperResults).slice(0,40)){
   const x=obj(item),id=str(x.id,100);if(!id||paperRefs.has(id))continue
   const rawReviews=arr(x.questionReview)
-  const questions=rawReviews.slice(0,120).map(item=>{const q=obj(item);return {question:str(q.prompt,1000),answer:str(q.answer??q.selectedAnswer,900)||"Not recorded",expected:str(q.correctAnswer,900),explanation:str(q.explanation,1500),marks:score(q.rawMark,q.maxMarks)}}).filter(q=>q.question)
+  const questions=rawReviews.slice(0,120).map(item=>{const q=obj(item);return {question:str(q.prompt,1000),answer:answer(q.answer??q.selectedAnswer)||"Not recorded",expected:str(q.correctAnswer,900),explanation:str(q.explanation,1500),marks:score(q.rawMark,q.maxMarks)}}).filter(q=>q.question)
   add({id:"synced-test:"+id,kind:"test",source:"synced",title:str(x.title,160)||str(x.test,40)||"Previous test",date:date(x.date),summary:"Synced device result",href:"/test-results",score:score(x.rawScore,x.maxRawMarks),transcript:[],questions,feedback:[],original:null,originalTruncated:false,truncated:rawReviews.length>120})
  }
  for(const item of arr(progress.essayAnalyses).slice(0,30)){
