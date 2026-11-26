@@ -23,7 +23,7 @@ export function buildProgressRecords(interviewsValue:unknown,testsValue:unknown,
  for(const item of arr(interviewsValue).slice(0,50)){
   const x=obj(item),id=str(x.id,100);if(!id)continue
   interviewRefs.add(id);const ref=str(x.source_ref,100);if(ref)interviewRefs.add(ref)
-  const turns=arr(x.interview_turns).map(obj).sort((a,b)=>(finite(a.turn_index)??0)-(finite(b.turn_index)??0)).slice(0,80).map(t=>({speaker:t.role==="candidate"?"You":t.role==="interviewer"?"Interviewer":"System",text:str(t.content,1800),feedback:str(t.feedback,650)})).filter(t=>t.text)
+  const turns=arr(x.interview_turns).map(obj).sort((a,b)=>(finite(a.turn_index)??0)-(finite(b.turn_index)??0)).slice(0,80).map(t=>({speaker:t.role==="candidate"?"You":t.role==="interviewer"?"Interviewer":"System",text:str(t.content,1800),feedback:str(t.feedback,650)})).filter(t=>t.text&&t.speaker!=="System")
   const fb=obj(x.overall_feedback)
   add({id:"interview:"+id,kind:"interview",source:"cloud",title:str(x.summary,170)||((str(x.course,80)||"Academic")+" interview"),date:date(x.created_at),summary:str(x.summary,650),href:"/history",score:null,transcript:turns,questions:[],feedback:list(fb.strengths).concat(list(fb.next)).slice(0,8),original:null,originalTruncated:false,truncated:arr(x.interview_turns).length>80})
  }
