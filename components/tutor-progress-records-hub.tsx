@@ -80,10 +80,10 @@ export function TutorProgressRecordsHub() {
             </p>
           </div>
           <Link
-            href="#tutor-completed-work"
+            href="/study/progress"
             className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#102a43] px-4 text-sm font-semibold text-white transition hover:bg-[#173d59]"
           >
-            Review saved work <ArrowRight className="size-4" />
+            Open My Progress <ArrowRight className="size-4" />
           </Link>
         </div>
 
