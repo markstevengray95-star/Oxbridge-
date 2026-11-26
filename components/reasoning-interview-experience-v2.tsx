@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import {readInterviewLaunch} from "@/lib/interview-launch"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, ArrowRight, Brain, CheckCircle2, GitBranch, Loader2, RefreshCw, ShieldCheck, Target } from "lucide-react"
@@ -60,7 +61,7 @@ export function ReasoningInterviewExperienceV2(){
   const[mockStageIndex,setMockStageIndex]=useState(0)
   const[mockVisited,setMockVisited]=useState<MockStageId[]>([])
   const mockStartRef=useRef<number|null>(null)
-  useEffect(()=>{const requested=mockInterviewFormat(Number(new URLSearchParams(window.location.search).get("mock")));if(requested)setMockDuration(requested.minutes)},[])
+  useEffect(()=>{const launch=readInterviewLaunch(window.location.search,tracks);if(launch.track&&launch.course){setTrack(launch.track as TrackId);setCourse(launch.course)}if(launch.mock)setMockDuration(launch.mock);if(launch.difficulty)setDifficulty(launch.difficulty);if(launch.style)setStyle(launch.style);setPanelMode(launch.panel)},[])
   const[evidenceEnabled,setEvidenceEnabled]=useState(false)
   const[evidenceStage,setEvidenceStage]=useState(-1)
   const[evidenceLastAnswerCount,setEvidenceLastAnswerCount]=useState(0)
