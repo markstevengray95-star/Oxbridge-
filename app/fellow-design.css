@@ -76,6 +76,16 @@
   border-color: var(--fellow-teal);
   box-shadow: 0 5px 16px -10px rgb(20 45 62 / 22%);
 }
+.fellow-ui .fellow-list-link {
+  color: var(--fellow-ink);
+  transition: background .16s ease;
+}
+.fellow-ui .fellow-list-link:hover { background: #f4f9f6; }
+.fellow-ui .fellow-list-link:focus-visible { position: relative; z-index: 1; }
+.fellow-ui .fellow-choice:focus-within {
+  outline: 3px solid var(--fellow-focus);
+  outline-offset: 2px;
+}
 .fellow-ui .fellow-soft {
   background: #f7f8f5;
   border: 1px solid #e8eeeb;
@@ -232,6 +242,10 @@
 .fellow-footer { background: #fcfbf7; border-top: 1px solid var(--fellow-line); }
 .a11y-contrast .fellow-ui { --fellow-subtle: #344451; --fellow-line: #687c86; }
 .a11y-contrast .fellow-ui .fellow-description { color: #344451; }
+@media (max-width: 420px) {
+  .fellow-ui .fellow-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fellow-ui .fellow-metrics > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
 @media (max-width: 640px) {
   .fellow-ui .fellow-panel { border-radius: .85rem; }
   .fellow-ui .fellow-hero { border-radius: .85rem; }
