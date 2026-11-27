@@ -8,6 +8,7 @@ const progress = read("app/api/teacher/progress/route.ts")
 const student = read("app/api/student/teacher-links/route.ts")
 const migration = read("supabase/migrations/20261118_school_staff_roles_and_teacher_links.sql")
 const proxy = read("lib/supabase/proxy.ts")
+const policy = read("lib/school/student-tracking-access.ts")
 
 for (const table of ["school_staff_roles","school_teacher_student_links","school_staff_audit_events"]) {
   assert.ok(migration.includes("alter table public."+table+" enable row level security"),table+" RLS required")
@@ -27,7 +28,8 @@ assert.ok(staff.includes('school_staff_audit_events'),"Grant/link actions must b
 assert.ok(staff.includes('if (!role?.active)'),"Revoked teachers must not be linked")
 assert.ok(progress.includes('loadStaffScope(admin,userId)'),"Progress endpoint must verify staff role each request")
 assert.ok(progress.includes('school_teacher_student_links'),"Nonowner progress must be explicitly assigned")
-assert.ok(progress.includes('scope.isOwner ? members : (links ?? [])'),"Only school owners may see all members")
+assert.ok(progress.includes('schoolStaffCanSeeWholeRoster(scope) ? members : (links ?? [])'),"Roster must use the verified role policy, otherwise restrict to explicit links")
+assert.ok(policy.includes('return scope.isOwner || scope.role==="school_admin"'),"Only owners and school admins may see the whole roster; teachers require explicit assignments")
 assert.ok(progress.includes('!staffIds.has(id) && !ownerIds.has(id)'),"Staff and school owners are not student records")
 assert.ok(progress.includes('school_seat_entitlements') && progress.includes('.eq("active",true)'),"Students must still be school members")
 assert.ok(!progress.includes('transcript') && !progress.includes('overall_feedback') && !progress.includes('conversation'),"Teacher output must not expose private conversation content")
