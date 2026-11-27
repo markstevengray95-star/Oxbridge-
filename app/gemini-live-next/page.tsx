@@ -1,5 +1,7 @@
 "use client"
 
+import { LivePracticePreferences } from "@/components/live-practice-preferences"
+import { defaultLivePracticeSettings, normaliseLivePracticeSettings, livePracticeOpening, type LivePracticeSettings } from "@/lib/gemini/live-personalised-practice"
 import { LiveInterviewWhiteboard } from "@/components/live-interview-whiteboard"
 import { canDiscussVisualWorking, liveVisualWorkingPrompt } from "@/lib/gemini/live-visual-working"
 import { isAcademicStageResponse, panelSpeechSettings, panelTurn } from "@/lib/gemini/live-interview-atmosphere"
@@ -204,6 +206,8 @@ export default function GeminiLiveNextPage() {
   const [status, setStatus] = useState<LiveState>("idle")
   const [track, setTrack] = useState<TrackId>("physical")
   const [course, setCourse] = useState("Physics")
+  const [practiceSettings,setPracticeSettings] = useState<LivePracticeSettings>(defaultLivePracticeSettings)
+  const activePracticeSettings = normaliseLivePracticeSettings(practiceSettings,subjectInterviewPathway(course,track))
   const [personaKey, setPersonaKey] = useState<LivePersonality>("Socratic")
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [voice, setVoice] = useState<GeminiVoice>("Gacrux")
@@ -280,6 +284,8 @@ export default function GeminiLiveNextPage() {
       const nextCourse = launch.course ?? (matched?profile.course:undefined) ?? "Physics"
       setTrack(nextTrack)
       setCourse(nextCourse)
+      if(launch.difficulty) setPracticeSettings(previous=>({...previous,difficulty:launch.difficulty==="Foundation"?1:launch.difficulty==="Challenge"?5:3}))
+      if(launch.mock) setMockDuration(launch.mock as MockDuration)
       setRetestFocus(readDueOralRetest(nextCourse)?.focus ?? "")
     } catch {
       setTrack("physical")
@@ -529,7 +535,7 @@ export default function GeminiLiveNextPage() {
       ? buildLiveResumePrompt(course, turnsRef.current) + (mockStatus ? "\nContinue the committed academic stage: " + mockStatus.stage.label + ". " + mockStatus.stage.instruction : "") + (evidenceChallenge && evidenceStage>=0 ? "\n\nCurrent interactive evidence already shown to the student:\n" + (evidenceContext({challengeId:evidenceChallenge.id,stage:evidenceStage})?.material || "") : "")
       : interviewContext.material
         ? `Begin the formal ${course} practice interview now.${materialHint} Ask one challenging but accessible question grounded in the supplied material.`
-        : `Begin the formal ${course} practice interview now. Give a brief natural greeting, then ask this opening academic problem without answering it: ${subjectInterviewStarter(course, track).prompt}`
+        : `Begin the formal ${course} practice interview now. Give a brief natural greeting. ${livePracticeOpening(activePracticeSettings,subjectInterviewStarter(course,track).prompt)}`
     ws.send(JSON.stringify({
       clientContent: {
         turns: [{
@@ -782,6 +788,7 @@ export default function GeminiLiveNextPage() {
           material: interviewContext.material || "",
           preparationNotes: interviewContext.notes || "",
           focus: retestFocus,
+          practiceSettings: activePracticeSettings,
         }),
       })
 
@@ -1036,6 +1043,7 @@ export default function GeminiLiveNextPage() {
           id: replay.id,
           title: `Gemini Live Next · ${course} · ${livePersonalities[personaKey].label}`,
           interviewCourse: course,
+          practiceSettings: activePracticeSettings,
           interviewSource: "live-voice",
           interviewPersonality: personaKey,
           interviewMode: mode,
@@ -1150,6 +1158,7 @@ export default function GeminiLiveNextPage() {
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Course</span><NativeSelect value={course} onChange={event => setCourse(event.target.value)}>{courses.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Academic interviewer style</span><NativeSelect value={personaKey} disabled={phase !== "lobby"} onChange={event => setPersonaKey(event.target.value as LivePersonality)}>{livePersonalityKeys.map(item => <NativeSelectOption key={item} value={item}>{livePersonalities[item].label}</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">{livePersonalities[personaKey].level} · {livePersonalities[personaKey].description}</span></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Session style</span><NativeSelect value={mode} disabled={phase !== "lobby"} onChange={event => setMode(event.target.value as InterviewMode)}>{["Tutor", "Realistic", "No-hint", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">Academic support cap: level {permittedLiveSupport(mode)}. Thinking time is always respected.</span></label>
+              <div className="sm:col-span-2"><LivePracticePreferences course={course} track={track} settings={activePracticeSettings} onChange={setPracticeSettings} disabled={phase!=="lobby"}/></div>
               <div className="sm:col-span-2"><LivePersonalityHistory course={course}/></div>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">AI interviewer voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as GeminiVoice)}>{interviewVoices.map(item => <NativeSelectOption key={item} value={item}>{interviewVoiceProfiles[item].label}</NativeSelectOption>)}</NativeSelect></label>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Full-length mock session</span><NativeSelect value={mockDuration??"standard"} disabled={phase !== "lobby"} onChange={event=>setMockDuration(event.target.value==="standard"?null:Number(event.target.value) as MockDuration)}><NativeSelectOption value="standard">Standard voice interview</NativeSelectOption>{mockDurations.map(minutes=><NativeSelectOption key={minutes} value={String(minutes)}>{minutes}-minute academic mock</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">A planned academic pace, never an interruption. Longer voice mocks need a controlled secure reconnect.</span></label>
