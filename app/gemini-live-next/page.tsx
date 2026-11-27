@@ -262,6 +262,7 @@ export default function GeminiLiveNextPage() {
   const localInterruptionRef = useRef(false)
   const modelTurnActiveRef = useRef(false)
   const noiseFloorRef = useRef(0.015)
+  const lastSpeechActivityRef = useRef(0)
   const resumeRef = useRef(false)
   const setupReadyRef = useRef(false)
   const bargeInRef = useRef(true)
@@ -450,6 +451,7 @@ export default function GeminiLiveNextPage() {
       const channel = event.inputBuffer.getChannelData(0)
       const audible = outputSourcesRef.current.size > 0 || (panelMode && Boolean(window.speechSynthesis?.speaking))
       const rms = liveAudioRms(channel)
+      if (rms >= Math.max(0.05, noiseFloorRef.current * 3 + 0.025)) lastSpeechActivityRef.current = performance.now()
       noiseFloorRef.current = updateLiveNoiseFloor(noiseFloorRef.current, rms, audible)
       const activity = detectVoiceBargeIn(speechStateRef.current, {
         rms,
@@ -489,7 +491,7 @@ export default function GeminiLiveNextPage() {
 
   function discussVisualWorking(summary: string) {
     const ws = wsRef.current
-    if (!ws || !canDiscussVisualWorking({connected:ws.readyState===WebSocket.OPEN && setupReadyRef.current,activeModel:modelTurnActiveRef.current || openingRef.current || outputSourcesRef.current.size>0 || Boolean(panelMode && window.speechSynthesis?.speaking),pendingSpeech:Boolean(inputTextRef.current.trim()),ending:endingRef.current})) return false
+    if (!ws || !canDiscussVisualWorking({connected:ws.readyState===WebSocket.OPEN && setupReadyRef.current,activeModel:modelTurnActiveRef.current || openingRef.current || outputSourcesRef.current.size>0 || Boolean(panelMode && window.speechSynthesis?.speaking),pendingSpeech:Boolean(inputTextRef.current.trim()) || (lastSpeechActivityRef.current>0 && performance.now()-lastSpeechActivityRef.current<2000),ending:endingRef.current})) return false
     try {
       ws.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:liveVisualWorkingPrompt(summary)}]}],turnComplete:true}}))
       modelTurnActiveRef.current=true
@@ -502,7 +504,8 @@ export default function GeminiLiveNextPage() {
   function revealEvidence() {
     const ws=wsRef.current
     const candidateCount=turnsRef.current.filter(turn=>turn.role==="candidate" && isAcademicStageResponse(turn.text)).length
-    if(!evidenceChallenge||!ws||ws.readyState!==WebSocket.OPEN||endingRef.current||!canRevealNextEvidence(evidenceStage,candidateCount,evidenceLastAnswerCount))return
+    if(!evidenceChallenge||!ws||!canRevealNextEvidence(evidenceStage,candidateCount,evidenceLastAnswerCount))return
+    if(!canDiscussVisualWorking({connected:ws.readyState===WebSocket.OPEN && setupReadyRef.current,activeModel:modelTurnActiveRef.current || openingRef.current || outputSourcesRef.current.size>0 || Boolean(panelMode && window.speechSynthesis?.speaking),pendingSpeech:Boolean(inputTextRef.current.trim()) || (lastSpeechActivityRef.current>0 && performance.now()-lastSpeechActivityRef.current<2000),ending:endingRef.current})){setNotice("Finish your spoken answer and wait for the interviewer before revealing evidence.");return}
     const nextState=nextEvidenceStage(evidenceChallenge,evidenceStage,candidateCount,evidenceLastAnswerCount)
     if(!nextState)return
     const next=nextState.index
@@ -710,6 +713,7 @@ export default function GeminiLiveNextPage() {
     localInterruptionRef.current = false
     modelTurnActiveRef.current = false
     noiseFloorRef.current = 0.015
+    lastSpeechActivityRef.current = 0
     speechStateRef.current = newVoiceBargeInState()
     bargeInRef.current = allowBargeIn
     droppedAudioWarningRef.current = false
