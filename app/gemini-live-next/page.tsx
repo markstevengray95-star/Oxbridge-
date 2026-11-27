@@ -1,5 +1,7 @@
 "use client"
 
+import { buildLiveEngagementReport, permittedLiveSupport } from "@/lib/gemini/live-adaptive-support"
+import { LiveEngagementReview } from "@/components/live-engagement-review"
 import { livePersonalities, livePersonalityKeys, type LivePersonality } from "@/lib/gemini/live-interview-personalities"
 import { LivePersonalityHistory } from "@/components/live-personality-history"
 import { interviewVoices, interviewVoiceProfiles, preferredBritishVoices, type InterviewVoice } from "@/lib/gemini/interview-voice-profiles"
@@ -1009,6 +1011,7 @@ export default function GeminiLiveNextPage() {
           interviewSource: "live-voice",
           interviewPersonality: personaKey,
           interviewMode: mode,
+          engagementReport: buildLiveEngagementReport(turnsRef.current, mode),
           interviewAnswerCount: turnsRef.current.filter(turn => turn.role === "candidate").length,
           score: 0,
           date: new Date().toISOString(),
@@ -1117,7 +1120,7 @@ export default function GeminiLiveNextPage() {
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Subject family</span><NativeSelect value={track} onChange={event => { const next = event.target.value as TrackId; setTrack(next); const found = tracks.find(item => item.id === next); if (found) setCourse(found.courses[0]) }}>{tracks.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.short}</NativeSelectOption>)}</NativeSelect></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Course</span><NativeSelect value={course} onChange={event => setCourse(event.target.value)}>{courses.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Academic interviewer style</span><NativeSelect value={personaKey} disabled={phase !== "lobby"} onChange={event => setPersonaKey(event.target.value as LivePersonality)}>{livePersonalityKeys.map(item => <NativeSelectOption key={item} value={item}>{livePersonalities[item].label}</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">{livePersonalities[personaKey].level} · {livePersonalities[personaKey].description}</span></label>
-              <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Session style</span><NativeSelect value={mode} disabled={phase !== "lobby"} onChange={event => setMode(event.target.value as InterviewMode)}>{["Tutor", "Realistic", "No-hint", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
+              <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Session style</span><NativeSelect value={mode} disabled={phase !== "lobby"} onChange={event => setMode(event.target.value as InterviewMode)}>{["Tutor", "Realistic", "No-hint", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">Academic support cap: level {permittedLiveSupport(mode)}. Thinking time is always respected.</span></label>
               <div className="sm:col-span-2"><LivePersonalityHistory course={course}/></div>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">AI interviewer voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as GeminiVoice)}>{interviewVoices.map(item => <NativeSelectOption key={item} value={item}>{interviewVoiceProfiles[item].label}</NativeSelectOption>)}</NativeSelect></label>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Full-length mock session</span><NativeSelect value={mockDuration??"standard"} onChange={event=>setMockDuration(event.target.value==="standard"?null:Number(event.target.value) as MockDuration)}><NativeSelectOption value="standard">Standard voice interview</NativeSelectOption>{mockDurations.map(minutes=><NativeSelectOption key={minutes} value={String(minutes)}>{minutes}-minute academic mock</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">A planned academic pace, never an interruption. Longer voice mocks need a controlled secure reconnect.</span></label>
@@ -1167,6 +1170,7 @@ export default function GeminiLiveNextPage() {
           <CardContent className="flex flex-wrap gap-2"><Button asChild><Link href="/reasoning-replay">Open reasoning replay</Link></Button><Button variant="outline" onClick={reset}><RefreshCw />New interview</Button></CardContent>
         </Card>
         <LivePersonalityHistory course={course}/>
+        <LiveEngagementReview report={buildLiveEngagementReport(turns, mode)}/>
         <InterviewNextSteps/>
         {feedbackReport?<InterviewEvidenceReview report={feedbackReport}/>:null}
       </div>
