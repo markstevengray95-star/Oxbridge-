@@ -1,5 +1,6 @@
 "use client"
 
+import { isAcademicStageResponse, panelSpeechSettings, panelTurn } from "@/lib/gemini/live-interview-atmosphere"
 import { buildLiveFollowUpReview } from "@/lib/gemini/live-academic-followups"
 import { LiveAcademicFollowUpReview } from "@/components/live-academic-followup-review"
 import { buildLiveEngagementReport, permittedLiveSupport } from "@/lib/gemini/live-adaptive-support"
@@ -148,10 +149,8 @@ function base64ToPcm(base64: string) {
 }
 
 function parsePanelPrefix(text: string) {
-  const clean = text.trim()
-  if (/^A:\s*/i.test(clean)) return { interviewer: "A" as const, text: clean.replace(/^A:\s*/i, "") }
-  if (/^B:\s*/i.test(clean)) return { interviewer: "B" as const, text: clean.replace(/^B:\s*/i, "") }
-  return { interviewer: undefined, text: clean }
+  const parsed = panelTurn(text)
+  return {interviewer: parsed.role, text: parsed.text}
 }
 
 function splitFeedbackAndQuestion(text: string) {
@@ -311,19 +310,20 @@ export default function GeminiLiveNextPage() {
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const evidenceChallenge = evidenceEnabled ? evidenceChallengeForCourse(course, track) : null
   const candidateTurnCount = turns.filter(turn => turn.role === "candidate").length
-  const mockStatus = mockDuration ? mockInterviewStage({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:candidateTurnCount,previousStageIndex:mockStageIndex}):null
+  const academicResponseCount = turns.filter(turn => turn.role === "candidate" && isAcademicStageResponse(turn.text)).length
+  const mockStatus = mockDuration ? mockInterviewStage({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:academicResponseCount,previousStageIndex:mockStageIndex,holdStage:true}):null
   const secondProblem = realisticInterviewQuestions.find(item=>item.track===track && item.prompt!==subjectInterviewStarter(course,track).prompt)
   const coursePathway = subjectInterviewPathway(course, track)
 
   useEffect(() => {
-    if (phase !== "live" || !mockDuration || candidateTurnCount <= lastMockAnswerCountRef.current) return
-    lastMockAnswerCountRef.current = candidateTurnCount
-    const stage = mockInterviewStage({ minutes:mockDuration, elapsedSeconds:seconds, candidateAnswers:candidateTurnCount, previousStageIndex:mockStageIndex })
+    if (phase !== "live" || !mockDuration || academicResponseCount <= lastMockAnswerCountRef.current) return
+    lastMockAnswerCountRef.current = academicResponseCount
+    const stage = mockInterviewStage({ minutes:mockDuration, elapsedSeconds:seconds, candidateAnswers:academicResponseCount, previousStageIndex:mockStageIndex })
     if (stage && stage.index !== mockStageIndex) {
       setMockStageIndex(stage.index)
       setMockVisited(previous => [...new Set([...previous, stage.stage.id])])
     }
-  }, [phase, mockDuration, candidateTurnCount, seconds, mockStageIndex])
+  }, [phase, mockDuration, academicResponseCount, seconds, mockStageIndex])
 
   function startSecondProblem() {
     const ws = wsRef.current
@@ -377,7 +377,7 @@ export default function GeminiLiveNextPage() {
   }
 
   async function playGeminiAudio(base64: string) {
-    if (panelMode || localInterruptionRef.current) return
+    if ((panelMode && typeof window !== "undefined" && window.speechSynthesis && typeof SpeechSynthesisUtterance !== "undefined") || localInterruptionRef.current) return
     const context = outputCtxRef.current
     const generation = generationRef.current
     const epoch = playbackEpochRef.current
@@ -401,16 +401,14 @@ export default function GeminiLiveNextPage() {
   }
 
   function speakPanelTurn(text: string, interviewer?: "A" | "B") {
-    if (!panelMode || typeof window === "undefined" || !window.speechSynthesis) return
+    if (!panelMode || typeof window === "undefined" || !window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") return
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = "en-GB"
     const available = preferredBritishVoices(window.speechSynthesis.getVoices())
-    if (available.length) {
-      utterance.voice = interviewer === "B"
-        ? available[Math.min(1, available.length - 1)]
-        : available[0]
-    }
-    utterance.rate = interviewer === "B" ? 1.03 : 0.96
+    const settings = panelSpeechSettings(available, interviewer)
+    if (settings.voice) utterance.voice = settings.voice
+    utterance.rate = settings.rate
+    utterance.pitch = settings.pitch
     window.speechSynthesis.speak(utterance)
   }
 
@@ -511,7 +509,7 @@ export default function GeminiLiveNextPage() {
       ? " Start with the unseen or supercurricular material supplied in your system instructions."
       : ""
     const prompt = resumeRef.current
-      ? buildLiveResumePrompt(course, turnsRef.current) + (evidenceChallenge && evidenceStage>=0 ? "\n\nCurrent interactive evidence already shown to the student:\n" + (evidenceContext({challengeId:evidenceChallenge.id,stage:evidenceStage})?.material || "") : "")
+      ? buildLiveResumePrompt(course, turnsRef.current) + (mockStatus ? "\nContinue the committed academic stage: " + mockStatus.stage.label + ". " + mockStatus.stage.instruction : "") + (evidenceChallenge && evidenceStage>=0 ? "\n\nCurrent interactive evidence already shown to the student:\n" + (evidenceContext({challengeId:evidenceChallenge.id,stage:evidenceStage})?.material || "") : "")
       : interviewContext.material
         ? `Begin the formal ${course} practice interview now.${materialHint} Ask one challenging but accessible question grounded in the supplied material.`
         : `Begin the formal ${course} practice interview now. Give a brief natural greeting, then ask this opening academic problem without answering it: ${subjectInterviewStarter(course, track).prompt}`
@@ -665,7 +663,17 @@ export default function GeminiLiveNextPage() {
     }
 
     if (endingRef.current) {
-      window.setTimeout(() => { preserveUnfinishedTranscript(); teardown(true) }, 900)
+      // Allow the final spoken debrief to finish; the existing finish timer is a hard safety bound.
+      const generation = generationRef.current
+      const waitForClosingAudio = () => {
+        if (generation !== generationRef.current || !endingRef.current) return
+        if (outputSourcesRef.current.size || (panelMode && window.speechSynthesis?.speaking)) {
+          window.setTimeout(waitForClosingAudio, 250)
+          return
+        }
+        preserveUnfinishedTranscript(); teardown(true)
+      }
+      window.setTimeout(waitForClosingAudio, 600)
       return
     }
 
@@ -1126,11 +1134,11 @@ export default function GeminiLiveNextPage() {
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Session style</span><NativeSelect value={mode} disabled={phase !== "lobby"} onChange={event => setMode(event.target.value as InterviewMode)}>{["Tutor", "Realistic", "No-hint", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">Academic support cap: level {permittedLiveSupport(mode)}. Thinking time is always respected.</span></label>
               <div className="sm:col-span-2"><LivePersonalityHistory course={course}/></div>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">AI interviewer voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as GeminiVoice)}>{interviewVoices.map(item => <NativeSelectOption key={item} value={item}>{interviewVoiceProfiles[item].label}</NativeSelectOption>)}</NativeSelect></label>
-              <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Full-length mock session</span><NativeSelect value={mockDuration??"standard"} onChange={event=>setMockDuration(event.target.value==="standard"?null:Number(event.target.value) as MockDuration)}><NativeSelectOption value="standard">Standard voice interview</NativeSelectOption>{mockDurations.map(minutes=><NativeSelectOption key={minutes} value={String(minutes)}>{minutes}-minute academic mock</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">A planned academic pace, never an interruption. Longer voice mocks need a controlled secure reconnect.</span></label>
+              <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Full-length mock session</span><NativeSelect value={mockDuration??"standard"} disabled={phase !== "lobby"} onChange={event=>setMockDuration(event.target.value==="standard"?null:Number(event.target.value) as MockDuration)}><NativeSelectOption value="standard">Standard voice interview</NativeSelectOption>{mockDurations.map(minutes=><NativeSelectOption key={minutes} value={String(minutes)}>{minutes}-minute academic mock</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">A planned academic pace, never an interruption. Longer voice mocks need a controlled secure reconnect.</span></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Time to think</span><NativeSelect value={voicePace} onChange={event => setVoicePace(event.target.value as InterviewVoicePace)}><NativeSelectOption value="thoughtful">Thoughtful · longer pauses</NativeSelectOption><NativeSelectOption value="balanced">Natural conversation</NativeSelectOption><NativeSelectOption value="quick">Quick responses</NativeSelectOption></NativeSelect></label>
               <button type="button" onClick={() => setAllowBargeIn(value => !value)} className="rounded-xl border bg-white p-3 text-left"><strong>{allowBargeIn ? "Interruptions allowed" : "Interruptions disabled"}</strong><p className="mt-1 text-xs text-slate-500">Let the student speak over the interviewer naturally. Headphones recommended.</p></button>
 
-              <button onClick={() => setPanelMode(value => !value)} className={`sm:col-span-2 rounded-xl border p-4 text-left ${panelMode ? "border-cyan-500 bg-cyan-50" : "bg-white"}`}>
+              <button disabled={phase !== "lobby"} onClick={() => setPanelMode(value => !value)} className={`sm:col-span-2 rounded-xl border p-4 text-left ${panelMode ? "border-cyan-500 bg-cyan-50" : "bg-white"}`}>
                 <div className="flex items-center gap-2"><Users className="size-4" /><strong>Two-interviewer panel</strong></div>
                 <p className="mt-1 text-sm text-slate-500">Interviewer A develops your reasoning; Interviewer B pressure-tests assumptions and alternatives.</p>
               </button>
@@ -1196,7 +1204,7 @@ export default function GeminiLiveNextPage() {
     <div className="mx-auto grid max-w-[1500px] gap-4 px-4 py-5 xl:grid-cols-[minmax(0,1fr)_390px]">
       <section>
         <Card className="shadow-none">
-          <CardHeader><CardTitle className="font-serif text-2xl">Live conversation</CardTitle><CardDescription>{panelMode ? "Two academic roles are alternating." : "One adaptive academic interviewer."} Speak naturally and ask for clarification when needed.</CardDescription></CardHeader>
+          <CardHeader><CardTitle className="font-serif text-2xl">Live conversation</CardTitle><CardDescription>{panelMode ? "Two academic roles hand over at meaningful points." : "One adaptive academic interviewer."} Speak naturally and ask for clarification when needed.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
             {turns.filter(turn => turn.role !== "system").map(turn => <div key={turn.id} className={`rounded-2xl p-4 ${turn.role === "candidate" ? "ml-8 border bg-white" : "mr-8 bg-[#102a43] text-white"}`}>
               <div className="flex flex-wrap items-center gap-2"><Badge variant={turn.role === "candidate" ? "outline" : "secondary"}>{turn.role === "candidate" ? "You" : `Interviewer ${turn.interviewer ?? ""}`.trim()}</Badge>{typeof turn.confidence === "number" && <Badge variant="outline" className={turn.role === "candidate" ? "" : "border-white/30 text-white"}>Confidence {turn.confidence}%</Badge>}</div>
@@ -1221,7 +1229,7 @@ export default function GeminiLiveNextPage() {
 
         {interviewContext.material && <Card className="shadow-none"><CardHeader><CardTitle className="font-serif text-xl">Interview material</CardTitle><CardDescription>{interviewContext.title}</CardDescription></CardHeader><CardContent><p className="line-clamp-6 text-sm leading-6">{interviewContext.material}</p></CardContent></Card>}
 
-        <Card className="border-0 bg-[#102a43] text-white shadow-none"><CardContent className="space-y-2 p-5 text-sm text-white/75"><p className="flex items-center gap-2"><Volume2 className="size-4" />{panelMode ? "Panel roles use two available English browser voices for clearer speaker distinction." : "Gemini streaming audio active."}</p><p>Confidence ratings are private coaching evidence, not admissions predictions.</p></CardContent></Card>
+        <Card className="border-0 bg-[#102a43] text-white shadow-none"><CardContent className="space-y-2 p-5 text-sm text-white/75"><p className="flex items-center gap-2"><Volume2 className="size-4" />{panelMode ? "Panel uses available English browser voices (or native audio if browser speech is unavailable)." : "Gemini streaming audio active."}</p><p>Confidence ratings are private coaching evidence, not admissions predictions.</p></CardContent></Card>
       </aside>
     </div>
   </main>

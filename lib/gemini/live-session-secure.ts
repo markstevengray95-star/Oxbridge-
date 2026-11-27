@@ -1,3 +1,4 @@
+import { liveInterviewAtmosphereInstructions } from "@/lib/gemini/live-interview-atmosphere"
 import { liveAcademicFollowUpInstructions } from "@/lib/gemini/live-academic-followups"
 import { liveAdaptiveSupportInstructions } from "@/lib/gemini/live-adaptive-support"
 import { resolveLivePersonality, livePersonalityInstructions } from "@/lib/gemini/live-interview-personalities"
@@ -61,7 +62,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
   ] : []
   const contextInstructions = material ? ["The candidate has been given unseen pre-interview material. Use it actively rather than ignoring it.", `UNSEEN MATERIAL: ${material}`, preparationNotes ? `CANDIDATE PREPARATION NOTES: ${preparationNotes}` : "The candidate supplied no preparation notes.", "Begin by asking the candidate to interpret, question or defend something from the material. Do not supply an authoritative interpretation first."] : []
   const focusInstructions = focus ? [`DELAYED RETEST FOCUS: ${focus}`, "Test this reasoning habit naturally in a different problem. Do not tell the candidate the exact weakness before they have attempted the task."] : []
-  const panelInstructions = panel ? ["This is a two-interviewer simulation. Alternate academic roles between Interviewer A and Interviewer B on successive substantive model turns.", "Interviewer A should usually develop the candidate's line of reasoning. Interviewer B should usually test assumptions, counterexamples or alternative interpretations.", "Prefix every substantive response with exactly 'A:' or 'B:' so the client can render two distinct interviewer roles. Keep the turn natural rather than following a rigid feedback template."] : []
+  const panelInstructions = liveInterviewAtmosphereInstructions(panel, resume, mockMinutes)
 
   return [
     STUDENT_AI_SAFETY_POLICY,

@@ -5,7 +5,7 @@
  * Academic stage changes happen only after a candidate answer: the timer does
  * not interrupt a student who is in the middle of a line of reasoning.
  */
-export type MockDuration = 5 | 15 | 25 | 40 | 60
+export type MockDuration = 5 | 10 | 15 | 20 | 25 | 30 | 40 | 45 | 60
 export type MockStageId = "opening" | "build" | "challenge" | "handover" | "second-problem" | "transfer" | "synthesis"
 export type MockStage = {
   id: MockStageId
@@ -24,7 +24,7 @@ export type MockFormat = {
 const stage = (id:MockStageId,label:string,startFraction:number,minAnswers:number,interviewer:"A"|"B",instruction:string):MockStage =>
   ({id,label,startFraction,minAnswers,interviewer,instruction})
 
-const formats:Record<MockDuration,MockFormat> = {
+const baseFormats:Record<5|15|25|40|60,MockFormat> = {
   5:{minutes:5,label:"5-minute academic warm-up",description:"A concise reasoning-first exchange, one challenge and a reflective finish.",stages:[
     stage("opening","Opening problem",0,0,"A","Ask one focused, accessible academic opening question. Do not reveal its solution."),
     stage("challenge","Test the reasoning",.35,1,"A","Challenge one concrete assumption, unit, inference or counterexample grounded in the candidate's answer."),
@@ -63,7 +63,9 @@ const formats:Record<MockDuration,MockFormat> = {
   ]},
 }
 
-export const mockDurations:MockDuration[]=[5,15,25,40,60]
+const derivedFormat = (minutes:MockDuration, base:MockFormat):MockFormat => ({...base, minutes, label: minutes + "-minute academic mock", stages: base.stages.map(item=>({...item}))})
+const formats:Record<MockDuration,MockFormat> = {...baseFormats, 10:derivedFormat(10,baseFormats[15]),20:derivedFormat(20,baseFormats[25]),30:derivedFormat(30,baseFormats[25]),45:derivedFormat(45,baseFormats[40])}
+export const mockDurations:MockDuration[]=[5,10,15,20,25,30,40,45,60]
 export function mockInterviewFormat(minutes:number):MockFormat|null {
   return mockDurations.includes(minutes as MockDuration) ? formats[minutes as MockDuration] : null
 }
@@ -73,6 +75,8 @@ export type MockStageInput={
   elapsedSeconds:number
   candidateAnswers:number
   previousStageIndex?:number
+  /** Display a committed stage without advancing just because the timer ticks. */
+  holdStage?:boolean
 }
 export function mockInterviewStage(input:MockStageInput){
   const format=mockInterviewFormat(input.minutes)
@@ -82,7 +86,7 @@ export function mockInterviewStage(input:MockStageInput){
   const previous=Number.isInteger(input.previousStageIndex)
     ? Math.min(format.stages.length-1,Math.max(0,input.previousStageIndex as number)):0
   let index=0
-  for(let i=1;i<format.stages.length;i++){
+  for(let i=1;!input.holdStage && i<format.stages.length;i++){
     const st=format.stages[i]
     if(elapsed<st.startFraction*format.minutes*60||answers<st.minAnswers)break
     // One deliberate stage transition per candidate answer; never jump over
