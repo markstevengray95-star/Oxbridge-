@@ -1,5 +1,7 @@
 "use client"
 
+import { livePersonalities, livePersonalityKeys, type LivePersonality } from "@/lib/gemini/live-interview-personalities"
+import { LivePersonalityHistory } from "@/components/live-personality-history"
 import { interviewVoices, interviewVoiceProfiles, preferredBritishVoices, type InterviewVoice } from "@/lib/gemini/interview-voice-profiles"
 import Link from "next/link"
 import {InterviewNextSteps} from "@/components/interview-next-steps"
@@ -47,7 +49,7 @@ import {
   newVoiceBargeInState,
   type InterviewVoicePace,
 } from "@/lib/gemini/live-conversation-control"
-import { interviewerPersonas, type InterviewMode, type InterviewPersonaKey } from "@/lib/coach-suite"
+import type { InterviewMode } from "@/lib/coach-suite"
 import { PROFILE_KEY, PROGRESS_KEY } from "@/lib/personal-tutor"
 import {
   INTERVIEW_CONTEXT_KEY,
@@ -197,7 +199,7 @@ export default function GeminiLiveNextPage() {
   const [status, setStatus] = useState<LiveState>("idle")
   const [track, setTrack] = useState<TrackId>("physical")
   const [course, setCourse] = useState("Physics")
-  const [personaKey, setPersonaKey] = useState<InterviewPersonaKey>("Socratic")
+  const [personaKey, setPersonaKey] = useState<LivePersonality>("Socratic")
   const [mode, setMode] = useState<InterviewMode>("Realistic")
   const [voice, setVoice] = useState<GeminiVoice>("Gacrux")
   const [panelMode, setPanelMode] = useState(false)
@@ -1002,7 +1004,12 @@ export default function GeminiLiveNextPage() {
         sessions: Number(progress.sessions ?? 0) + 1,
         logs: [{
           id: replay.id,
-          title: `Gemini Live Next · ${course}`,
+          title: `Gemini Live Next · ${course} · ${livePersonalities[personaKey].label}`,
+          interviewCourse: course,
+          interviewSource: "live-voice",
+          interviewPersonality: personaKey,
+          interviewMode: mode,
+          interviewAnswerCount: turnsRef.current.filter(turn => turn.role === "candidate").length,
           score: 0,
           date: new Date().toISOString(),
           events,
@@ -1109,8 +1116,9 @@ export default function GeminiLiveNextPage() {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Subject family</span><NativeSelect value={track} onChange={event => { const next = event.target.value as TrackId; setTrack(next); const found = tracks.find(item => item.id === next); if (found) setCourse(found.courses[0]) }}>{tracks.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.short}</NativeSelectOption>)}</NativeSelect></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Course</span><NativeSelect value={course} onChange={event => setCourse(event.target.value)}>{courses.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
-              <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Interviewer style</span><NativeSelect value={personaKey} onChange={event => setPersonaKey(event.target.value as InterviewPersonaKey)}>{Object.keys(interviewerPersonas).map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
+              <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Academic interviewer style</span><NativeSelect value={personaKey} disabled={phase !== "lobby"} onChange={event => setPersonaKey(event.target.value as LivePersonality)}>{livePersonalityKeys.map(item => <NativeSelectOption key={item} value={item}>{livePersonalities[item].label}</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">{livePersonalities[personaKey].level} · {livePersonalities[personaKey].description}</span></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Session style</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Tutor", "Realistic", "No-hint", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label>
+              <div className="sm:col-span-2"><LivePersonalityHistory course={course}/></div>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">AI interviewer voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as GeminiVoice)}>{interviewVoices.map(item => <NativeSelectOption key={item} value={item}>{interviewVoiceProfiles[item].label}</NativeSelectOption>)}</NativeSelect></label>
               <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Full-length mock session</span><NativeSelect value={mockDuration??"standard"} onChange={event=>setMockDuration(event.target.value==="standard"?null:Number(event.target.value) as MockDuration)}><NativeSelectOption value="standard">Standard voice interview</NativeSelectOption>{mockDurations.map(minutes=><NativeSelectOption key={minutes} value={String(minutes)}>{minutes}-minute academic mock</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">A planned academic pace, never an interruption. Longer voice mocks need a controlled secure reconnect.</span></label>
               <label><span className="mb-1 block text-xs font-bold uppercase text-slate-500">Time to think</span><NativeSelect value={voicePace} onChange={event => setVoicePace(event.target.value as InterviewVoicePace)}><NativeSelectOption value="thoughtful">Thoughtful · longer pauses</NativeSelectOption><NativeSelectOption value="balanced">Natural conversation</NativeSelectOption><NativeSelectOption value="quick">Quick responses</NativeSelectOption></NativeSelect></label>
@@ -1158,6 +1166,7 @@ export default function GeminiLiveNextPage() {
           <CardHeader><CheckCircle2 className="size-8 text-emerald-600" /><CardTitle className="font-serif text-3xl">Interview saved to Reasoning Replay</CardTitle><CardDescription>Your transcript, confidence estimates, branching path, feedback and any shared working summary are ready for review.{mockDuration ? <span className="mt-2 block font-semibold text-[#147d91]">{mockCompletionReport({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:candidateTurnCount,visitedStages:mockVisited})?.status}. Actual practice: {(seconds/60).toFixed(1)} of {mockDuration} minutes; {mockVisited.length} academic stages reached.</span> : null}</CardDescription></CardHeader>
           <CardContent className="flex flex-wrap gap-2"><Button asChild><Link href="/reasoning-replay">Open reasoning replay</Link></Button><Button variant="outline" onClick={reset}><RefreshCw />New interview</Button></CardContent>
         </Card>
+        <LivePersonalityHistory course={course}/>
         <InterviewNextSteps/>
         {feedbackReport?<InterviewEvidenceReview report={feedbackReport}/>:null}
       </div>
@@ -1168,7 +1177,7 @@ export default function GeminiLiveNextPage() {
     <header className="sticky top-0 z-50 border-b bg-white">
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 px-4 py-3">
         <Badge className="bg-emerald-700">Live</Badge>
-        <strong className="mr-auto">{course} · {statusLabel}</strong>
+        <strong className="mr-auto">{course} · {livePersonalities[personaKey].label} · {statusLabel}</strong>
         <Badge variant="outline">{formatTime(seconds)}</Badge>
         {mockStatus ? <Badge variant="outline">{mockStatus.stage.label} · {mockStatus.remainingSeconds===0?"time reached":formatTime(mockStatus.remainingSeconds)+" left"}</Badge> : null}
         <Button size="sm" variant="outline" onClick={toggleMute}>{muted ? <MicOff /> : <Mic />}{muted ? "Unmute" : "Mute"}</Button>
