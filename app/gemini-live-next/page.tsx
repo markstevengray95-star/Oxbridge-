@@ -1,5 +1,7 @@
 "use client"
 
+import { LiveReliabilityReview } from "@/components/live-reliability-review"
+import { newLiveReliabilityStats, markLiveResponsePending, markLiveResponseArrived, liveReliabilityReport, validLivePcmRate, safeLiveSocketMessage, shouldRecoverLiveSession } from "@/lib/gemini/live-reliability"
 import { buildAdvancedVoiceReview } from "@/lib/gemini/advanced-voice-review"
 import { AdvancedVoiceInterviewReview } from "@/components/advanced-voice-interview-review"
 import { LivePracticePreferences } from "@/components/live-practice-preferences"
@@ -273,6 +275,7 @@ export default function GeminiLiveNextPage() {
   const setupReadyRef = useRef(false)
   const bargeInRef = useRef(true)
   const droppedAudioWarningRef = useRef(false)
+  const reliabilityRef = useRef(newLiveReliabilityStats())
   const lastMockAnswerCountRef = useRef(0)
 
   useEffect(()=>{const requested=mockInterviewFormat(Number(new URLSearchParams(window.location.search).get("mock")));if(requested)setMockDuration(requested.minutes)},[])
@@ -387,7 +390,7 @@ export default function GeminiLiveNextPage() {
     if (typeof window !== "undefined") window.speechSynthesis?.cancel()
   }
 
-  async function playGeminiAudio(base64: string) {
+  async function playGeminiAudio(base64: string, mimeType?:string) {
     if ((panelMode && typeof window !== "undefined" && window.speechSynthesis && typeof SpeechSynthesisUtterance !== "undefined") || localInterruptionRef.current) return
     const context = outputCtxRef.current
     const generation = generationRef.current
@@ -396,9 +399,11 @@ export default function GeminiLiveNextPage() {
     if (context.state === "suspended") await context.resume()
     if (generation !== generationRef.current || epoch !== playbackEpochRef.current) return
 
+    const rate=validLivePcmRate(mimeType)
+    if(rate===null || base64.length>2_000_000){reliabilityRef.current.audioErrors++;return}
     const samples = base64ToPcm(base64)
     if (!samples.length) return
-    const buffer = context.createBuffer(1, samples.length, 24000)
+    const buffer = context.createBuffer(1, samples.length, rate)
     buffer.copyToChannel(samples, 0)
     if (generation !== generationRef.current || epoch !== playbackEpochRef.current || localInterruptionRef.current) return
     const source = context.createBufferSource()
@@ -449,6 +454,7 @@ export default function GeminiLiveNextPage() {
     processor.onaudioprocess = event => {
       if (wsRef.current !== ws || endingRef.current) return
       if (!canSendLiveAudio(ws.readyState, ws.bufferedAmount, mutedRef.current)) {
+        if(ws.readyState === WebSocket.OPEN && !mutedRef.current && ws.bufferedAmount>=524288) reliabilityRef.current.droppedFrames++
         if (ws.readyState === WebSocket.OPEN && ws.bufferedAmount >= 524288 && !droppedAudioWarningRef.current) {
           droppedAudioWarningRef.current = true
           setNotice("Your connection is struggling to send audio. Please check your connection; the interviewer may miss part of your response.")
@@ -470,6 +476,7 @@ export default function GeminiLiveNextPage() {
       })
       speechStateRef.current = activity.state
       if (activity.interrupt) {
+        reliabilityRef.current.interruptions++
         localInterruptionRef.current = modelTurnActiveRef.current
         if (localInterruptionRef.current && outputTextRef.current.trim()) {
           addTurn("interviewer", outputTextRef.current.trim())
@@ -564,7 +571,9 @@ export default function GeminiLiveNextPage() {
 
   function failConnection(message: string) {
     preserveUnfinishedTranscript()
-    const canResume = turnsRef.current.some(turn => turn.role === "candidate" || turn.role === "interviewer")
+    const canResume = shouldRecoverLiveSession(turnsRef.current)
+    reliabilityRef.current.disconnects++
+    reliabilityRef.current.pendingResponseAt=null
     teardown(false)
     setPhase(canResume ? "reconnect" : "lobby")
     setStatus("error")
@@ -580,7 +589,9 @@ export default function GeminiLiveNextPage() {
 
     if (message.setupComplete) {
       if (setupTimerRef.current) clearTimeout(setupTimerRef.current)
+      if(setupReadyRef.current)return
       setupReadyRef.current = true
+      reliabilityRef.current.connections++
       setStatus("connected")
       setPhase("live")
       startedAtRef.current = startedAtRef.current ?? Date.now()
@@ -620,6 +631,7 @@ export default function GeminiLiveNextPage() {
 
     const input = content.inputTranscription?.text
     if (input) {
+      markLiveResponsePending(reliabilityRef.current,performance.now())
       inputTextRef.current = mergeLiveTranscription(inputTextRef.current, input)
       setCandidateLive(inputTextRef.current)
       setStatus("speaking")
@@ -635,7 +647,10 @@ export default function GeminiLiveNextPage() {
       }
       return
     }
-    if (content.outputTranscription?.text || content.modelTurn) modelTurnActiveRef.current = true
+    if (content.outputTranscription?.text || content.modelTurn) {
+      markLiveResponseArrived(reliabilityRef.current,performance.now())
+      modelTurnActiveRef.current = true
+    }
     if (inputTextRef.current && (content.outputTranscription?.text || content.modelTurn || content.turnComplete)) {
       const candidateId = addTurn("candidate", inputTextRef.current)
       lastCandidateIdRef.current = candidateId
@@ -657,7 +672,7 @@ export default function GeminiLiveNextPage() {
       const audio = part.inlineData?.data
       if (audio) {
         setStatus("interviewer")
-        void playGeminiAudio(audio)
+        void playGeminiAudio(audio,part.inlineData?.mimeType).catch(()=>{reliabilityRef.current.audioErrors++;setNotice("An audio fragment could not play. The transcript remains available.")})
       }
     }
 
@@ -731,6 +746,7 @@ export default function GeminiLiveNextPage() {
     inputTextRef.current = ""
     outputTextRef.current = ""
     if (!restore) {
+      reliabilityRef.current=newLiveReliabilityStats()
       startedAtRef.current = null
       setConnectedAt(null)
     }
@@ -843,7 +859,10 @@ export default function GeminiLiveNextPage() {
             : event.data instanceof Blob
               ? await event.data.text()
               : new TextDecoder().decode(event.data)
-          if (wsRef.current === ws) handleGeminiMessage(JSON.parse(raw) as GeminiMessage, ws)
+          if (wsRef.current !== ws) return
+          const decoded=safeLiveSocketMessage(raw)
+          if(!decoded){reliabilityRef.current.audioErrors++;return}
+          handleGeminiMessage(decoded as GeminiMessage, ws)
         }).catch(() => {
           if (wsRef.current === ws) failConnection("Could not read the Gemini audio stream. Please restart the interview.")
         })
@@ -1060,6 +1079,7 @@ export default function GeminiLiveNextPage() {
           replayId: replay.id,
           durationSeconds: duration,
           feedbackReport,
+          reliabilityReport:liveReliabilityReport(reliabilityRef.current),
           advancedVoiceReview: buildAdvancedVoiceReview(course,turnsRef.current,feedbackReport),
           mockSession,
         }, ...logs].slice(0, 50),
@@ -1214,6 +1234,7 @@ export default function GeminiLiveNextPage() {
         </Card>
         <LivePersonalityHistory course={course}/>
         <LiveEngagementReview report={buildLiveEngagementReport(turns, mode)}/>
+        <LiveReliabilityReview report={liveReliabilityReport(reliabilityRef.current)}/>
         <LiveAcademicFollowUpReview report={buildLiveFollowUpReview(turns)}/>
         <InterviewNextSteps/>
         {feedbackReport?<><AdvancedVoiceInterviewReview review={buildAdvancedVoiceReview(course,turns,feedbackReport)}/><InterviewEvidenceReview report={feedbackReport}/></>:null}
