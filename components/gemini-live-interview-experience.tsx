@@ -141,6 +141,7 @@ export function GeminiLiveInterviewExperience() {
   const locallyInterruptedRef = useRef(false)
   const modelTurnActiveRef = useRef(false)
   const noiseFloorRef = useRef(0.015)
+  const lastSpeechActivityRef = useRef(0)
   const playbackEpochRef = useRef(0)
   const streamingBacklogWarnedRef = useRef(false)
 
@@ -235,6 +236,7 @@ export function GeminiLiveInterviewExperience() {
       const channel = event.inputBuffer.getChannelData(0)
       const audible = playbackSourcesRef.current.size > 0
       const rms = liveAudioRms(channel)
+      if (rms >= Math.max(0.05, noiseFloorRef.current * 3 + 0.025)) lastSpeechActivityRef.current = performance.now()
       noiseFloorRef.current = updateLiveNoiseFloor(noiseFloorRef.current, rms, audible)
       const activity = detectVoiceBargeIn(speechStateRef.current, {
         rms,
@@ -266,7 +268,7 @@ export function GeminiLiveInterviewExperience() {
 
   function discussVisualWorking(summary: string) {
     const socket = socketRef.current
-    if (!socket || !canDiscussVisualWorking({connected:socket.readyState===WebSocket.OPEN && setupCompleteRef.current && captureStartedRef.current,activeModel:modelTurnActiveRef.current || playbackSourcesRef.current.size>0,pendingSpeech:Boolean(candidateDraftRef.current.trim()),ending:intentionalCloseRef.current})) return false
+    if (!socket || !canDiscussVisualWorking({connected:socket.readyState===WebSocket.OPEN && setupCompleteRef.current && captureStartedRef.current,activeModel:modelTurnActiveRef.current || playbackSourcesRef.current.size>0,pendingSpeech:Boolean(candidateDraftRef.current.trim()) || (lastSpeechActivityRef.current>0 && performance.now()-lastSpeechActivityRef.current<2000),ending:intentionalCloseRef.current})) return false
     try {
       socket.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:liveVisualWorkingPrompt(summary)}]}],turnComplete:true}}))
       modelTurnActiveRef.current=true
@@ -332,6 +334,7 @@ export function GeminiLiveInterviewExperience() {
     locallyInterruptedRef.current = false
     modelTurnActiveRef.current = false
     noiseFloorRef.current = 0.015
+    lastSpeechActivityRef.current = 0
     speechStateRef.current = newVoiceBargeInState()
     streamingBacklogWarnedRef.current = false
     mutedRef.current = false
