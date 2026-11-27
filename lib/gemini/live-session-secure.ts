@@ -1,3 +1,4 @@
+import { liveAcademicFollowUpInstructions } from "@/lib/gemini/live-academic-followups"
 import { liveAdaptiveSupportInstructions } from "@/lib/gemini/live-adaptive-support"
 import { resolveLivePersonality, livePersonalityInstructions } from "@/lib/gemini/live-interview-personalities"
 import { liveConversationInstructions } from "@/lib/gemini/live-conversation-control"
@@ -5,7 +6,7 @@ import { interviewVoices, resolveInterviewVoice, interviewVoiceInstructions, typ
 import { NextResponse } from "next/server"
 import { getGeminiApiKeyCandidates, hasGeminiApiKey } from "@/lib/gemini/api-key"
 import { STUDENT_AI_SAFETY_POLICY } from "@/lib/ai/student-safety"
-import { subjectPathwayBrief, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
+import { subjectInterviewPathway, subjectPathwayBrief, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
 import { mockInterviewFormat, mockStageInstruction } from "@/lib/full-mock-interview"
 
 type GeminiVoice = InterviewVoice
@@ -72,6 +73,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
     ...liveConversationInstructions,
     ...livePersonalityInstructions(persona, mode),
     ...liveAdaptiveSupportInstructions(mode),
+    ...liveAcademicFollowUpInstructions(subjectInterviewPathway(course, track)),
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
     "Sound like a real university academic in a tutorial or admissions interview: calm, curious, understated, precise, and conversational; never like a customer-service assistant, motivational coach, quiz host, or announcer.",
     "Allow the candidate time to think aloud. Never answer on their behalf or treat a brief hesitation as a completed answer. If interrupted, stop and address what they say before continuing.",
