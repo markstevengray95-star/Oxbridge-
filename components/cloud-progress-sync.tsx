@@ -164,7 +164,8 @@ export function CloudProgressSync() {
 
         const events = Array.isArray(log.events) ? log.events.filter((item): item is string => typeof item === "string") : []
         const sourceRef = typeof log.id === "string" && log.id ? log.id : `gemini-import-${logIndex}-${title}-${String(log.date ?? "")}`
-        const course = title.includes("·") ? title.split("·").slice(1).join("·").trim() || "General" : "General"
+        const explicitCourse = (log as {interviewCourse?:unknown}).interviewCourse
+        const course = typeof explicitCourse==="string" && explicitCourse.trim() ? explicitCourse.trim().slice(0,120) : title.includes("·") ? title.split("·")[1]?.trim() || "General" : "General"
         const mock = asRecord((log as ProgressLog & { mockSession?: unknown }).mockSession)
         const elapsed = Number(mock?.elapsedSeconds)
         const explicitDuration = Number((log as ProgressLog & {durationSeconds?:unknown}).durationSeconds)
