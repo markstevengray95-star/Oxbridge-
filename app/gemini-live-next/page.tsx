@@ -1,5 +1,7 @@
 "use client"
 
+import { buildLiveFollowUpReview } from "@/lib/gemini/live-academic-followups"
+import { LiveAcademicFollowUpReview } from "@/components/live-academic-followup-review"
 import { buildLiveEngagementReport, permittedLiveSupport } from "@/lib/gemini/live-adaptive-support"
 import { LiveEngagementReview } from "@/components/live-engagement-review"
 import { livePersonalities, livePersonalityKeys, type LivePersonality } from "@/lib/gemini/live-interview-personalities"
@@ -1012,6 +1014,7 @@ export default function GeminiLiveNextPage() {
           interviewPersonality: personaKey,
           interviewMode: mode,
           engagementReport: buildLiveEngagementReport(turnsRef.current, mode),
+          followUpReview: buildLiveFollowUpReview(turnsRef.current),
           interviewAnswerCount: turnsRef.current.filter(turn => turn.role === "candidate").length,
           score: 0,
           date: new Date().toISOString(),
@@ -1171,6 +1174,7 @@ export default function GeminiLiveNextPage() {
         </Card>
         <LivePersonalityHistory course={course}/>
         <LiveEngagementReview report={buildLiveEngagementReport(turns, mode)}/>
+        <LiveAcademicFollowUpReview report={buildLiveFollowUpReview(turns)}/>
         <InterviewNextSteps/>
         {feedbackReport?<InterviewEvidenceReview report={feedbackReport}/>:null}
       </div>
