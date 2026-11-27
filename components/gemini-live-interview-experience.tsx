@@ -1,5 +1,7 @@
 "use client"
 
+import { LiveInterviewWhiteboard } from "@/components/live-interview-whiteboard"
+import { canDiscussVisualWorking, liveVisualWorkingPrompt } from "@/lib/gemini/live-visual-working"
 import { isAcademicStageResponse, panelTurn } from "@/lib/gemini/live-interview-atmosphere"
 import { mockDurations, mockInterviewStage, mockCompletionReport, type MockDuration, type MockStageId } from "@/lib/full-mock-interview"
 import { buildLiveFollowUpReview } from "@/lib/gemini/live-academic-followups"
@@ -260,6 +262,16 @@ export function GeminiLiveInterviewExperience() {
     captureProcessorRef.current = processor
     captureStartedRef.current = true
     setStatus("Listening · Gemini Live")
+  }
+
+  function discussVisualWorking(summary: string) {
+    const socket = socketRef.current
+    if (!socket || !canDiscussVisualWorking({connected:socket.readyState===WebSocket.OPEN && setupCompleteRef.current && captureStartedRef.current,activeModel:modelTurnActiveRef.current || playbackSourcesRef.current.size>0,pendingSpeech:Boolean(candidateDraftRef.current.trim()),ending:intentionalCloseRef.current})) return false
+    try {
+      socket.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:liveVisualWorkingPrompt(summary)}]}],turnComplete:true}}))
+      modelTurnActiveRef.current=true
+      return true
+    } catch { return false }
   }
 
   function commitDrafts() {
@@ -575,6 +587,7 @@ export function GeminiLiveInterviewExperience() {
       <div className="mx-auto max-w-6xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3"><Button asChild variant="ghost"><Link href="/interviews"><ArrowLeft />Interview Hub</Link></Button><div className="flex items-center gap-2"><Badge className="border-0 bg-[#102a43] text-white"><Sparkles className="mr-1 size-3.5" />Gemini Live</Badge><Badge variant="outline"><Clock3 className="mr-1 size-3.5" />{formatTime(seconds)}</Badge>{mockStatus&&<Badge variant="outline">{mockStatus.stage.label} · {formatTime(mockStatus.remainingSeconds)} left</Badge>}</div></div>
         <Card className="overflow-hidden border-[#cfe1e4] shadow-sm"><CardHeader className="bg-[#102a43] text-white"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#8dd7de]">Live academic interview</p><CardTitle className="mt-1 font-serif text-3xl text-white">{course}</CardTitle><CardDescription className="text-white/65">{personaName} · {mode}{panel ? " · two-interviewer panel" : ""}</CardDescription></div><div className="flex items-center gap-2"><span className={`size-2.5 rounded-full ${phase === "live" ? "bg-emerald-400" : "animate-pulse bg-amber-300"}`} /><span className="text-sm text-white/80">{status}</span></div></div></CardHeader><CardContent className="p-5 sm:p-7"><div className="grid gap-5 lg:grid-cols-[1fr_280px]"><div className="min-h-[420px] space-y-3 rounded-2xl bg-slate-50 p-4 sm:p-5">{turns.map((turn, index) => <div key={`${turn.role}-${index}`} className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-6 ${turn.role === "interviewer" ? "bg-[#102a43] text-white" : "ml-auto bg-white ring-1 ring-slate-200"}`}><p className="mb-1 text-[10px] font-bold uppercase tracking-wider opacity-60">{turn.role === "interviewer" ? "Interviewer "+(panelTurn(turn.text).role??"") : "You"}</p>{turn.role==="interviewer"?panelTurn(turn.text).text:turn.text}</div>)}{candidateDraft && <div className="ml-auto max-w-[90%] rounded-2xl bg-white px-4 py-3 text-sm leading-6 ring-1 ring-[#8dd7de]"><p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#147d91]">You · live transcript</p>{candidateDraft}</div>}{interviewerDraft && <div className="max-w-[90%] rounded-2xl bg-[#102a43] px-4 py-3 text-sm leading-6 text-white"><p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#8dd7de]">Interviewer · speaking</p>{interviewerDraft}</div>}{phase === "connecting" && <div className="grid min-h-[300px] place-items-center text-center"><div><Loader2 className="mx-auto size-8 animate-spin text-[#147d91]" /><p className="mt-3 font-semibold">Preparing secure Gemini Live session</p><p className="mt-1 text-sm text-slate-500">Your long-lived Gemini key stays on the server.</p></div></div>}</div><aside className="space-y-3"><div className="rounded-2xl border bg-white p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Voice controls</p><Button className="mt-3 w-full" variant={muted ? "default" : "outline"} onClick={toggleMute} disabled={phase !== "live"}>{muted ? <Mic /> : <MicOff />}{muted ? "Unmute microphone" : "Mute microphone"}</Button><Button className="mt-2 w-full" variant="destructive" onClick={finishInterview} disabled={phase !== "live"}>End interview</Button></div><div className="rounded-2xl border bg-white p-4 text-sm leading-6 text-slate-600"><div className="flex items-center gap-2 font-semibold text-slate-900"><Headphones className="size-4" />Natural conversation</div><p className="mt-2">Speak normally. Gemini uses voice activity detection, can hear your reasoning as you think aloud, and can be interrupted naturally.</p></div><div className="rounded-2xl border bg-white p-4 text-sm leading-6 text-slate-600"><div className="flex items-center gap-2 font-semibold text-slate-900"><ShieldCheck className="size-4" />Secure session</div><p className="mt-2">The browser receives only a short-lived Live token. The permanent Gemini credential is never sent to the browser.</p></div></aside></div>{notice && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{notice}</p>}</CardContent></Card>
+        {phase==="live" && <LiveInterviewWhiteboard course={course} onDiscuss={discussVisualWorking}/>}
       </div>
     </main>
   }
