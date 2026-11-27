@@ -1,3 +1,4 @@
+import { resolveLivePersonality, livePersonalityInstructions } from "@/lib/gemini/live-interview-personalities"
 import { liveConversationInstructions } from "@/lib/gemini/live-conversation-control"
 import { interviewVoices, resolveInterviewVoice, interviewVoiceInstructions, type InterviewVoice } from "@/lib/gemini/interview-voice-profiles"
 import { GoogleGenAI } from "@google/genai"
@@ -111,6 +112,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
     `Course: ${course}. Subject family: ${track}. Interviewer style: ${persona}. Session mode: ${mode}.`,
     ...interviewVoiceInstructions(voice),
     ...liveConversationInstructions,
+    ...livePersonalityInstructions(persona, mode),
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
     "Sound like a real university academic in a tutorial or admissions interview: calm, curious, understated, precise, and conversational; never like a customer-service assistant, motivational coach, quiz host, or announcer.",
     "Allow the candidate time to think aloud. Never answer on their behalf or treat a brief hesitation as a completed answer. If interrupted, stop and address what they say before continuing.",
@@ -228,7 +230,7 @@ export async function createLiveSession(request: Request) {
 
   const course = safeText(body.course, "the selected course")
   const track = safeText(body.track, "the selected subject family", 80)
-  const persona = safeText(body.persona, "Socratic academic", 80)
+  const persona = resolveLivePersonality(body.persona)
   const mode = safeText(body.mode, "Realistic", 40)
   const voice = resolveInterviewVoice(body.voice)
   const model = normalizeLiveModelName(process.env.GEMINI_LIVE_MODEL)
