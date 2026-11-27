@@ -46,8 +46,8 @@ export function resolveLivePersonality(value: unknown): LivePersonality {
   if (typeof value !== "string") return "Socratic"
   const key = value.trim().toLowerCase()
   if (key === "supportive" || key === "supportive academic" || key === "supportive tutor") return "Supportive"
-  if (["sceptical", "skeptical", "technical", "evidence-led", "challenging academic", "sceptical interviewer", "technical interviewer", "evidence-led interviewer"].includes(key)) return "Sceptical"
-  if (["terse", "minimal", "terse interviewer", "minimal interviewer", "pressure interview"].includes(key)) return "Terse"
+  if (["sceptical", "skeptical", "technical", "evidence-led", "challenging academic", "sceptical interviewer", "technical interviewer", "evidence-led interviewer", "evidence-focused interviewer"].includes(key)) return "Sceptical"
+  if (["terse", "minimal", "terse interviewer", "minimal interviewer", "minimal-prompt interviewer", "pressure interview"].includes(key)) return "Terse"
   return "Socratic"
 }
 
@@ -63,7 +63,7 @@ export function livePersonalityInstructions(value: unknown, mode: string): strin
 }
 
 export function personalityPracticeHistory(logs: unknown, course: string) {
-  const counts = livePersonalityKeys.map(key => ({ key, count: 0, answers: 0 }))
+  const counts = livePersonalityKeys.map(key => ({ key, count: 0, answers: 0, observedAnswers: 0, reasoned: 0, tested: 0 }))
   if (!Array.isArray(logs)) return counts
   for (const log of logs) {
     if (!log || typeof log !== "object" || log.interviewCourse !== course || log.interviewSource !== "live-voice" || !livePersonalityKeys.includes(log.interviewPersonality)) continue
@@ -71,6 +71,12 @@ export function personalityPracticeHistory(logs: unknown, course: string) {
     if (!row) continue
     row.count += 1
     if (Number.isInteger(log.interviewAnswerCount) && log.interviewAnswerCount >= 0) row.answers += log.interviewAnswerCount
+    const evidence = log.feedbackReport?.snapshot
+    if (evidence && Number.isInteger(evidence.answerCount) && evidence.answerCount > 0 && [evidence.reasonedCount, evidence.testedCount].every((n: number) => Number.isInteger(n) && n >= 0 && n <= evidence.answerCount)) {
+      row.observedAnswers += evidence.answerCount
+      row.reasoned += evidence.reasonedCount
+      row.tested += evidence.testedCount
+    }
   }
   return counts
 }
