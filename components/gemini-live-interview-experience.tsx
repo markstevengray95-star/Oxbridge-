@@ -1,5 +1,7 @@
 "use client"
 
+import { buildAdvancedVoiceReview } from "@/lib/gemini/advanced-voice-review"
+import { AdvancedVoiceInterviewReview } from "@/components/advanced-voice-interview-review"
 import { LivePracticePreferences } from "@/components/live-practice-preferences"
 import { defaultLivePracticeSettings, normaliseLivePracticeSettings, livePracticeOpening, type LivePracticeSettings } from "@/lib/gemini/live-personalised-practice"
 import { LiveInterviewWhiteboard } from "@/components/live-interview-whiteboard"
@@ -12,7 +14,7 @@ import { buildLiveEngagementReport, permittedLiveSupport } from "@/lib/gemini/li
 import { LiveEngagementReview } from "@/components/live-engagement-review"
 import { livePersonalities, livePersonalityKeys, type LivePersonality } from "@/lib/gemini/live-interview-personalities"
 import { LivePersonalityHistory } from "@/components/live-personality-history"
-import { buildEvidenceLinkedFeedback } from "@/lib/interview-feedback-intelligence"
+import { buildEvidenceLinkedFeedback, extractInsightSnapshots, type EvidenceLinkedFeedback } from "@/lib/interview-feedback-intelligence"
 import { interviewVoices, interviewVoiceProfiles } from "@/lib/gemini/interview-voice-profiles"
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
@@ -125,6 +127,8 @@ export function GeminiLiveInterviewExperience() {
   const [interviewerDraft, setInterviewerDraft] = useState("")
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [feedbackProvider, setFeedbackProvider] = useState("")
+  const [voiceFeedbackReport,setVoiceFeedbackReport]=useState<EvidenceLinkedFeedback|null>(null)
+  const reviewGenerationRef=useRef(0)
 
   const socketRef = useRef<WebSocket | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -485,6 +489,10 @@ export function GeminiLiveInterviewExperience() {
     if (socketRef.current?.readyState === WebSocket.OPEN) socketRef.current.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
     commitDrafts()
     const finalTurns = [...turnsRef.current]
+    const reviewGeneration=++reviewGenerationRef.current
+    const createdAt=new Date().toISOString(), sessionId="gemini-live-"+Date.now()
+    const reviewInput={sessionId,course,source:"voice" as const,turns:finalTurns,createdAt}
+    setVoiceFeedbackReport(buildEvidenceLinkedFeedback(reviewInput))
     cleanupLiveSession()
     setTurns(finalTurns)
     setPhase("review")
@@ -497,29 +505,17 @@ export function GeminiLiveInterviewExperience() {
       else exchanges.push({ question: currentQuestion, answer: turn.text })
     }
 
-    try {
-      if (exchanges.length) {
-        const response = await fetch("/api/interview-feedback", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ course, sessionTitle: "Gemini Live interview", exchanges }),
-        })
-        if (response.ok) {
-          const payload = await response.json() as { analysis?: Feedback; provider?: string }
-          setFeedback(payload.analysis || null)
-          setFeedbackProvider(payload.provider || "")
-        }
-      }
-    } catch {}
 
     try {
       const saved = JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}") as Record<string, unknown> & { logs?: Array<Record<string, unknown>>; sessions?: number }
       const logs = Array.isArray(saved.logs) ? saved.logs : []
+      const feedbackReport=buildEvidenceLinkedFeedback({...reviewInput,previous:extractInsightSnapshots(logs.filter(log=>log.interviewMode===mode && (log.practiceSettings as {difficulty?:number}|undefined)?.difficulty===activePracticeSettings.difficulty))})
+      setVoiceFeedbackReport(feedbackReport)
       localStorage.setItem(PROGRESS_KEY, JSON.stringify({
         ...saved,
         sessions: Number(saved.sessions || 0) + 1,
         logs: [{
-          id: `gemini-live-${Date.now()}`,
+          id: sessionId,
           title: `Gemini Live Interview · ${course} · ${personaName}`,
           interviewCourse: course,
           practiceSettings: activePracticeSettings,
@@ -529,8 +525,9 @@ export function GeminiLiveInterviewExperience() {
           engagementReport: buildLiveEngagementReport(finalTurns, mode),
           followUpReview: buildLiveFollowUpReview(finalTurns),
           interviewAnswerCount: finalTurns.filter(turn => turn.role === "candidate").length,
-          feedbackReport: buildEvidenceLinkedFeedback({sessionId: `gemini-live-${Date.now()}`, course, source: "voice", turns: finalTurns, createdAt: new Date().toISOString()}),
-          date: new Date().toISOString(),
+          feedbackReport,
+          advancedVoiceReview:buildAdvancedVoiceReview(course,finalTurns,feedbackReport),
+          date: createdAt,
           durationSeconds: seconds,
           mockSession: mockDuration ? mockCompletionReport({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:academicResponseCount,visitedStages:mockVisited,endedBy:"student"}):null,
           provider: "gemini-live",
@@ -539,9 +536,29 @@ export function GeminiLiveInterviewExperience() {
         }, ...logs].slice(0, 50),
       }))
     } catch {}
+
+    try {
+      if (exchanges.length) {
+        const response = await fetch("/api/interview-feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(30000),
+          body: JSON.stringify({ course, sessionTitle: "Gemini Live interview", exchanges }),
+        })
+        if (response.ok) {
+          const payload = await response.json() as { analysis?: Feedback; provider?: string }
+          if(reviewGeneration!==reviewGenerationRef.current)return
+          setFeedback(payload.analysis || null)
+          setFeedbackProvider(payload.provider || "")
+        }
+      }
+    } catch {}
+
   }
 
   function reset() {
+    reviewGenerationRef.current++
+    setVoiceFeedbackReport(null)
     intentionalCloseRef.current = true
     cleanupLiveSession()
     setPhase("lobby")
@@ -583,6 +600,7 @@ export function GeminiLiveInterviewExperience() {
         <LivePersonalityHistory course={course}/>
         <LiveEngagementReview report={buildLiveEngagementReport(turns, mode)}/>
         <LiveAcademicFollowUpReview report={buildLiveFollowUpReview(turns)}/>
+        {voiceFeedbackReport&&<AdvancedVoiceInterviewReview review={buildAdvancedVoiceReview(course,turns,voiceFeedbackReport)}/>}
         {feedback && <Card><CardHeader><CardTitle>Reasoning analysis</CardTitle><CardDescription>{feedbackProvider === "gemini" ? "Gemini-reviewed practice analysis" : "Built-in practice analysis"} · not an official admissions score</CardDescription></CardHeader><CardContent className="space-y-4"><p className="text-sm leading-7 text-slate-700">{feedback.overallSummary}</p><div className="grid gap-4 md:grid-cols-2"><div className="rounded-2xl bg-emerald-50 p-4"><p className="font-semibold text-emerald-950">Recurring strengths</p>{(feedback.recurringStrengths || []).map(item => <p key={item} className="mt-2 text-sm text-emerald-900">• {item}</p>)}</div><div className="rounded-2xl bg-amber-50 p-4"><p className="font-semibold text-amber-950">Priority improvements</p>{(feedback.recurringWeaknesses || []).map(item => <p key={item} className="mt-2 text-sm text-amber-900">• {item}</p>)}</div></div>{feedback.priorityTarget && <div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Next priority</p><p className="mt-1 font-semibold">{feedback.priorityTarget}</p></div>}</CardContent></Card>}
         {feedback?.reasoningFirst && <Card><CardHeader><CardTitle>Reasoning-first practice assessment</CardTitle><CardDescription>Provisional transcript-based evidence; this score is not an admissions prediction or a verified subject-specialist judgement. Assessment confidence: {feedback.reasoningFirst.confidence}.</CardDescription></CardHeader><CardContent className="space-y-4"><p className="font-serif text-3xl font-bold">{feedback.reasoningFirst.total}/100</p><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{feedback.reasoningFirst.dimensions.map(item=><div key={item.key} className="rounded-xl border p-3"><p className="text-sm font-semibold">{item.label}</p><p className="mt-1 font-bold">{item.observed?`${item.score}/${item.max}`:"Not assessed"}</p></div>)}</div><p className="text-xs text-slate-600">Explicitly signalled hints are shown in the conversation review; unsignalled support may be missed, so independence cannot be verified.</p>{feedback.reasoningFirst.observations.slice(-3).map(item=><blockquote key={`${item.turn}-${item.kind}`} className="rounded-xl bg-slate-50 p-3 text-sm"><p className="font-semibold">{item.kind} · turn {item.turn}</p><p>“{item.quote}”</p></blockquote>)}{feedback.reasoningFirst.missingEvidence.map(item=><p key={item} className="text-sm text-amber-800">{item}</p>)}</CardContent></Card>}
         <Card><CardHeader><CardTitle>Interview transcript</CardTitle><CardDescription>The spoken input/output transcription from your Gemini Live session.</CardDescription></CardHeader><CardContent className="space-y-3">{turns.length ? turns.map((turn, index) => <div key={`${turn.role}-${index}`} className={`rounded-2xl p-4 ${turn.role === "interviewer" ? "bg-[#102a43] text-white" : "ml-auto max-w-4xl bg-white ring-1 ring-slate-200"}`}><p className="mb-1 text-xs font-bold uppercase tracking-wider opacity-65">{turn.role === "interviewer" ? "Interviewer" : "Candidate"}</p><p className="text-sm leading-7">{turn.text}</p></div>) : <p className="text-sm text-slate-500">No transcript was returned for this session.</p>}</CardContent></Card>

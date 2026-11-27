@@ -80,7 +80,8 @@ export function HistoryCloudMirror() {
           if (!turns.length) continue
           const title = String(log.title || "Saved interview")
           const sourceRef = typeof log.id === "string" && log.id ? log.id : `history-${index}-${title}-${String(log.date ?? "")}`
-          const course = title.includes("·") ? title.split("·").slice(1).join("·").trim() || "General" : "General"
+          const explicitCourse = (log as {interviewCourse?:unknown}).interviewCourse
+        const course = typeof explicitCourse==="string" && explicitCourse.trim() ? explicitCourse.trim().slice(0,120) : title.includes("·") ? title.split("·")[1]?.trim() || "General" : "General"
           const mock = record(log.mockSession)
           const feedback = { source: "history_cloud_mirror", title, score: typeof log.score === "number" ? log.score : null, dimensions: record(log.dimensions), feedbackReport: record(log.feedbackReport), mockSession: mock }
           const savedDuration = Math.max(0, Math.min(7200, optionalInteger(log.durationSeconds) ?? optionalInteger(mock.elapsedSeconds) ?? duration(events)))
@@ -91,7 +92,7 @@ export function HistoryCloudMirror() {
             const updated = await supabase.from("interview_sessions").update({ course, duration_seconds: savedDuration, summary: title, overall_feedback: feedback, updated_at: new Date().toISOString() }).eq("id", sessionId).eq("user_id", userId)
             if (updated.error) throw updated.error
           } else {
-            const created = await supabase.from("interview_sessions").insert({ user_id: userId, course, duration_seconds: duration(events), summary: title, overall_feedback: feedback, source_ref: sourceRef, created_at: dateValue(log.date) }).select("id").single()
+            const created = await supabase.from("interview_sessions").insert({ user_id: userId, course, duration_seconds: savedDuration, summary: title, overall_feedback: feedback, source_ref: sourceRef, created_at: dateValue(log.date) }).select("id").single()
             if (created.error) throw created.error
             sessionId = created.data?.id as string | undefined
           }

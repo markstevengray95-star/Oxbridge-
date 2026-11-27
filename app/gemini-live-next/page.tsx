@@ -1,5 +1,7 @@
 "use client"
 
+import { buildAdvancedVoiceReview } from "@/lib/gemini/advanced-voice-review"
+import { AdvancedVoiceInterviewReview } from "@/components/advanced-voice-interview-review"
 import { LivePracticePreferences } from "@/components/live-practice-preferences"
 import { defaultLivePracticeSettings, normaliseLivePracticeSettings, livePracticeOpening, type LivePracticeSettings } from "@/lib/gemini/live-personalised-practice"
 import { LiveInterviewWhiteboard } from "@/components/live-interview-whiteboard"
@@ -1002,6 +1004,8 @@ export default function GeminiLiveNextPage() {
       ? Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000))
       : seconds
     const replay = buildReasoningReplay(course, turnsRef.current, duration)
+    const reviewInput={sessionId:replay.id,course,source:"voice" as const,turns:turnsRef.current.map(turn=>({role:turn.role,text:turn.text,feedback:turn.feedback})),createdAt:new Date().toISOString()}
+    setFeedbackReport(buildEvidenceLinkedFeedback(reviewInput))
     const mockSession = mockDuration ? mockCompletionReport({minutes:mockDuration,elapsedSeconds:duration,candidateAnswers:turnsRef.current.filter(turn=>turn.role==="candidate").length,visitedStages:mockVisited,endedBy:"student"}) : null
 
     try {
@@ -1023,7 +1027,7 @@ export default function GeminiLiveNextPage() {
 
       const progress = JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}") as Record<string, unknown>
       const logs = Array.isArray(progress.logs) ? progress.logs as Array<Record<string, unknown>> : []
-      const feedbackReport=buildEvidenceLinkedFeedback({sessionId:replay.id,course,source:"voice",turns:turnsRef.current.map(turn=>({role:turn.role,text:turn.text,feedback:turn.feedback})),createdAt:new Date().toISOString(),previous:extractInsightSnapshots(logs)})
+      const feedbackReport=buildEvidenceLinkedFeedback({...reviewInput,previous:extractInsightSnapshots(logs.filter(log=>log.interviewMode===mode && (log.practiceSettings as {difficulty?:number}|undefined)?.difficulty===activePracticeSettings.difficulty))})
       setFeedbackReport(feedbackReport)
       const events = turnsRef.current
         .filter(turn => turn.role !== "system")
@@ -1056,6 +1060,7 @@ export default function GeminiLiveNextPage() {
           replayId: replay.id,
           durationSeconds: duration,
           feedbackReport,
+          advancedVoiceReview: buildAdvancedVoiceReview(course,turnsRef.current,feedbackReport),
           mockSession,
         }, ...logs].slice(0, 50),
       }))
@@ -1211,7 +1216,7 @@ export default function GeminiLiveNextPage() {
         <LiveEngagementReview report={buildLiveEngagementReport(turns, mode)}/>
         <LiveAcademicFollowUpReview report={buildLiveFollowUpReview(turns)}/>
         <InterviewNextSteps/>
-        {feedbackReport?<InterviewEvidenceReview report={feedbackReport}/>:null}
+        {feedbackReport?<><AdvancedVoiceInterviewReview review={buildAdvancedVoiceReview(course,turns,feedbackReport)}/><InterviewEvidenceReview report={feedbackReport}/></>:null}
       </div>
     </main>
   }
