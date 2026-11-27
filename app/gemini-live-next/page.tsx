@@ -245,6 +245,7 @@ export default function GeminiLiveNextPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const cameraStreamRef = useRef<MediaStream | null>(null)
   const startedAtRef = useRef<number | null>(null)
+  const elapsedBeforeReconnectRef=useRef(0)
   const playbackEpochRef = useRef(0)
   const generationRef = useRef(0)
   const setupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -594,7 +595,7 @@ export default function GeminiLiveNextPage() {
       reliabilityRef.current.connections++
       setStatus("connected")
       setPhase("live")
-      startedAtRef.current = startedAtRef.current ?? Date.now()
+      startedAtRef.current = Date.now()-elapsedBeforeReconnectRef.current*1000
       setConnectedAt(startedAtRef.current)
       addTurn("system", resumeRef.current
         ? "A new secure voice connection was established and the previous academic discussion was restored."
@@ -728,7 +729,7 @@ export default function GeminiLiveNextPage() {
       return
     }
 
-    const restore = resume && turnsRef.current.some(turn => turn.role === "candidate" || turn.role === "interviewer")
+    const restore = resume && shouldRecoverLiveSession(turnsRef.current)
     teardown(false)
     const generation = generationRef.current
     resumeRef.current = restore
@@ -747,6 +748,7 @@ export default function GeminiLiveNextPage() {
     outputTextRef.current = ""
     if (!restore) {
       reliabilityRef.current=newLiveReliabilityStats()
+      elapsedBeforeReconnectRef.current=0
       startedAtRef.current = null
       setConnectedAt(null)
     }
@@ -1021,7 +1023,7 @@ export default function GeminiLiveNextPage() {
     savedRef.current = true
     const duration = startedAtRef.current
       ? Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000))
-      : seconds
+      : elapsedBeforeReconnectRef.current
     const replay = buildReasoningReplay(course, turnsRef.current, duration)
     const reviewInput={sessionId:replay.id,course,source:"voice" as const,turns:turnsRef.current.map(turn=>({role:turn.role,text:turn.text,feedback:turn.feedback})),createdAt:new Date().toISOString()}
     setFeedbackReport(buildEvidenceLinkedFeedback(reviewInput))
@@ -1092,7 +1094,9 @@ export default function GeminiLiveNextPage() {
   }
 
   function teardown(save: boolean) {
+    if(startedAtRef.current!==null){elapsedBeforeReconnectRef.current=Math.max(0,Math.round((Date.now()-startedAtRef.current)/1000));startedAtRef.current=null}
     if (save) saveProgress()
+    if(save)setSeconds(elapsedBeforeReconnectRef.current)
     generationRef.current += 1
     if (setupTimerRef.current) clearTimeout(setupTimerRef.current)
     if (finishTimerRef.current) clearTimeout(finishTimerRef.current)
