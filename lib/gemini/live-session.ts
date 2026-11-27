@@ -1,3 +1,4 @@
+import { liveConversationInstructions } from "@/lib/gemini/live-conversation-control"
 import { interviewVoices, resolveInterviewVoice, interviewVoiceInstructions, type InterviewVoice } from "@/lib/gemini/interview-voice-profiles"
 import { GoogleGenAI } from "@google/genai"
 import { NextResponse } from "next/server"
@@ -109,6 +110,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     `Course: ${course}. Subject family: ${track}. Interviewer style: ${persona}. Session mode: ${mode}.`,
     ...interviewVoiceInstructions(voice),
+    ...liveConversationInstructions,
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
     "Sound like a real university academic in a tutorial or admissions interview: calm, curious, understated, precise, and conversational; never like a customer-service assistant, motivational coach, quiz host, or announcer.",
     "Allow the candidate time to think aloud. Never answer on their behalf or treat a brief hesitation as a completed answer. If interrupted, stop and address what they say before continuing.",

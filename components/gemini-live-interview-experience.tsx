@@ -17,6 +17,8 @@ import type { ReasoningFirstAssessment } from "@/lib/interview-process-assessmen
 import {
   canSendLiveAudio,
   detectVoiceBargeIn,
+  interruptedLiveTurn,
+  updateLiveNoiseFloor,
   liveAudioRms,
   liveSocketErrorMessage,
   liveSpeechDetection,
@@ -34,6 +36,7 @@ type ServerMessage = {
   setupComplete?: Record<string, unknown>
   serverContent?: {
     modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string }; text?: string }> }
+    interimInputTranscription?: { text?: string }
     inputTranscription?: { text?: string }
     outputTranscription?: { text?: string }
     turnComplete?: boolean
@@ -121,6 +124,8 @@ export function GeminiLiveInterviewExperience() {
   const startedAtRef = useRef<number | null>(null)
   const speechStateRef = useRef(newVoiceBargeInState())
   const locallyInterruptedRef = useRef(false)
+  const modelTurnActiveRef = useRef(false)
+  const noiseFloorRef = useRef(0.015)
   const playbackEpochRef = useRef(0)
   const streamingBacklogWarnedRef = useRef(false)
 
@@ -205,15 +210,25 @@ export function GeminiLiveInterviewExperience() {
       }
       streamingBacklogWarnedRef.current = false
       const channel = event.inputBuffer.getChannelData(0)
+      const audible = playbackSourcesRef.current.size > 0
+      const rms = liveAudioRms(channel)
+      noiseFloorRef.current = updateLiveNoiseFloor(noiseFloorRef.current, rms, audible)
       const activity = detectVoiceBargeIn(speechStateRef.current, {
-        rms: liveAudioRms(channel),
+        rms,
+        noiseFloor: noiseFloorRef.current,
         nowMs: performance.now(),
-        modelAudible: playbackSourcesRef.current.size > 0,
+        modelAudible: audible,
         enabled: true,
       })
       speechStateRef.current = activity.state
       if (activity.interrupt) {
-        locallyInterruptedRef.current = true
+        locallyInterruptedRef.current = modelTurnActiveRef.current
+        if (locallyInterruptedRef.current && interviewerDraftRef.current.trim()) {
+          turnsRef.current = [...turnsRef.current, { role: "interviewer", text: interviewerDraftRef.current.trim() }]
+          setTurns(turnsRef.current)
+          interviewerDraftRef.current = ""
+          setInterviewerDraft("")
+        }
         stopPlayback()
         setStatus("Listening to your interruption…")
       }
@@ -281,6 +296,8 @@ export function GeminiLiveInterviewExperience() {
     interviewerDraftRef.current = ""
     intentionalCloseRef.current = false
     locallyInterruptedRef.current = false
+    modelTurnActiveRef.current = false
+    noiseFloorRef.current = 0.015
     speechStateRef.current = newVoiceBargeInState()
     streamingBacklogWarnedRef.current = false
     mutedRef.current = false
@@ -355,11 +372,31 @@ export function GeminiLiveInterviewExperience() {
           stopPlayback()
         }
 
+        const interim = content.interimInputTranscription?.text?.trim()
+        if (interim) {
+          setCandidateDraft(interim)
+          setStatus("Listening · Gemini Live")
+        }
         const inputText = content.inputTranscription?.text || ""
         if (inputText) {
           candidateDraftRef.current = mergeLiveTranscription(candidateDraftRef.current, inputText)
-          locallyInterruptedRef.current = false
           setCandidateDraft(candidateDraftRef.current)
+          setStatus("Listening · Gemini Live")
+        }
+        const interruption = interruptedLiveTurn(locallyInterruptedRef.current, content)
+        locallyInterruptedRef.current = interruption.suppressing
+        if (interruption.discardOutput) {
+          if (content.turnComplete) {
+            modelTurnActiveRef.current = false
+            if (!captureStartedRef.current && streamRef.current) await startAudioCapture(streamRef.current)
+            else setStatus(mutedRef.current ? "Microphone muted" : "Listening · Gemini Live")
+          }
+          return
+        }
+        if ((content.outputTranscription?.text || content.modelTurn) && !modelTurnActiveRef.current) {
+          // Commit the previous candidate answer before any new interviewer audio.
+          if (candidateDraftRef.current.trim()) commitDrafts()
+          modelTurnActiveRef.current = true
         }
         const outputText = content.outputTranscription?.text || (content.modelTurn?.parts || []).map(part => part.text || "").join(" ")
         if (outputText) {
@@ -368,10 +405,11 @@ export function GeminiLiveInterviewExperience() {
           setStatus("Interviewer speaking…")
         }
         for (const part of content.modelTurn?.parts || []) {
-          if (part.inlineData?.data) await playAudio(part.inlineData.data, part.inlineData.mimeType)
+          if (part.inlineData?.data) void playAudio(part.inlineData.data, part.inlineData.mimeType)
         }
         if (content.turnComplete) {
           commitDrafts()
+          modelTurnActiveRef.current = false
           locallyInterruptedRef.current = false
           if (!captureStartedRef.current && streamRef.current) await startAudioCapture(streamRef.current)
           else setStatus(mutedRef.current ? "Microphone muted" : "Listening · Gemini Live")

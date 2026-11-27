@@ -38,6 +38,8 @@ import {
   buildLiveResumePrompt,
   canSendLiveAudio,
   detectVoiceBargeIn,
+  interruptedLiveTurn,
+  updateLiveNoiseFloor,
   liveAudioRms,
   liveSocketErrorMessage,
   liveSpeechDetection,
@@ -251,6 +253,8 @@ export default function GeminiLiveNextPage() {
   const lastCandidateIdRef = useRef<string | null>(null)
   const speechStateRef = useRef(newVoiceBargeInState())
   const localInterruptionRef = useRef(false)
+  const modelTurnActiveRef = useRef(false)
+  const noiseFloorRef = useRef(0.015)
   const resumeRef = useRef(false)
   const setupReadyRef = useRef(false)
   const bargeInRef = useRef(true)
@@ -439,15 +443,23 @@ export default function GeminiLiveNextPage() {
       droppedAudioWarningRef.current = false
       const channel = event.inputBuffer.getChannelData(0)
       const audible = outputSourcesRef.current.size > 0 || (panelMode && Boolean(window.speechSynthesis?.speaking))
+      const rms = liveAudioRms(channel)
+      noiseFloorRef.current = updateLiveNoiseFloor(noiseFloorRef.current, rms, audible)
       const activity = detectVoiceBargeIn(speechStateRef.current, {
-        rms: liveAudioRms(channel),
+        rms,
+        noiseFloor: noiseFloorRef.current,
         nowMs: performance.now(),
         modelAudible: audible,
         enabled: bargeInRef.current && !openingRef.current,
       })
       speechStateRef.current = activity.state
       if (activity.interrupt) {
-        localInterruptionRef.current = true
+        localInterruptionRef.current = modelTurnActiveRef.current
+        if (localInterruptionRef.current && outputTextRef.current.trim()) {
+          addTurn("interviewer", outputTextRef.current.trim())
+          outputTextRef.current = ""
+          setInterviewerLive("")
+        }
         stopOutput()
         setStatus("speaking")
       }
@@ -563,7 +575,7 @@ export default function GeminiLiveNextPage() {
     if (!content) return
 
     if (content.interrupted) {
-      // Keep the words actually spoken before the candidate interrupted.
+      // Preserve available generated transcript; not a verified record of audible playback.
       if (outputTextRef.current.trim()) addTurn("interviewer", outputTextRef.current.trim())
       stopOutput()
       localInterruptionRef.current = true
@@ -584,12 +596,22 @@ export default function GeminiLiveNextPage() {
       setStatus("speaking")
     }
 
+    const interruption = interruptedLiveTurn(localInterruptionRef.current, content)
+    localInterruptionRef.current = interruption.suppressing
+    if (interruption.discardOutput) {
+      if (content.turnComplete) {
+        modelTurnActiveRef.current = false
+        openingRef.current = false
+        setStatus(mutedRef.current ? "connected" : "speaking")
+      }
+      return
+    }
+    if (content.outputTranscription?.text || content.modelTurn) modelTurnActiveRef.current = true
     if (inputTextRef.current && (content.outputTranscription?.text || content.modelTurn || content.turnComplete)) {
       const candidateId = addTurn("candidate", inputTextRef.current)
       lastCandidateIdRef.current = candidateId
       setConfidenceTarget(candidateId)
       inputTextRef.current = ""
-      localInterruptionRef.current = false
       speechStateRef.current = newVoiceBargeInState()
       setCandidateLive("")
     }
@@ -611,6 +633,7 @@ export default function GeminiLiveNextPage() {
     }
 
     if (!content.turnComplete) return
+    modelTurnActiveRef.current = false
     localInterruptionRef.current = false
 
     const finalOutput = outputTextRef.current.replace(/\s+/g, " ").trim()
@@ -657,6 +680,8 @@ export default function GeminiLiveNextPage() {
     resumeRef.current = restore
     setupReadyRef.current = false
     localInterruptionRef.current = false
+    modelTurnActiveRef.current = false
+    noiseFloorRef.current = 0.015
     speechStateRef.current = newVoiceBargeInState()
     bargeInRef.current = allowBargeIn
     droppedAudioWarningRef.current = false
