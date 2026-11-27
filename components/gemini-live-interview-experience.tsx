@@ -144,6 +144,7 @@ export function GeminiLiveInterviewExperience() {
   const intentionalCloseRef = useRef(false)
   const mutedRef = useRef(false)
   const startedAtRef = useRef<number | null>(null)
+  const elapsedBeforeReconnectRef=useRef(0)
   const speechStateRef = useRef(newVoiceBargeInState())
   const locallyInterruptedRef = useRef(false)
   const modelTurnActiveRef = useRef(false)
@@ -309,6 +310,7 @@ export function GeminiLiveInterviewExperience() {
   }
 
   function cleanupLiveSession() {
+    if(startedAtRef.current!==null){elapsedBeforeReconnectRef.current=Math.max(0,Math.round((Date.now()-startedAtRef.current)/1000));startedAtRef.current=null}
     generationRef.current++
     if(setupTimerRef.current)clearTimeout(setupTimerRef.current)
     setupTimerRef.current=null
@@ -343,6 +345,7 @@ export function GeminiLiveInterviewExperience() {
     commitDrafts()
     if(!shouldRecoverLiveSession(turnsRef.current)){switchToFallback(reason);return}
     cleanupLiveSession()
+    setSeconds(elapsedBeforeReconnectRef.current)
     setPhase("reconnect")
     setStatus("Connection interrupted")
     setNotice(reason+" Your transcript is preserved. Resume or save this interview.")
@@ -357,7 +360,7 @@ export function GeminiLiveInterviewExperience() {
     setStatus("Requesting secure Live session…")
     setNotice("")
     setFeedback(null)
-    if(!restore){setTurns([]);turnsRef.current=[];setMockStageIndex(0);setMockVisited(mockDuration?["opening"]:[]);lastAcademicResponseRef.current=0;setSeconds(0);startedAtRef.current=null;reliabilityRef.current=newLiveReliabilityStats()}
+    if(!restore){setTurns([]);turnsRef.current=[];setMockStageIndex(0);setMockVisited(mockDuration?["opening"]:[]);lastAcademicResponseRef.current=0;setSeconds(0);startedAtRef.current=null;elapsedBeforeReconnectRef.current=0;reliabilityRef.current=newLiveReliabilityStats()}
     candidateDraftRef.current = ""
     interviewerDraftRef.current = ""
     intentionalCloseRef.current = false
@@ -429,7 +432,7 @@ export function GeminiLiveInterviewExperience() {
           setupTimerRef.current=null
           setupCompleteRef.current = true
           reliabilityRef.current.connections++
-          startedAtRef.current = restore?Date.now()-seconds*1000:Date.now()
+          startedAtRef.current = Date.now()-elapsedBeforeReconnectRef.current*1000
           setPhase("live")
           setStatus("Interviewer opening…")
           socket.send(JSON.stringify({
@@ -535,6 +538,8 @@ export function GeminiLiveInterviewExperience() {
     const reviewInput={sessionId,course,source:"voice" as const,turns:finalTurns,createdAt}
     setVoiceFeedbackReport(buildEvidenceLinkedFeedback(reviewInput))
     cleanupLiveSession()
+    const finalDuration=elapsedBeforeReconnectRef.current
+    setSeconds(finalDuration)
     setTurns(finalTurns)
     setPhase("review")
     setStatus("Interview complete")
@@ -570,8 +575,8 @@ export function GeminiLiveInterviewExperience() {
           reliabilityReport:liveReliabilityReport(reliabilityRef.current),
           advancedVoiceReview:buildAdvancedVoiceReview(course,finalTurns,feedbackReport),
           date: createdAt,
-          durationSeconds: seconds,
-          mockSession: mockDuration ? mockCompletionReport({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:academicResponseCount,visitedStages:mockVisited,endedBy:"student"}):null,
+          durationSeconds: finalDuration,
+          mockSession: mockDuration ? mockCompletionReport({minutes:mockDuration,elapsedSeconds:finalDuration,candidateAnswers:finalTurns.filter(turn=>turn.role==="candidate"&&isAcademicStageResponse(turn.text)).length,visitedStages:mockVisited,endedBy:"student"}):null,
           provider: "gemini-live",
           transcript: finalTurns,
           events: finalTurns.map(turn => `${turn.role === "candidate" ? "Candidate" : "Interviewer"}: ${turn.text}`),
