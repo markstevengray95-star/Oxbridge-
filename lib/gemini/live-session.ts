@@ -1,3 +1,4 @@
+import { livePersonalisedPracticeInstructions } from "@/lib/gemini/live-personalised-practice"
 import { liveVisualInstructions } from "@/lib/gemini/live-visual-working"
 import { liveInterviewAtmosphereInstructions } from "@/lib/gemini/live-interview-atmosphere"
 import { subjectInterviewPathway } from "@/lib/subject-interview-pathways"
@@ -16,6 +17,7 @@ type SessionRequest = {
   persona?: string
   mode?: string
   voice?: GeminiVoice
+  practiceSettings?: unknown
 }
 
 type GoogleTokenResponse = {
@@ -111,7 +113,7 @@ function subjectInstructions(course: string, track: string) {
   return ["Choose academically demanding questions that are answerable through reasoning from accessible foundations, then adapt the difficulty to the candidate's response."]
 }
 
-function interviewInstructions(course: string, track: string, persona: string, mode: string, voice: GeminiVoice) {
+function interviewInstructions(course: string, track: string, persona: string, mode: string, voice: GeminiVoice, practiceSettings?: unknown) {
   return [
     "You are conducting a realistic Oxford/Cambridge-style academic practice interview for a secondary-school applicant.",
     `Course: ${course}. Subject family: ${track}. Interviewer style: ${persona}. Session mode: ${mode}.`,
@@ -120,6 +122,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
     ...livePersonalityInstructions(persona, mode),
     ...liveAdaptiveSupportInstructions(mode),
     ...liveVisualInstructions,
+    ...livePersonalisedPracticeInstructions(practiceSettings, subjectInterviewPathway(course, track)),
     ...liveAcademicFollowUpInstructions(subjectInterviewPathway(course, track)),
     ...liveInterviewAtmosphereInstructions(false, false),
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
@@ -250,7 +253,7 @@ export async function createLiveSession(request: Request) {
       token,
       model,
       voice,
-      instructions: interviewInstructions(course, track, persona, mode, voice),
+      instructions: interviewInstructions(course, track, persona, mode, voice, body.practiceSettings),
       expiresInSeconds: 1800,
       revision: GEMINI_LIVE_REVISION,
       tokenRequestShape: requestShape,

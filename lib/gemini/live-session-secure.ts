@@ -1,3 +1,4 @@
+import { livePersonalisedPracticeInstructions, normaliseLivePracticeSettings, livePracticeOpening } from "@/lib/gemini/live-personalised-practice"
 import { liveVisualInstructions } from "@/lib/gemini/live-visual-working"
 import { liveInterviewAtmosphereInstructions } from "@/lib/gemini/live-interview-atmosphere"
 import { liveAcademicFollowUpInstructions } from "@/lib/gemini/live-academic-followups"
@@ -12,7 +13,7 @@ import { subjectInterviewPathway, subjectPathwayBrief, subjectInterviewStarter }
 import { mockInterviewFormat, mockStageInstruction } from "@/lib/full-mock-interview"
 
 type GeminiVoice = InterviewVoice
-type SessionRequest = { course?: string; track?: string; persona?: string; mode?: string; voice?: GeminiVoice; material?: string; preparationNotes?: string; focus?: string; panel?: boolean; resume?: boolean; mockMinutes?: number }
+type SessionRequest = { course?: string; track?: string; persona?: string; mode?: string; voice?: GeminiVoice; material?: string; preparationNotes?: string; focus?: string; panel?: boolean; resume?: boolean; mockMinutes?: number; practiceSettings?: unknown }
 type GoogleTokenResponse = { name?: unknown; authToken?: { name?: unknown } }
 type GoogleErrorResponse = { error?: { code?: unknown; message?: unknown; status?: unknown } }
 
@@ -52,7 +53,7 @@ function subjectInstructions(course: string, track: string) {
   return ["Choose academically demanding questions that are answerable through reasoning from accessible foundations, then adapt the difficulty to the candidate's response."]
 }
 
-function interviewInstructions(course: string, track: string, persona: string, mode: string, voice: GeminiVoice, material: string, preparationNotes: string, focus: string, panel: boolean, resume: boolean, mockMinutes?: number) {
+function interviewInstructions(course: string, track: string, persona: string, mode: string, voice: GeminiVoice, material: string, preparationNotes: string, focus: string, panel: boolean, resume: boolean, mockMinutes?: number, practiceSettings?: unknown) {
   const mockFormat = mockInterviewFormat(Number(mockMinutes))
   const mockAgenda = mockFormat ? [
     mockStageInstruction({minutes:mockFormat.minutes,elapsedSeconds:0,candidateAnswers:0}),
@@ -76,6 +77,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
     ...livePersonalityInstructions(persona, mode),
     ...liveAdaptiveSupportInstructions(mode),
     ...liveVisualInstructions,
+    ...livePersonalisedPracticeInstructions(practiceSettings, subjectInterviewPathway(course, track)),
     ...liveAcademicFollowUpInstructions(subjectInterviewPathway(course, track)),
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
     "Sound like a real university academic in a tutorial or admissions interview: calm, curious, understated, precise, and conversational; never like a customer-service assistant, motivational coach, quiz host, or announcer.",
@@ -132,7 +134,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
       ? "You are resuming after a technical disconnection. Do not greet the student again, restart the original problem, or ignore the transcript recap. Continue the existing line of academic reasoning and ask one relevant question."
       : material
         ? "For the opening turn, use the student-provided unseen material and ask one grounded academic question. Do not start an unrelated problem."
-        : "For the opening turn, give a brief natural greeting and then ask this exact course-specific problem without solving it: " + subjectInterviewStarter(course, track, mode === "Stress" ? "Challenge" : "Stretch").prompt,
+        : "For the opening turn, give a brief natural greeting. " + livePracticeOpening(normaliseLivePracticeSettings(practiceSettings, subjectInterviewPathway(course, track)), subjectInterviewStarter(course, track).prompt),
     "When the candidate asks to finish, stop the question cycle and give a concise spoken debrief: one specific reasoning strength, one specific academic weakness, one example from the conversation, and one next practice action. Then clearly say that the interview is complete and ask no further question.",
     "Keep the interaction focused on academic preparation and do not collect unnecessary personal information.",
   ].join("\n")
@@ -188,7 +190,7 @@ export async function createLiveSession(request: Request) {
   const model = normalizeLiveModelName(process.env.GEMINI_LIVE_MODEL)
   try {
     const { token, credentialSource } = await createEphemeralTokenFromConfiguredKeys()
-    return NextResponse.json({ token, model, voice, instructions: interviewInstructions(course, track, persona, mode, voice, material, preparationNotes, focus, panel, resume, mockMinutes), expiresInSeconds: 1800, revision: GEMINI_LIVE_REVISION, credentialSource }, { headers: { "Cache-Control": "no-store" } })
+    return NextResponse.json({ token, model, voice, instructions: interviewInstructions(course, track, persona, mode, voice, material, preparationNotes, focus, panel, resume, mockMinutes, body.practiceSettings), expiresInSeconds: 1800, revision: GEMINI_LIVE_REVISION, credentialSource }, { headers: { "Cache-Control": "no-store" } })
   } catch (error) {
     console.error("Gemini Live session error", error)
     const message = error instanceof Error ? error.message : "Unknown server error"
