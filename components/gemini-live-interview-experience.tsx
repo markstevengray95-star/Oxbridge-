@@ -1,5 +1,7 @@
 "use client"
 
+import { LiveReliabilityReview } from "@/components/live-reliability-review"
+import { newLiveReliabilityStats, markLiveResponsePending, markLiveResponseArrived, liveReliabilityReport, validLivePcmRate, safeLiveSocketMessage, shouldRecoverLiveSession } from "@/lib/gemini/live-reliability"
 import { buildAdvancedVoiceReview } from "@/lib/gemini/advanced-voice-review"
 import { AdvancedVoiceInterviewReview } from "@/components/advanced-voice-interview-review"
 import { LivePracticePreferences } from "@/components/live-practice-preferences"
@@ -30,6 +32,7 @@ import { tracks, type TrackId } from "@/lib/oxbridge-data"
 import { subjectInterviewPathway, subjectInterviewStarter } from "@/lib/subject-interview-pathways"
 import type { ReasoningFirstAssessment } from "@/lib/interview-process-assessment"
 import {
+  buildLiveResumePrompt,
   canSendLiveAudio,
   detectVoiceBargeIn,
   interruptedLiveTurn,
@@ -42,7 +45,7 @@ import {
   type InterviewVoicePace,
 } from "@/lib/gemini/live-conversation-control"
 
-type LivePhase = "lobby" | "connecting" | "live" | "review"
+type LivePhase = "lobby" | "connecting" | "live" | "review" | "reconnect"
 type TranscriptTurn = { role: "candidate" | "interviewer"; text: string }
 type SessionPayload = { token?: string; model?: string; voice?: string; instructions?: string; revision?: string; error?: string; code?: string }
 type FeedbackAnswer = { score?: number; strengths?: string[]; improvements?: string[]; nextMove?: string; dominantTarget?: string }
@@ -96,10 +99,6 @@ function decodePcm16(base64: string) {
   return samples
 }
 
-function extractRate(mimeType?: string) {
-  const match = mimeType?.match(/rate=(\d+)/i)
-  return match ? Number(match[1]) : 24000
-}
 
 export function GeminiLiveInterviewExperience() {
   const [fallback, setFallback] = useState(false)
@@ -152,6 +151,9 @@ export function GeminiLiveInterviewExperience() {
   const lastSpeechActivityRef = useRef(0)
   const playbackEpochRef = useRef(0)
   const streamingBacklogWarnedRef = useRef(false)
+  const reliabilityRef = useRef(newLiveReliabilityStats())
+  const generationRef = useRef(0)
+  const setupTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null)
 
   const courses = tracks.find(item => item.id === track)?.courses ?? [course]
   const personaName = livePersonalities[persona].label
@@ -205,7 +207,8 @@ export function GeminiLiveInterviewExperience() {
     if (epoch !== playbackEpochRef.current || locallyInterruptedRef.current) return
     const samples = decodePcm16(base64)
     if (!samples.length) return
-    const rate = extractRate(mimeType)
+    const rate = validLivePcmRate(mimeType)
+    if(rate===null || base64.length>2_000_000){reliabilityRef.current.audioErrors++;return}
     const buffer = context.createBuffer(1, samples.length, rate)
     buffer.copyToChannel(samples, 0)
     if (epoch !== playbackEpochRef.current || locallyInterruptedRef.current) return
@@ -221,8 +224,10 @@ export function GeminiLiveInterviewExperience() {
 
   async function startAudioCapture(stream: MediaStream) {
     if (captureStartedRef.current) return
+    const generation=generationRef.current
     const context = new AudioContext()
-    await context.resume().catch(() => undefined)
+    try{await context.resume()}catch(error){await context.close().catch(()=>undefined);throw error}
+    if(generation!==generationRef.current || streamRef.current!==stream){await context.close().catch(()=>undefined);return}
     const source = context.createMediaStreamSource(stream)
     const processor = context.createScriptProcessor(2048, 1, 1)
     const silent = context.createGain()
@@ -234,6 +239,7 @@ export function GeminiLiveInterviewExperience() {
       const socket = socketRef.current
       if (!socket || !setupCompleteRef.current) return
       if (!canSendLiveAudio(socket.readyState, socket.bufferedAmount, mutedRef.current)) {
+        if(socket.readyState===WebSocket.OPEN&&!mutedRef.current&&socket.bufferedAmount>=524288)reliabilityRef.current.droppedFrames++
         if (socket.readyState === WebSocket.OPEN && socket.bufferedAmount >= 524288 && !streamingBacklogWarnedRef.current) {
           streamingBacklogWarnedRef.current = true
           setNotice("Audio delivery is delayed by the connection. Some words may not reach the interviewer.")
@@ -255,6 +261,7 @@ export function GeminiLiveInterviewExperience() {
       })
       speechStateRef.current = activity.state
       if (activity.interrupt) {
+        reliabilityRef.current.interruptions++
         locallyInterruptedRef.current = modelTurnActiveRef.current
         if (locallyInterruptedRef.current && interviewerDraftRef.current.trim()) {
           turnsRef.current = [...turnsRef.current, { role: "interviewer", text: interviewerDraftRef.current.trim() }]
@@ -302,6 +309,9 @@ export function GeminiLiveInterviewExperience() {
   }
 
   function cleanupLiveSession() {
+    generationRef.current++
+    if(setupTimerRef.current)clearTimeout(setupTimerRef.current)
+    setupTimerRef.current=null
     captureProcessorRef.current?.disconnect()
     captureProcessorRef.current = null
     captureContextRef.current?.close().catch(() => undefined)
@@ -326,16 +336,28 @@ export function GeminiLiveInterviewExperience() {
     setFallback(true)
   }
 
-  async function startInterview() {
+  function recoverConnection(reason:string) {
+    if(intentionalCloseRef.current)return
+    reliabilityRef.current.disconnects++
+    reliabilityRef.current.pendingResponseAt=null
+    commitDrafts()
+    if(!shouldRecoverLiveSession(turnsRef.current)){switchToFallback(reason);return}
+    cleanupLiveSession()
+    setPhase("reconnect")
+    setStatus("Connection interrupted")
+    setNotice(reason+" Your transcript is preserved. Resume or save this interview.")
+  }
+
+  async function startInterview(resume=false) {
     if (phase === "connecting") return
+    const restore=resume&&shouldRecoverLiveSession(turnsRef.current)
+    cleanupLiveSession()
+    const generation=generationRef.current
     setPhase("connecting")
     setStatus("Requesting secure Live session…")
     setNotice("")
     setFeedback(null)
-    setTurns([])
-    turnsRef.current = []
-    setMockStageIndex(0);setMockVisited(mockDuration?["opening"]:[]);lastAcademicResponseRef.current=0
-    setSeconds(0)
+    if(!restore){setTurns([]);turnsRef.current=[];setMockStageIndex(0);setMockVisited(mockDuration?["opening"]:[]);lastAcademicResponseRef.current=0;setSeconds(0);startedAtRef.current=null;reliabilityRef.current=newLiveReliabilityStats()}
     candidateDraftRef.current = ""
     interviewerDraftRef.current = ""
     intentionalCloseRef.current = false
@@ -351,22 +373,28 @@ export function GeminiLiveInterviewExperience() {
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("This browser does not provide microphone capture.")
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false })
+      if(generation!==generationRef.current){stream.getTracks().forEach(track=>track.stop());return}
       streamRef.current = stream
+      for(const track of stream.getAudioTracks())track.addEventListener("ended",()=>{if(generation===generationRef.current)recoverConnection("Microphone disconnected.")},{once:true})
 
       const response = await fetch("/api/realtime-session", {
         method: "POST",
         signal: AbortSignal.timeout(30000),
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ course, track, persona, mode, voice, panel, mockMinutes:mockDuration||undefined, practiceSettings:activePracticeSettings }),
+        body: JSON.stringify({ course, track, persona, mode, voice, panel, mockMinutes:mockDuration||undefined, practiceSettings:activePracticeSettings, resume:restore }),
       })
       const session = await response.json() as SessionPayload
+      if(generation!==generationRef.current)return
       if (!response.ok || !session.token || !session.model || !session.instructions) throw new Error(session.error || "Gemini Live could not start.")
 
       setStatus("Connecting to Gemini Live…")
       const socket = new WebSocket(`${LIVE_ENDPOINT}?access_token=${encodeURIComponent(session.token)}`)
       socketRef.current = socket
+      socket.binaryType="arraybuffer"
+      setupTimerRef.current=setTimeout(()=>{if(socketRef.current===socket&&!setupCompleteRef.current)recoverConnection("Voice connection setup timed out.")},20000)
 
       socket.onopen = () => {
+        if(socketRef.current!==socket)return
         socket.send(JSON.stringify({
           setup: {
             model: `models/${session.model}`,
@@ -385,25 +413,35 @@ export function GeminiLiveInterviewExperience() {
         }))
       }
 
-      socket.onmessage = async event => {
+      let messageQueue=Promise.resolve()
+      socket.onmessage = event => {
+        messageQueue=messageQueue.then(async()=>{
         if (socketRef.current !== socket) return
-        let message: ServerMessage
-        try { message = JSON.parse(String(event.data)) as ServerMessage } catch { return }
+        const raw=typeof event.data==="string"?event.data:event.data instanceof Blob?await event.data.text():new TextDecoder().decode(event.data)
+        if(socketRef.current!==socket)return
+        const decoded=safeLiveSocketMessage(raw)
+        if(!decoded){reliabilityRef.current.audioErrors++;return}
+        const message=decoded as ServerMessage
 
         if (message.setupComplete) {
+          if(setupCompleteRef.current)return
+          if(setupTimerRef.current)clearTimeout(setupTimerRef.current)
+          setupTimerRef.current=null
           setupCompleteRef.current = true
-          startedAtRef.current = Date.now()
+          reliabilityRef.current.connections++
+          startedAtRef.current = restore?Date.now()-seconds*1000:Date.now()
           setPhase("live")
           setStatus("Interviewer opening…")
           socket.send(JSON.stringify({
             clientContent: {
-              turns: [{ role: "user", parts: [{ text: "Begin the practice interview now. Give a brief natural greeting. " + livePracticeOpening(activePracticeSettings,subjectInterviewStarter(course,track).prompt) }] }],
+              turns: [{ role: "user", parts: [{ text: restore?buildLiveResumePrompt(course,turnsRef.current)+(mockStatus?"\nContinue the committed academic stage: "+mockStatus.stage.label:""):"Begin the practice interview now. Give a brief natural greeting. " + livePracticeOpening(activePracticeSettings,subjectInterviewStarter(course,track).prompt) }] }],
               turnComplete: true,
             },
           }))
           return
         }
 
+        if(message.goAway)setNotice("The voice service may reconnect soon. Your transcript will be preserved.")
         const content = message.serverContent
         if (!content) return
         if (content.interrupted) {
@@ -424,6 +462,7 @@ export function GeminiLiveInterviewExperience() {
         }
         const inputText = content.inputTranscription?.text || ""
         if (inputText) {
+          markLiveResponsePending(reliabilityRef.current,performance.now())
           candidateDraftRef.current = mergeLiveTranscription(candidateDraftRef.current, inputText)
           setCandidateDraft(candidateDraftRef.current)
           setStatus("Listening · Gemini Live")
@@ -438,6 +477,7 @@ export function GeminiLiveInterviewExperience() {
           }
           return
         }
+        if(content.outputTranscription?.text||content.modelTurn)markLiveResponseArrived(reliabilityRef.current,performance.now())
         if ((content.outputTranscription?.text || content.modelTurn) && !modelTurnActiveRef.current) {
           // Commit the previous candidate answer before any new interviewer audio.
           if (candidateDraftRef.current.trim()) commitDrafts()
@@ -450,7 +490,7 @@ export function GeminiLiveInterviewExperience() {
           setStatus("Interviewer speaking…")
         }
         for (const part of content.modelTurn?.parts || []) {
-          if (part.inlineData?.data) void playAudio(part.inlineData.data, part.inlineData.mimeType)
+          if (part.inlineData?.data) void playAudio(part.inlineData.data, part.inlineData.mimeType).catch(()=>{reliabilityRef.current.audioErrors++;setNotice("An audio fragment could not play; the transcript remains available.")})
         }
         if (content.turnComplete) {
           commitDrafts()
@@ -459,17 +499,18 @@ export function GeminiLiveInterviewExperience() {
           if (!captureStartedRef.current && streamRef.current) await startAudioCapture(streamRef.current)
           else setStatus(mutedRef.current ? "Microphone muted" : "Listening · Gemini Live")
         }
+        }).catch(()=>{if(socketRef.current===socket)recoverConnection("Could not process the voice stream.")})
       }
 
       socket.onerror = () => {
-        if (!intentionalCloseRef.current) switchToFallback("Gemini Live could not maintain a voice connection, so Fellow switched to the compatible interview mode automatically.")
+        if(socketRef.current===socket)recoverConnection("Gemini Live connection interrupted.")
       }
       socket.onclose = event => {
-        if (!intentionalCloseRef.current) switchToFallback(liveSocketErrorMessage(event.code, event.reason, !setupCompleteRef.current) + " Fellow switched to compatible practice.")
+        if(socketRef.current===socket)recoverConnection(liveSocketErrorMessage(event.code,event.reason,!setupCompleteRef.current))
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gemini Live could not start."
-      switchToFallback(`${message} Fellow switched to the compatible interview mode automatically.`)
+      if(generation===generationRef.current)recoverConnection(message)
     }
   }
 
@@ -484,7 +525,7 @@ export function GeminiLiveInterviewExperience() {
   }
 
   async function finishInterview() {
-    if (phase !== "live") return
+    if (phase !== "live" && phase !== "reconnect") return
     intentionalCloseRef.current = true
     if (socketRef.current?.readyState === WebSocket.OPEN) socketRef.current.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }))
     commitDrafts()
@@ -526,6 +567,7 @@ export function GeminiLiveInterviewExperience() {
           followUpReview: buildLiveFollowUpReview(finalTurns),
           interviewAnswerCount: finalTurns.filter(turn => turn.role === "candidate").length,
           feedbackReport,
+          reliabilityReport:liveReliabilityReport(reliabilityRef.current),
           advancedVoiceReview:buildAdvancedVoiceReview(course,finalTurns,feedbackReport),
           date: createdAt,
           durationSeconds: seconds,
@@ -599,6 +641,7 @@ export function GeminiLiveInterviewExperience() {
         <Card className="border-[#cfe1e4]"><CardHeader><Badge className="w-fit border-0 bg-emerald-100 text-emerald-800"><CheckCircle2 className="mr-1 size-3.5" />Gemini Live complete</Badge><CardTitle className="font-serif text-3xl">Live interview review</CardTitle><CardDescription>{course} · {personaName} · {formatTime(seconds)} · transcript saved to your interview history{mockDuration && <span className="mt-1 block">{mockCompletionReport({minutes:mockDuration,elapsedSeconds:seconds,candidateAnswers:academicResponseCount,visitedStages:mockVisited})?.status}</span>}</CardDescription></CardHeader></Card>
         <LivePersonalityHistory course={course}/>
         <LiveEngagementReview report={buildLiveEngagementReport(turns, mode)}/>
+        <LiveReliabilityReview report={liveReliabilityReport(reliabilityRef.current)}/>
         <LiveAcademicFollowUpReview report={buildLiveFollowUpReview(turns)}/>
         {voiceFeedbackReport&&<AdvancedVoiceInterviewReview review={buildAdvancedVoiceReview(course,turns,voiceFeedbackReport)}/>}
         {feedback && <Card><CardHeader><CardTitle>Reasoning analysis</CardTitle><CardDescription>{feedbackProvider === "gemini" ? "Gemini-reviewed practice analysis" : "Built-in practice analysis"} · not an official admissions score</CardDescription></CardHeader><CardContent className="space-y-4"><p className="text-sm leading-7 text-slate-700">{feedback.overallSummary}</p><div className="grid gap-4 md:grid-cols-2"><div className="rounded-2xl bg-emerald-50 p-4"><p className="font-semibold text-emerald-950">Recurring strengths</p>{(feedback.recurringStrengths || []).map(item => <p key={item} className="mt-2 text-sm text-emerald-900">• {item}</p>)}</div><div className="rounded-2xl bg-amber-50 p-4"><p className="font-semibold text-amber-950">Priority improvements</p>{(feedback.recurringWeaknesses || []).map(item => <p key={item} className="mt-2 text-sm text-amber-900">• {item}</p>)}</div></div>{feedback.priorityTarget && <div className="rounded-2xl border p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Next priority</p><p className="mt-1 font-semibold">{feedback.priorityTarget}</p></div>}</CardContent></Card>}
@@ -608,6 +651,7 @@ export function GeminiLiveInterviewExperience() {
     </main>
   }
 
+  if(phase==="reconnect")return <main className="min-h-screen bg-slate-50 p-6"><Card className="mx-auto max-w-2xl"><CardHeader><CardTitle>Resume your interview</CardTitle><CardDescription>{notice}</CardDescription></CardHeader><CardContent className="space-y-3"><p className="text-sm">{turns.length} recorded transcript turns · {formatTime(seconds)} elapsed</p><Button onClick={()=>void startInterview(true)}>Resume voice interview</Button><Button className="ml-2" variant="outline" onClick={()=>void finishInterview()}>Save and review</Button></CardContent></Card></main>
   if (phase === "live" || phase === "connecting") {
     return <main className="min-h-screen bg-[#eef3f4] text-[#172b3a]">
       <div className="mx-auto max-w-6xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
@@ -623,7 +667,7 @@ export function GeminiLiveInterviewExperience() {
       <div className="mb-7 flex flex-wrap items-center justify-between gap-3"><Button asChild variant="ghost"><Link href="/interviews"><ArrowLeft />Interview Hub</Link></Button><Badge className="border-0 bg-[#102a43] text-white"><Volume2 className="mr-1 size-3.5" />Gemini Live voice</Badge></div>
       <section className="grid overflow-hidden rounded-[2rem] border border-[#dbe5e7] bg-white shadow-[0_28px_80px_rgba(16,42,67,.08)] lg:grid-cols-[1.08fr_.92fr]">
         <div className="p-6 sm:p-9 lg:p-12"><div className="flex items-start gap-4"><span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#102a43] text-[#8dd7de]"><Sparkles className="size-5" /></span><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#147d91]">Gemini Live interviewer</p><h1 className="mt-1 font-serif text-3xl font-bold sm:text-4xl">Have the interview as a real spoken academic conversation.</h1></div></div><p className="mt-5 max-w-3xl text-base leading-7 text-[#667984]">The primary voice mode now connects your microphone directly to Gemini Live using a short-lived secure token. It listens continuously, responds with native audio, follows your reasoning and provides a transcript for review.</p><div className="mt-7 grid gap-3 sm:grid-cols-2">{["Native two-way voice", "Live input transcription", "Spoken interviewer output", "Natural interruption / barge-in", "Automatic compatible fallback", "Saved transcript + analysis"].map(item => <div key={item} className="rounded-xl border border-[#dbe5e7] bg-[#f8fafb] px-4 py-3 text-sm font-semibold text-[#526a75]">{item}</div>)}</div><div className="mt-8 grid gap-4 sm:grid-cols-2"><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Subject family</span><NativeSelect value={track} onChange={event => chooseTrack(event.target.value as TrackId)}>{tracks.map(item => <NativeSelectOption key={item.id} value={item.id}>{item.short}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Course</span><NativeSelect value={course} onChange={event => setCourse(event.target.value)}>{courses.map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Interview mode</span><NativeSelect value={mode} onChange={event => setMode(event.target.value as InterviewMode)}>{["Realistic", "Tutor", "No-hint", "Stress"].map(item => <NativeSelectOption key={item}>{item}</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">Academic support cap: level {permittedLiveSupport(mode)}. Thinking time is always respected.</span></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Academic interviewer style</span><NativeSelect value={persona} onChange={event => setPersona(event.target.value as LivePersonality)}>{livePersonalityKeys.map(item => <NativeSelectOption key={item} value={item}>{livePersonalities[item].label}</NativeSelectOption>)}</NativeSelect><span className="mt-1 block text-xs text-slate-500">{livePersonalities[persona].level} · {livePersonalities[persona].description}</span></label><label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">AI interviewer voice</span><NativeSelect value={voice} onChange={event => setVoice(event.target.value as typeof voice)}>{VOICES.map(item => <NativeSelectOption key={item} value={item}>{interviewVoiceProfiles[item].label}</NativeSelectOption>)}</NativeSelect></label>
-        <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Thinking time</span><NativeSelect value={voicePace} onChange={event => setVoicePace(event.target.value as InterviewVoicePace)}><NativeSelectOption value="thoughtful">Thoughtful · longer pauses</NativeSelectOption><NativeSelectOption value="balanced">Natural pace</NativeSelectOption><NativeSelectOption value="quick">Quick responses</NativeSelectOption></NativeSelect></label><button type="button" onClick={() => setPanel(value => !value)} className={`rounded-xl border px-4 py-3 text-left text-sm ${panel ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><span className="font-semibold">Two academic roles</span><span className="mt-1 block text-xs text-slate-500">{panel ? "On · A/B roles, one native voice" : "Off · single interviewer"}</span></button></div><div className="mt-5 space-y-2"><label className="block text-sm font-semibold">Session length<NativeSelect value={mockDuration??"standard"} onChange={event=>setMockDuration(event.target.value==="standard"?null:Number(event.target.value) as MockDuration)}><NativeSelectOption value="standard">Flexible practice</NativeSelectOption>{mockDurations.filter(minutes=>minutes<=30).map(minutes=><NativeSelectOption key={minutes} value={String(minutes)}>{minutes}-minute mock</NativeSelectOption>)}</NativeSelect></label><p className="text-xs text-slate-600">For longer mocks or distinct panel voices, use the <Link className="underline" href="/gemini-live-next">full live interview studio</Link>.</p></div><div className="mt-5"><LivePracticePreferences course={course} track={track} settings={activePracticeSettings} onChange={setPracticeSettings}/></div><div className="mt-5"><LivePersonalityHistory course={course}/></div><div className="mt-8 flex flex-wrap gap-3"><Button size="lg" onClick={startInterview}><Mic />Start live interview</Button><Button variant="outline" size="lg" onClick={() => switchToFallback("You selected the compatible interview mode.")}><Brain />Use compatible mode</Button></div></div>
+        <label className="space-y-1.5"><span className="text-xs font-bold uppercase tracking-wider text-[#667984]">Thinking time</span><NativeSelect value={voicePace} onChange={event => setVoicePace(event.target.value as InterviewVoicePace)}><NativeSelectOption value="thoughtful">Thoughtful · longer pauses</NativeSelectOption><NativeSelectOption value="balanced">Natural pace</NativeSelectOption><NativeSelectOption value="quick">Quick responses</NativeSelectOption></NativeSelect></label><button type="button" onClick={() => setPanel(value => !value)} className={`rounded-xl border px-4 py-3 text-left text-sm ${panel ? "border-[#147d91] bg-[#edf7f8]" : "bg-white"}`}><span className="font-semibold">Two academic roles</span><span className="mt-1 block text-xs text-slate-500">{panel ? "On · A/B roles, one native voice" : "Off · single interviewer"}</span></button></div><div className="mt-5 space-y-2"><label className="block text-sm font-semibold">Session length<NativeSelect value={mockDuration??"standard"} onChange={event=>setMockDuration(event.target.value==="standard"?null:Number(event.target.value) as MockDuration)}><NativeSelectOption value="standard">Flexible practice</NativeSelectOption>{mockDurations.filter(minutes=>minutes<=30).map(minutes=><NativeSelectOption key={minutes} value={String(minutes)}>{minutes}-minute mock</NativeSelectOption>)}</NativeSelect></label><p className="text-xs text-slate-600">For longer mocks or distinct panel voices, use the <Link className="underline" href="/gemini-live-next">full live interview studio</Link>.</p></div><div className="mt-5"><LivePracticePreferences course={course} track={track} settings={activePracticeSettings} onChange={setPracticeSettings}/></div><div className="mt-5"><LivePersonalityHistory course={course}/></div><div className="mt-8 flex flex-wrap gap-3"><Button size="lg" onClick={()=>void startInterview()}><Mic />Start live interview</Button><Button variant="outline" size="lg" onClick={() => switchToFallback("You selected the compatible interview mode.")}><Brain />Use compatible mode</Button></div></div>
         <aside className="bg-[#102a43] p-6 text-white sm:p-8 lg:p-10"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#8dd7de]">How it behaves</p><h2 className="mt-2 font-serif text-2xl font-bold">Conversation first, not push-to-talk.</h2><div className="mt-6 space-y-4 text-sm leading-6 text-white/75"><p>Gemini opens with one academic question, listens to your spoken reasoning and makes the next challenge depend on what you actually said.</p><p>When your reasoning is strong it can deepen the problem; when a step is weak it should test that exact assumption rather than immediately reveal the answer.</p><p>If Live voice cannot connect, the page automatically switches to the existing Fellow interviewer so practice can continue.</p></div><div className="mt-7 rounded-xl bg-white/10 p-4 text-sm leading-6 text-white/75"><ShieldCheck className="mb-2 size-5 text-[#8dd7de]" />Microphone access is used for the live session. The app stores the resulting practice transcript in your local interview history for review.</div></aside>
       </section>
     </div>
