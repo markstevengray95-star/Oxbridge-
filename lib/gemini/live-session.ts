@@ -1,3 +1,4 @@
+import { liveVisualInstructions } from "@/lib/gemini/live-visual-working"
 import { liveInterviewAtmosphereInstructions } from "@/lib/gemini/live-interview-atmosphere"
 import { subjectInterviewPathway } from "@/lib/subject-interview-pathways"
 import { liveAcademicFollowUpInstructions } from "@/lib/gemini/live-academic-followups"
@@ -118,6 +119,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
     ...liveConversationInstructions,
     ...livePersonalityInstructions(persona, mode),
     ...liveAdaptiveSupportInstructions(mode),
+    ...liveVisualInstructions,
     ...liveAcademicFollowUpInstructions(subjectInterviewPathway(course, track)),
     ...liveInterviewAtmosphereInstructions(false, false),
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
