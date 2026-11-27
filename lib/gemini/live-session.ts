@@ -1,3 +1,4 @@
+import { liveInterviewAtmosphereInstructions } from "@/lib/gemini/live-interview-atmosphere"
 import { subjectInterviewPathway } from "@/lib/subject-interview-pathways"
 import { liveAcademicFollowUpInstructions } from "@/lib/gemini/live-academic-followups"
 import { liveAdaptiveSupportInstructions } from "@/lib/gemini/live-adaptive-support"
@@ -118,6 +119,7 @@ function interviewInstructions(course: string, track: string, persona: string, m
     ...livePersonalityInstructions(persona, mode),
     ...liveAdaptiveSupportInstructions(mode),
     ...liveAcademicFollowUpInstructions(subjectInterviewPathway(course, track)),
+    ...liveInterviewAtmosphereInstructions(false, false),
     "Respond unmistakably in clear British English unless the academic task itself genuinely requires another language.",
     "Sound like a real university academic in a tutorial or admissions interview: calm, curious, understated, precise, and conversational; never like a customer-service assistant, motivational coach, quiz host, or announcer.",
     "Allow the candidate time to think aloud. Never answer on their behalf or treat a brief hesitation as a completed answer. If interrupted, stop and address what they say before continuing.",
