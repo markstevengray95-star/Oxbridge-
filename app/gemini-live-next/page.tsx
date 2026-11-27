@@ -1,5 +1,7 @@
 "use client"
 
+import { LiveInterviewWhiteboard } from "@/components/live-interview-whiteboard"
+import { canDiscussVisualWorking, liveVisualWorkingPrompt } from "@/lib/gemini/live-visual-working"
 import { isAcademicStageResponse, panelSpeechSettings, panelTurn } from "@/lib/gemini/live-interview-atmosphere"
 import { buildLiveFollowUpReview } from "@/lib/gemini/live-academic-followups"
 import { LiveAcademicFollowUpReview } from "@/components/live-academic-followup-review"
@@ -260,6 +262,7 @@ export default function GeminiLiveNextPage() {
   const localInterruptionRef = useRef(false)
   const modelTurnActiveRef = useRef(false)
   const noiseFloorRef = useRef(0.015)
+  const lastSpeechActivityRef = useRef(0)
   const resumeRef = useRef(false)
   const setupReadyRef = useRef(false)
   const bargeInRef = useRef(true)
@@ -448,6 +451,7 @@ export default function GeminiLiveNextPage() {
       const channel = event.inputBuffer.getChannelData(0)
       const audible = outputSourcesRef.current.size > 0 || (panelMode && Boolean(window.speechSynthesis?.speaking))
       const rms = liveAudioRms(channel)
+      if (rms >= Math.max(0.05, noiseFloorRef.current * 3 + 0.025)) lastSpeechActivityRef.current = performance.now()
       noiseFloorRef.current = updateLiveNoiseFloor(noiseFloorRef.current, rms, audible)
       const activity = detectVoiceBargeIn(speechStateRef.current, {
         rms,
@@ -485,10 +489,23 @@ export default function GeminiLiveNextPage() {
     silent.connect(context.destination)
   }
 
+  function discussVisualWorking(summary: string) {
+    const ws = wsRef.current
+    if (!ws || !canDiscussVisualWorking({connected:ws.readyState===WebSocket.OPEN && setupReadyRef.current,activeModel:modelTurnActiveRef.current || openingRef.current || outputSourcesRef.current.size>0 || Boolean(panelMode && window.speechSynthesis?.speaking),pendingSpeech:Boolean(inputTextRef.current.trim()) || (lastSpeechActivityRef.current>0 && performance.now()-lastSpeechActivityRef.current<2000),ending:endingRef.current})) return false
+    try {
+      ws.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:liveVisualWorkingPrompt(summary)}]}],turnComplete:true}}))
+      modelTurnActiveRef.current=true
+      if(lastCandidateIdRef.current) patchTurn(lastCandidateIdRef.current,{workingSummary:summary.slice(0,2400)})
+      addTurn("system","Candidate shared whiteboard working: "+summary.slice(0,2400))
+      return true
+    } catch { return false }
+  }
+
   function revealEvidence() {
     const ws=wsRef.current
-    const candidateCount=turnsRef.current.filter(turn=>turn.role==="candidate").length
-    if(!evidenceChallenge||!ws||ws.readyState!==WebSocket.OPEN||endingRef.current||!canRevealNextEvidence(evidenceStage,candidateCount,evidenceLastAnswerCount))return
+    const candidateCount=turnsRef.current.filter(turn=>turn.role==="candidate" && isAcademicStageResponse(turn.text)).length
+    if(!evidenceChallenge||!ws||!canRevealNextEvidence(evidenceStage,candidateCount,evidenceLastAnswerCount))return
+    if(!canDiscussVisualWorking({connected:ws.readyState===WebSocket.OPEN && setupReadyRef.current,activeModel:modelTurnActiveRef.current || openingRef.current || outputSourcesRef.current.size>0 || Boolean(panelMode && window.speechSynthesis?.speaking),pendingSpeech:Boolean(inputTextRef.current.trim()) || (lastSpeechActivityRef.current>0 && performance.now()-lastSpeechActivityRef.current<2000),ending:endingRef.current})){setNotice("Finish your spoken answer and wait for the interviewer before revealing evidence.");return}
     const nextState=nextEvidenceStage(evidenceChallenge,evidenceStage,candidateCount,evidenceLastAnswerCount)
     if(!nextState)return
     const next=nextState.index
@@ -696,6 +713,7 @@ export default function GeminiLiveNextPage() {
     localInterruptionRef.current = false
     modelTurnActiveRef.current = false
     noiseFloorRef.current = 0.015
+    lastSpeechActivityRef.current = 0
     speechStateRef.current = newVoiceBargeInState()
     bargeInRef.current = allowBargeIn
     droppedAudioWarningRef.current = false
@@ -1221,7 +1239,8 @@ export default function GeminiLiveNextPage() {
 
       <aside className="space-y-4">
         {mockStatus && mockDuration ? <Card className="border-cyan-200 bg-cyan-50"><CardHeader><CardTitle className="text-lg">Timed mock · {mockDuration} minutes</CardTitle><CardDescription>Stage {mockStatus.index+1} of {mockStatus.format.stages.length}: {mockStatus.stage.label}. {mockStatus.scheduledTimeReached?"Scheduled time reached: finish naturally after your reasoning.":"Progression occurs after completed candidate answers."}</CardDescription></CardHeader><CardContent className="space-y-2">{mockStatus.stage.id==="second-problem"&&!secondProblemSent?<Button type="button" onClick={startSecondProblem} className="w-full">Introduce second academic problem</Button>:null}{mockDuration>=40&&seconds>=24*60?<><p className="text-xs text-slate-600">A new secure connection may be needed to finish this longer mock. Your transcript and elapsed time stay in this browser.</p><Button type="button" variant="outline" onClick={plannedVoiceReconnect} className="w-full">Reconnect voice to continue</Button></>:null}</CardContent></Card> : null}
-        {evidenceChallenge ? <InterviewEvidencePanel challenge={evidenceChallenge} stageIndex={evidenceStage} canReveal={canRevealNextEvidence(evidenceStage,candidateTurnCount,evidenceLastAnswerCount)} onReveal={revealEvidence} disabled={phase!=="live"}/> : null}
+        <LiveInterviewWhiteboard course={course} disabled={phase!=="live"} onDiscuss={discussVisualWorking}/>
+        {evidenceChallenge ? <InterviewEvidencePanel challenge={evidenceChallenge} stageIndex={evidenceStage} canReveal={canRevealNextEvidence(evidenceStage,academicResponseCount,evidenceLastAnswerCount)} onReveal={revealEvidence} disabled={phase!=="live"}/> : null}
         <Card className="shadow-none">
           <CardHeader><div className="flex items-center justify-between gap-3"><div><Camera className="size-5 text-[#147d91]" /><CardTitle className="mt-2 font-serif text-xl">Show your working</CardTitle></div><Button size="sm" variant="outline" onClick={() => void toggleCamera()}>{cameraOn ? <CameraOff /> : <Camera />}{cameraOn ? "Stop" : "Camera"}</Button></div><CardDescription>No continuous video is uploaded. A still image is captured only when you press Analyse working.</CardDescription></CardHeader>
           <CardContent className="space-y-3"><div className="aspect-video overflow-hidden rounded-xl border bg-slate-950"><video ref={videoRef} className="h-full w-full object-cover" muted playsInline /></div><Button className="w-full" onClick={() => void analyseCameraWorking()} disabled={!cameraOn || cameraAnalysing}>{cameraAnalysing ? <Loader2 className="animate-spin" /> : <ScanSearch />}{cameraAnalysing ? "Analysing…" : "Analyse working"}</Button>{workingAnalysis && <details className="rounded-xl bg-slate-50 p-3" open><summary className="cursor-pointer text-sm font-semibold">Latest working analysis</summary><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">{workingAnalysis}</p></details>}</CardContent>
