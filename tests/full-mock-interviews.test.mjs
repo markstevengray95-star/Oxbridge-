@@ -11,9 +11,9 @@ import {
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..")
 const read=p=>fs.readFileSync(path.join(root,p),"utf8")
 
-test("exactly five bounded session lengths are supported",()=>{
- assert.deepEqual(mockDurations,[5,15,25,40,60])
- for(const bad of [-1,0,1,6,18,30,61,100,NaN,Infinity])
+test("nine bounded session lengths are supported",()=>{
+ assert.deepEqual(mockDurations,[5,10,15,20,25,30,40,45,60])
+ for(const bad of [-1,0,1,6,18,31,61,100,NaN,Infinity])
   assert.equal(mockInterviewFormat(bad),null)
  for(const duration of mockDurations){
   const format=mockInterviewFormat(duration)
@@ -64,14 +64,14 @@ test("a delayed candidate cannot skip from opener to final stage in one answer",
 })
 
 test("40 and 60 minute interviews introduce separate academic problem stages",()=>{
- for(const duration of [40,60]){
+ for(const duration of [40,45,60]){
   const format=mockInterviewFormat(duration)
   assert.ok(format.stages.some(s=>s.id==="second-problem" && s.interviewer==="B"))
   const secondIndex=format.stages.findIndex(s=>s.id==="second-problem")
   const second=mockInterviewStage({minutes:duration,elapsedSeconds:Math.ceil(duration*60*.8),candidateAnswers:10,previousStageIndex:secondIndex-1})
   assert.equal(second.stage.id,"second-problem")
  }
- for(const duration of [5,15,25])
+ for(const duration of [5,10,15,20,25,30])
   assert.ok(!mockInterviewFormat(duration).stages.some(s=>s.id==="second-problem"))
 })
 
@@ -115,7 +115,7 @@ test("academic stage instructions remain reasoning-led and don't claim universit
   assert.match(instruction,/one academic question per turn/i)
   assert.match(instruction,/not.*official Oxford or Cambridge/i)
  }
- assert.equal(mockStageInstruction({minutes:10,elapsedSeconds:0,candidateAnswers:0}),"")
+ assert.equal(mockStageInstruction({minutes:11,elapsedSeconds:0,candidateAnswers:0}),"")
 })
 
 test("mock stages are bounded when supplied with invalid previous indices",()=>{
@@ -123,7 +123,7 @@ test("mock stages are bounded when supplied with invalid previous indices",()=>{
  const b=mockInterviewStage({minutes:15,elapsedSeconds:500,candidateAnswers:4,previousStageIndex:999})
  assert.ok(a.index>=0&&a.index<=4)
  assert.ok(b.index>=0&&b.index<=4)
- assert.equal(mockCompletionReport({minutes:20,elapsedSeconds:600,candidateAnswers:2}),null)
+ assert.equal(mockCompletionReport({minutes:21,elapsedSeconds:600,candidateAnswers:2}),null)
 })
 
 test("formal and reasoning interviews include timed mock selection and second problem transitions",()=>{
